@@ -42,7 +42,7 @@ Not secret. Edited in the repository; a change is published by redeploying.
 | `locations[]` | Address, phone, email, Maps link, `hours`, `services` (breakfast) | Set from the client's details |
 | `locations[].geo` | `{ "lat": ..., "lng": ... }` for local search | **Not set.** The Maps link did not carry coordinates. Do not guess them. |
 | `ordering.url` | The restaurant's Clover Online Ordering page | **Not set.** See section 4. |
-| `careers.applications.enabled` | Whether the site publishes the application form | **`false`.** See section 5. |
+| `careers.applications.enabled` | Whether the site publishes the application form | **`true`** since 2026-10-06. See section 5. |
 | `legal.privacyPolicyUrl` or `legal.privacy.sections` | The privacy policy: a link, or text for the built-in `/privacy/` page | **Not set** |
 | `hero.image`, `about.image`, `gallery[]`, `locations[].image`, `defaultDishPhotos[]` | Photos | **Placeholders** (`placeholder-*.jpg`), until real photos arrive. See section 6. |
 | `ogImage`, `careers.image` | Photos | **Not set.** See section 6. |
@@ -132,6 +132,10 @@ that column; nothing is rebuilt.
 The email needs `RESEND_API_KEY` and `EMAIL_FROM` (section 7). Without them applications are
 still received and shown in the dashboard; each is marked as not notified.
 
+**State on 2026-10-06:** all of the steps below except the email are done. The policy in
+`legal.privacy.sections` was drafted by the engineer at the client's request and awaits the
+owner's approval; the retention period is 90 days, the client's choice; the form is on.
+
 To open applications, in this order:
 
 1. Apply the migrations (`20261006000700_job_application_workflow.sql` adds the answers, the
@@ -194,8 +198,8 @@ naming the project every time.
 | `IP_HASH_SALT` | n/a | random | random, different from test |
 | `RESEND_API_KEY` | n/a | test key | production key |
 | `EMAIL_FROM` | n/a | an address on a verified domain | `Luzena Careers <careers@luzenarestaurant.com>` |
-| `JOB_APPLICATIONS_ENABLED` | n/a | `true` | unset until section 5 is complete |
-| `JOB_APPLICATION_RETENTION_DAYS` | n/a | a test value | the confirmed number |
+| `JOB_APPLICATIONS_ENABLED` | n/a | `true` | `true` since 2026-10-06 |
+| `JOB_APPLICATION_RETENTION_DAYS` | n/a | `90` | `90`: the client's decision (2026-10-06), and the number the privacy policy states |
 
 Names used elsewhere for the same things: Clover's "Client ID" is `CLOVER_APP_ID`, its
 "Client Secret" is `CLOVER_APP_SECRET`, the Clover environment is `CLOVER_ENV`, and the

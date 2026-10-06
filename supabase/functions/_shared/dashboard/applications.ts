@@ -97,6 +97,33 @@ export async function updateApplication(deps: Deps, session: Session, id: string
   });
 }
 
+// Deletes one application for good, with its CV and its history: what the privacy policy
+// promises an applicant who asks. The file goes first, as in the retention clean-up, so a
+// file that cannot be removed leaves the application in place to be tried again and never
+// a CV with nothing pointing at it.
+export async function deleteApplication(deps: Deps, session: Session, id: string): Promise<Response> {
+  const restaurant = restaurantOf(session);
+  // Both lookups are bound to this restaurant, so the delete below can only ever be given
+  // an id that is this restaurant's.
+  const existing = await deps.db.rpc<{ status: string } | null>("dash_application_get", { p_restaurant: restaurant, p_id: id });
+  if (!existing) throw notFound();
+  const cv = await deps.db.rpc<{ path: string } | null>("dash_application_cv", { p_restaurant: restaurant, p_id: id });
+  if (cv) {
+    try {
+      await deps.files.remove(CV_BUCKET, [cv.path]);
+    } catch (error) {
+      deps.log.error("application_cv_delete_failed", { application_id: id, error_message: String(error) });
+      throw new ApiError(502, "delete_failed", "The CV could not be deleted, so the application was kept. Try again.", { retryable: true });
+    }
+  }
+  await deps.db.rpc("job_applications_delete", { p_ids: [id] });
+  await audit(deps, session, {
+    action: "APPLICATION_DELETED", entityType: "application", entityId: id,
+    oldValues: { status: existing.status, had_cv: cv !== null }, result: "success",
+  });
+  return json(200, { result: "deleted", message: "The application, its CV and its history have been deleted." });
+}
+
 export async function downloadCv(deps: Deps, session: Session, id: string): Promise<Response> {
   const cv = await deps.db.rpc<{ path: string; name: string | null; mime: string | null } | null>("dash_application_cv", {
     p_restaurant: restaurantOf(session), p_id: id,

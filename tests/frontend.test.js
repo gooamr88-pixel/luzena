@@ -308,10 +308,24 @@ describe("content gate", () => {
   });
 
   describe("job applications switch", () => {
-    it("is off in the real content, so the form is not published", () => {
-      const { site } = loadContent("production", {});
-      expect(site.careers.applicationsOpen).toBe(false);
-      expect(site.legal.privacyUrl).toBeNull();
+    it("is on in the real content, with the privacy policy the form links to", () => {
+      const { site, issues } = loadContent("production", {});
+      expect(issues.errors).toEqual([]);
+      expect(site.careers.applicationsOpen).toBe(true);
+      expect(site.legal.privacyUrl).toBe("/privacy/");
+      expect(site.legal.privacy.updated).toBeTruthy();
+      const policy = site.legal.privacy.sections.flatMap((section) => [section.heading, ...section.paragraphs]).join("\n");
+      // What the form asks, the policy names. An applicant is told before they are asked.
+      for (const collected of ["name", "email address", "phone number", "position", "full-time or part-time", "when you could work", "experience", "authorized to work in the United States", "resume or CV"]) {
+        expect(policy, collected).toContain(collected);
+      }
+      // Who sees it, where it is kept, for how long, and how to have it deleted.
+      expect(policy).toMatch(/only by the people at the restaurant who are responsible for hiring/);
+      expect(policy).toMatch(/Supabase.*United States/);
+      expect(policy).toMatch(/ask us to delete your application/);
+      // The number here is a promise. It must equal JOB_APPLICATION_RETENTION_DAYS on the
+      // server (docs/CONFIGURATION.md section 5): change one, change the other.
+      expect(policy.match(/\b\d+ days\b/g)).toEqual(["90 days", "90 days"]);
     });
 
     it("cannot be switched on without a privacy policy", () => {
@@ -393,9 +407,13 @@ describe("SEO output", () => {
   it("leaves the privacy page out of search until it has text", () => {
     const real = loadContent("production", {}).site;
     const privacy = PAGES.find((page) => page.id === "privacy");
-    expect(pageMeta(privacy, real).noindex).toBe(true);
-    expect(sitemapXml(real)).not.toContain("/privacy/");
-    expect(pageMeta(privacy, site).noindex).toBe(false);
+    // The real policy is published, so its page can be found.
+    expect(pageMeta(privacy, real).noindex).toBe(false);
+    expect(sitemapXml(real)).toContain("/privacy/");
+    // Without its text the page is an empty shell, and stays out.
+    const empty = { ...real, legal: { ...real.legal, privacy: { updated: null, sections: [] } } };
+    expect(pageMeta(privacy, empty).noindex).toBe(true);
+    expect(sitemapXml(empty)).not.toContain("/privacy/");
   });
 
   it("cannot be broken out of by content", () => {

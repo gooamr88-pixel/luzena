@@ -8,7 +8,7 @@ import { fileSize, label, LABELS, STATUSES } from "../../js/lib/application.js";
 import { formatDateTime, timeAgo } from "../../js/lib/format.js";
 import { api, downloadFile } from "../api.js";
 import { can, state } from "../state.js";
-import { append, badge, clear, errorBlock, h, icon, loadingBlock, pageHeader, stateBlock, toast, toastFailure } from "../ui.js";
+import { append, badge, clear, confirmDialog, errorBlock, h, icon, loadingBlock, pageHeader, stateBlock, toast, toastFailure } from "../ui.js";
 
 const PAGE_SIZE = 25;
 const STATUS_TONE = { new: "info", reviewing: "warn", shortlisted: "accent", interview: "accent", hired: "ok", rejected: "" };
@@ -301,6 +301,37 @@ export async function applicationDetailView(outlet, match) {
       });
     }
 
+    // ---- deleting, for an applicant who asks for their details to be removed ------------------
+    let deleteBlock = null;
+    if (manage) {
+      const remove = h("button", { type: "button", class: "d-btn d-btn-sm" }, "Delete application");
+      remove.addEventListener("click", async () => {
+        const confirmed = await confirmDialog({
+          title: `Delete ${application.full_name}'s application?`,
+          body: [
+            "The application, the CV and the history are deleted for good. This cannot be undone.",
+            "Use this when an applicant asks for their details to be removed. Otherwise applications are deleted by themselves at the end of the period they are kept for.",
+          ],
+          confirmLabel: "Delete for good", danger: true,
+        });
+        if (!confirmed) return;
+        remove.disabled = true;
+        try {
+          const result = await api("DELETE", `/applications/${id}`);
+          toast(result.message);
+          announceChange();
+          location.hash = "#/applications";
+        } catch (failure) {
+          toastFailure(failure);
+          remove.disabled = false;
+        }
+      });
+      deleteBlock = h("section", { class: "d-card p-5 sm:p-6" },
+        h("h2", { class: "d-title mb-2" }, "Remove this applicant's details"),
+        h("p", { class: "mb-4 text-sm text-muted" }, "If the applicant asks you to delete what you hold about them, do it here. It deletes the application, the CV and the history."),
+        remove);
+    }
+
     // ---- history, newest first ---------------------------------------------------------------
     const history = h("ol", { class: "d-timeline" }, [...application.events].reverse().map((event) =>
       h("li", {},
@@ -347,7 +378,8 @@ export async function applicationDetailView(outlet, match) {
               h("li", { class: "flex items-center gap-3" }, h("span", { class: "text-brand", "aria-hidden": "true" }, icon("phone")),
                 h("a", { href: `tel:${application.phone.replace(/[^\d+]/g, "")}`, class: "font-medium hover:text-brand hover:underline" }, application.phone)))),
           section("Status", statusBlock),
-          section("History", history))));
+          section("History", history),
+          deleteBlock)));
   }
 
   await load();

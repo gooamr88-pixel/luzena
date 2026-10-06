@@ -1,5 +1,5 @@
 {
-  "_readme": "PRODUCTION content. Every null or empty value is something the client has not supplied yet. `npm run check:content` lists what is missing; `npm run build` refuses to build until the required fields are filled. Do not put invented facts here. The About text was written from the restaurant's own Instagram description. The hero text (eyebrow, headline, text) was taken from the home page design supplied on 2026-10-06. Both are awaiting the owner's approval. `about.values[].icon` names a drawing in src/partials/icon.html (leaf, utensils, cup, heart, users). Address, phone, hours, breakfast times, Maps link and domain were supplied by the client on 2026-10-05. NO EMAIL ADDRESS goes in this file: everything here is published. `locations[].email` stays null. The inbox that job applications are reported to is kept on the server, in the restaurant's row in the database (supabase/provision-restaurant.sql). PLACEHOLDER PHOTOS: the restaurant's own photos have not arrived, and on 2026-10-06 the instruction was to show placeholders on the live site until they do. Every file named placeholder-* in content/media/ is a stock photo from the design template, not a photo of this restaurant or its food, and its licence for publication was never checked (content/media/README.md). Replace each one with a real photo as it arrives. `defaultDishPhotos` are shown on the home page for a menu category or a featured dish that has no photo of its own; empty the list to switch that off. See docs/CONFIGURATION.md for ordering.url, careers.applications and legal.",
+  "_readme": "PRODUCTION content. Every null or empty value is something the client has not supplied yet. `npm run check:content` lists what is missing; `npm run build` refuses to build until the required fields are filled. Do not put invented facts here. The About text was written from the restaurant's own Instagram description. The hero text (eyebrow, headline, text) was taken from the home page design supplied on 2026-10-06. Both are awaiting the owner's approval. `about.values[].icon` names a drawing in src/partials/icon.html (leaf, utensils, cup, heart, users). Address, phone, hours, breakfast times, Maps link and domain were supplied by the client on 2026-10-05. PRIVACY POLICY (`legal.privacy`): drafted by the engineer on 2026-10-06 at the client's request, as a plain account of what this system actually does with a visitor's and an applicant's information. It has not been reviewed by a lawyer and awaits the owner's approval. It states that applications are kept for 90 days: that number is the client's choice (2026-10-06) and MUST equal the JOB_APPLICATION_RETENTION_DAYS secret of the Edge Functions. Change one, change the other. With the policy published, `careers.applications.enabled` is true and the application form is on the Careers page. NO EMAIL ADDRESS goes in this file: everything here is published. `locations[].email` stays null. The inbox that job applications are reported to is kept on the server, in the restaurant's row in the database (supabase/provision-restaurant.sql). PLACEHOLDER PHOTOS: the restaurant's own photos have not arrived, and on 2026-10-06 the instruction was to show placeholders on the live site until they do. Every file named placeholder-* in content/media/ is a stock photo from the design template, not a photo of this restaurant or its food, and its licence for publication was never checked (content/media/README.md). Replace each one with a real photo as it arrives. `defaultDishPhotos` are shown on the home page for a menu category or a featured dish that has no photo of its own; empty the list to switch that off. See docs/CONFIGURATION.md for ordering.url, careers.applications and legal.",
 
   "siteUrl": "https://luzenarestaurant.com",
   "restaurantSlug": "luzena",
@@ -72,8 +72,58 @@
   "legal": {
     "privacyPolicyUrl": null,
     "privacy": {
-      "updated": null,
-      "sections": []
+      "updated": "October 6, 2026",
+      "sections": [
+        {
+          "heading": "Who we are",
+          "paragraphs": [
+            "This website belongs to Luzena Restaurant & Cafe, 315 El Cajon Blvd, El Cajon, CA 92020. You can reach us on +1 619-499-5779 or in person at the restaurant.",
+            "This page explains what information the website collects and what we do with it."
+          ]
+        },
+        {
+          "heading": "Visiting the website",
+          "paragraphs": [
+            "You can read the whole website without telling us who you are. There are no visitor accounts, no advertising and no analytics or tracking tools on it, and the website itself sets no cookies.",
+            "Like every website, our servers and the companies that host them receive your device's internet address and basic technical details when a page loads. We use these only to deliver the site and to keep it secure.",
+            "Our website does not follow you across other websites, so it does not behave differently when your browser sends a \"Do Not Track\" signal."
+          ]
+        },
+        {
+          "heading": "The map and links to other services",
+          "paragraphs": [
+            "The map on the home page and the location page is provided by Google Maps. It loads when you scroll near it. When it does, Google receives your device's internet address and may set its own cookies, under Google's privacy policy.",
+            "Links to Instagram, to Google Maps and to online ordering take you to those services, which have their own privacy policies. Online orders and payments are handled by Clover on Clover's own pages. We do not see or store your card details."
+          ]
+        },
+        {
+          "heading": "Applying for a job",
+          "paragraphs": [
+            "If you apply through the Join Our Team page, we collect what you enter in the form: your name, email address and phone number; the position you are applying for; whether you want full-time or part-time work, when you could work and when you could start; your experience; whether you are legally authorized to work in the United States; anything you write about yourself; and your resume or CV, if you choose to attach one.",
+            "We use this only to consider you for work at the restaurant and to contact you about your application. We do not sell it, and we do not use it for marketing.",
+            "Your application can be read only by the people at the restaurant who are responsible for hiring, after they sign in. When an application arrives, a short notice with your name, your contact details, the position and your answers to the multiple-choice questions is emailed to the restaurant's hiring inbox. Your resume and what you wrote in your own words are not included in that email.",
+            "Applications are stored with our hosting provider, Supabase, on servers in the United States. Resumes are kept in private storage and cannot be reached through a public link. The notice is sent through our email provider, Resend. To protect the form from misuse we also keep a scrambled record of the internet address an application was sent from, which cannot be turned back into the address."
+          ]
+        },
+        {
+          "heading": "How long we keep applications",
+          "paragraphs": [
+            "We keep an application, and any resume sent with it, for 90 days after you apply. After that both are deleted, together with our notes on the application."
+          ]
+        },
+        {
+          "heading": "Your choices",
+          "paragraphs": [
+            "You can ask us at any time what information we hold about you, or ask us to delete your application before the 90 days are up. Call us on +1 619-499-5779 or ask at the restaurant, and we will do it."
+          ]
+        },
+        {
+          "heading": "Changes to this page",
+          "paragraphs": [
+            "If we change how we handle information, we will update this page and the date at the top."
+          ]
+        }
+      ]
     }
   },
 
@@ -98,7 +148,7 @@
 
   "careers": {
     "applications": {
-      "enabled": false
+      "enabled": true
     },
     "intro": "We are building our opening team and looking for people who love food and great hospitality. Experience is a plus. Passion is a must.",
     "image": null,

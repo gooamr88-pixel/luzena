@@ -106,7 +106,7 @@ describe("search engine metadata", () => {
   };
 
   it("gives every indexable page a canonical URL on the confirmed domain", async () => {
-    for (const path of ["/", "/menu/", "/about/", "/locations/", "/gallery/", "/contact/", "/careers/", "/order/"]) {
+    for (const path of ["/", "/menu/", "/about/", "/locations/", "/gallery/", "/contact/", "/careers/", "/order/", "/privacy/"]) {
       const data = await meta(path);
       expect(data.canonical, path).toBe(`https://luzenarestaurant.com${path}`);
       expect(data.ogUrl, path).toBe(`https://luzenarestaurant.com${path}`);
@@ -118,8 +118,8 @@ describe("search engine metadata", () => {
     }
   });
 
-  it("keeps empty and private pages out of search", async () => {
-    for (const path of ["/privacy/", "/dashboard/"]) {
+  it("keeps the private page out of search", async () => {
+    for (const path of ["/dashboard/"]) {
       expect((await meta(path)).robots, path).toMatch(/noindex/);
     }
   });
@@ -133,8 +133,8 @@ describe("search engine metadata", () => {
       expect(response.headers.get("content-type"), path).toContain(type);
     }
     const sitemap = await (await fetch(`${site.url}/sitemap.xml`)).text();
-    expect(sitemap.match(/<loc>/g)).toHaveLength(8);
-    expect(sitemap).not.toMatch(/dashboard|privacy|luznarestaurant/);
+    expect(sitemap.match(/<loc>/g)).toHaveLength(9);
+    expect(sitemap).not.toMatch(/dashboard|luznarestaurant/);
     const robots = await (await fetch(`${site.url}/robots.txt`)).text();
     expect(robots).toContain("Sitemap: https://luzenarestaurant.com/sitemap.xml");
     expect(robots).toContain("Disallow: /dashboard/");
@@ -321,13 +321,30 @@ describe("the menu page without a backend", () => {
   });
 });
 
-describe("join our team while applications are switched off", () => {
-  it("lists all 18 roles but publishes no form and no upload field", async () => {
+describe("join our team, with applications open", () => {
+  it("lists all 18 roles and publishes the application form, with its privacy policy", async () => {
     const { page, context } = await openPage(browser, `${site.url}/careers/`);
     expect(await page.locator("details.position").count()).toBe(18);
-    expect(await page.locator("form").count()).toBe(0);
-    expect(await page.locator('input[type="file"]').count()).toBe(0);
-    expect(await page.locator("#apply").innerText()).toContain("Online applications open soon");
+    expect(await page.locator("form[data-apply-form]").count()).toBe(1);
+    expect(await page.locator('input[type="file"]').count()).toBe(1);
+    expect(await page.locator("#apply").innerText()).not.toContain("open soon");
+    // Each role offers to apply for it, and the form says what happens to the details.
+    expect(await page.locator("details.position [data-apply-for]").count()).toBe(18);
+    expect(await page.locator('form a[href="/privacy/"]').count()).toBe(1);
+    // The page that receives applications is told to the form by the build, never the inbox.
+    expect(await page.content()).not.toMatch(/recruitment|@gmail/i);
+    await context.close();
+  });
+
+  it("publishes the privacy policy the form links to: what is collected, who sees it, for how long", async () => {
+    const { page, context } = await openPage(browser, `${site.url}/privacy/`);
+    const text = await page.locator("main").innerText();
+    for (const expected of [
+      "Applying for a job", "resume or CV", "authorized to work in the United States",
+      "only by the people at the restaurant who are responsible for hiring",
+      "for 90 days after you apply", "ask us to delete your application", "+1 619-499-5779",
+    ]) expect(text, expected).toContain(expected);
+    expect(await page.locator("main h2").count()).toBe(7);
     await context.close();
   });
 

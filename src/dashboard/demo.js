@@ -326,6 +326,11 @@ export function installDemo(state) {
     if ((match = path.match(/^\/applications\/([0-9a-f-]{36})$/))) {
       const application = findApplication(match[1]);
       if (method === "GET") return { application: applicationDetail(application) };
+      if (method === "DELETE") {
+        applications.splice(applications.indexOf(application), 1);
+        log("APPLICATION_DELETED", "application", application.id, null);
+        return { result: "deleted", message: "Demo: deleted in this browser tab only." };
+      }
       const note = body.note?.trim() || null;
       const changed = body.status !== application.status;
       if (changed) {

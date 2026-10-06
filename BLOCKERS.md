@@ -113,9 +113,20 @@ which is what Clover recommends for an integration that serves one merchant
   build refuses placeholder links.
 - **Not blocking** the information site.
 
-### B-3. Privacy policy — BLOCKING for job applications · LEGAL + CLIENT INPUT
+### B-3. Privacy policy — PUBLISHED AS A DRAFT, awaiting the owner's approval · LEGAL + CLIENT INPUT
 
-- **Needed from you:** the policy text, or a link to it. It must cover what the application
+- **State (2026-10-06):** the client asked for the policy to be drafted here. It is in
+  `legal.privacy.sections` of `content/site.json` and published at `/privacy/`. It is a plain
+  account of what this system does: what a visit and an application collect, who can read
+  an application, where it is kept, for how long (90 days, B-4), and how to have it deleted
+  (a phone call; the dashboard has a "Delete application" button for it). **No lawyer has
+  read it.**
+- **Needed from you:** the owner's approval, or corrections. If it changes, the form's
+  behaviour has to keep matching it.
+- **One promise that needs watching:** it says applications are deleted after 90 days. The
+  clean-up runs when an application arrives or the owner opens the dashboard overview, so
+  with neither it can run late. N-9 below is the fix if that matters.
+- **As it was before:** the policy text, or a link to it. It must cover what the application
   form collects (name, email, phone, message, CV), why, who receives it, how long it is kept
   (B-4), and how to ask for deletion. This must come from the restaurant and its adviser; it
   was not drafted here.
@@ -125,9 +136,11 @@ which is what Clover recommends for an integration that serves one merchant
   consent checkbox.
 - **Enforced:** the site will not build with the application form switched on and no policy.
 
-### B-4. Retention period for job applications — BLOCKING for job applications · LEGAL + CLIENT INPUT
+### B-4. Retention period for job applications — DECIDED: 90 days (client, 2026-10-06)
 
-- **Needed from you:** a number of days to keep applications and CVs.
+- **State:** `JOB_APPLICATION_RETENTION_DAYS=90`, the same number the privacy policy states.
+  Change one, change the other.
+- **As it was before:** a number of days to keep applications and CVs.
 - **Ready on our side:** the secret `JOB_APPLICATION_RETENTION_DAYS`. It has **no default**:
   choosing one would be making this decision for you. Once set, older applications and their
   CV files are deleted automatically.

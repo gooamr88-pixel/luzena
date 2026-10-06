@@ -274,6 +274,7 @@ production build refuses a value that is not `https://` or that looks like a pla
 | `GET /applications/{uuid}` | applications.read | One application in full, with its history |
 | `PATCH /applications/{uuid}` | applications.manage | `{status, note?}`. Stages: `new, reviewing, shortlisted, interview, hired, rejected`. |
 | `GET /applications/{uuid}/cv` | applications.read | The CV's bytes, as a download. Recorded in the history and the audit log. |
+| `DELETE /applications/{uuid}` | applications.manage | Deletes the application, its CV and its history for good: for an applicant who asks. The file first, so a failure leaves the application in place. |
 | `GET /activity?before=<id>` | activity.read | Audit log, 30 per page |
 
 Per-user rate limits apply to every route (see `dashboard/router.ts`).

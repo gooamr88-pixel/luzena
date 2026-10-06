@@ -5,7 +5,7 @@ import { ApiError, corsHeaders, errorBody, json, newRequestId, preflight, readJs
 import { errorFields } from "../log.ts";
 import { purgeExpiredApplications } from "../public/retention.ts";
 import type { Deps, Session } from "../types.ts";
-import { applicationsSummary, downloadCv, getApplication, listApplications, updateApplication } from "./applications.ts";
+import { applicationsSummary, deleteApplication, downloadCv, getApplication, listApplications, updateApplication } from "./applications.ts";
 import {
   createCategoryHandler, createModifierGroupHandler, createModifierHandler, listCategoriesHandler,
   listModifierGroupsHandler, reorderCategories, reorderCategoryItems, updateCategoryHandler,
@@ -125,6 +125,8 @@ const ROUTES: Route[] = [
     handle: ({ deps, session, params }) => getApplication(deps, session, params[0]) },
   { method: "PATCH", pattern: new RegExp(`^/applications/${UUID}$`), permission: "applications.manage", limit: WRITE,
     handle: async (c) => updateApplication(c.deps, c.session, c.params[0], await body(c)) },
+  { method: "DELETE", pattern: new RegExp(`^/applications/${UUID}$`), permission: "applications.manage", limit: WRITE,
+    handle: ({ deps, session, params }) => deleteApplication(deps, session, params[0]) },
   // A CV is a file with someone's personal details in it: fewer downloads than page views.
   { method: "GET", pattern: new RegExp(`^/applications/${UUID}/cv$`), permission: "applications.read", limit: ["download", 60, 300],
     handle: ({ deps, session, params }) => downloadCv(deps, session, params[0]) },

@@ -327,6 +327,59 @@ describe("finding applications", () => {
   });
 });
 
+describe("deleting an application when the applicant asks", () => {
+  it("removes the application, its CV and its history for good, and says only that it happened", async () => {
+    await apply({ full_name: "Please Forget", email: "forget@example.test" }, cvFile());
+    const id = await idOf("forget@example.test");
+    await h.api(owner, "PATCH", `/applications/${id}`, { status: "reviewing", note: "Asked to be removed." });
+    const path = (await h.pg.query("select cv_path from public.job_applications where id = $1", [id])).rows[0].cv_path;
+
+    // Not staff, not another restaurant's owner, not without a session.
+    expect((await h.api(staff, "DELETE", `/applications/${id}`)).status).toBe(403);
+    expect((await h.api(outsider, "DELETE", `/applications/${id}`)).status).toBe(404);
+    expect((await h.api(null, "DELETE", `/applications/${id}`)).status).toBe(401);
+    expect(h.stored.has(`cvs/${path}`)).toBe(true);
+
+    const response = await h.api(manager, "DELETE", `/applications/${id}`);
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ result: "deleted", message: "The application, its CV and its history have been deleted." });
+
+    expect((await h.pg.query("select count(*)::int as n from public.job_applications where id = $1", [id])).rows[0].n).toBe(0);
+    expect((await h.pg.query("select count(*)::int as n from public.job_application_events where application_id = $1", [id])).rows[0].n).toBe(0);
+    expect(h.stored.has(`cvs/${path}`)).toBe(false);
+    expect((await h.api(owner, "GET", `/applications/${id}`)).status).toBe(404);
+    expect((await h.api(owner, "DELETE", `/applications/${id}`)).status).toBe(404);
+
+    // The audit log keeps that an application was deleted and by whom. Nothing of the person.
+    const { rows } = await h.pg.query("select * from public.audit_logs where action = 'APPLICATION_DELETED' and entity_id = $1", [id]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ actor_email: manager.email, old_values: { status: "reviewing", had_cv: true } });
+    expect(JSON.stringify(rows[0])).not.toMatch(/Forget|forget@|Asked to be removed/);
+  });
+
+  it("keeps the application if its CV cannot be removed, so nothing is left behind half-deleted", async () => {
+    await apply({ full_name: "Stuck File", email: "stuck@example.test" }, cvFile());
+    const id = await idOf("stuck@example.test");
+    const realRemove = h.deps.files.remove;
+    h.deps.files.remove = async () => { throw new Error("storage unavailable"); };
+    const failed = await h.api(owner, "DELETE", `/applications/${id}`);
+    h.deps.files.remove = realRemove;
+
+    expect(failed.status).toBe(502);
+    expect(failed.body.error.message).toBe("The CV could not be deleted, so the application was kept. Try again.");
+    expect(JSON.stringify(failed.body)).not.toMatch(/storage unavailable|cvs\//);
+    expect((await h.api(owner, "GET", `/applications/${id}`)).body.application.full_name).toBe("Stuck File");
+    expect((await h.api(owner, "DELETE", `/applications/${id}`)).status).toBe(200);
+  });
+
+  it("deletes an application that has no CV", async () => {
+    await apply({ full_name: "No File", email: "nofile@example.test" });
+    const id = await idOf("nofile@example.test");
+    expect((await h.api(owner, "DELETE", `/applications/${id}`)).status).toBe(200);
+    expect((await h.api(owner, "GET", `/applications/${id}`)).status).toBe(404);
+  });
+});
+
 describe("the end of an application's life", () => {
   it("is deleted with its CV and its history when the retention period has passed, and is then gone from the dashboard", async () => {
     await apply({ full_name: "Long Ago", email: "longago@example.test" }, cvFile());

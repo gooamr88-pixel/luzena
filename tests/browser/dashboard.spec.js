@@ -706,6 +706,26 @@ describe("job applications", () => {
     await context.close();
   });
 
+  it("deletes an application for good, after asking, when the applicant wants their details removed", async () => {
+    const { page, context } = await dashboard("#/applications/00000000-0000-4000-8000-000000000003");
+    await page.waitForSelector("#application-status");
+    await page.getByRole("button", { name: "Delete application" }).click();
+    expect(await dialog(page).innerText()).toContain("Delete Priya Nair's application?");
+    expect(await dialog(page).innerText()).toContain("This cannot be undone.");
+    // The safe answer has the focus, and takes nothing away.
+    expect(await page.evaluate(() => document.activeElement.textContent)).toBe("Cancel");
+    await dialog(page).getByRole("button", { name: "Cancel" }).click();
+    expect(await page.locator("main#main h1").innerText()).toBe("Priya Nair");
+
+    await page.getByRole("button", { name: "Delete application" }).click();
+    await dialog(page).getByRole("button", { name: "Delete for good" }).click();
+    await page.waitForFunction(() => document.querySelector("main#main h1")?.textContent === "Job applications");
+    await waitForRows(page, 5);
+    expect(await page.locator("table.d-table tbody").innerText()).not.toContain("Priya Nair");
+    expect(await page.locator(".d-pill", { hasText: "All" }).innerText()).toMatch(/All\s*5/);
+    await context.close();
+  });
+
   it("explains an application that is no longer there, and an address that is not one", async () => {
     const { page, context } = await dashboard("#/applications/00000000-0000-4000-8000-00000000ffff");
     await page.waitForSelector("text=This application does not exist");

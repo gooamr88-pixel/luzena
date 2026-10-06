@@ -275,6 +275,12 @@ optionally a CV.
   deletion leaves the row to be retried rather than an orphaned CV.
 - **Consent.** The form asks for agreement to store the details and be contacted, and links
   to the privacy policy.
+- **Deletion on request.** The policy tells applicants they can ask for their application
+  to be deleted. An owner or manager does it from the application's page in the dashboard:
+  the CV, the application and its history go, and the audit log keeps only that an
+  application was deleted and by whom.
+- **The policy** at `/privacy/` was drafted by the engineer at the client's request on
+  2026-10-06 and says what this system does. It has not had legal review.
 - **Where they go.** Into the database first. Then one email to the restaurant's
   recruitment address saying that an application has arrived: a summary (name, position,
   contact details, the answers that are choices) and a link to the application in the
@@ -287,8 +293,8 @@ optionally a CV.
   in the footer and on the Contact and Locations pages until 2026-10-06, when it was
   removed from `content/site.json`.
 
-Still needed from the client (`BLOCKERS.md` B-3, B-4): the privacy policy, and the number of
-days.
+Decided by the client on 2026-10-06: applications are kept for 90 days. Still needed from
+the client (`BLOCKERS.md` B-3): the owner's approval of the drafted policy.
 
 No analytics or third-party scripts are loaded by this code, and it sets no cookies. The
 Google map on the home and Locations pages is Google's own page in a frame: it loads when a
