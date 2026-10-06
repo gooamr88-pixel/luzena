@@ -637,6 +637,22 @@ applications (policy, retention, email).
      request, policy violation or sideways scroll; the menu's real "unavailable" answer;
      the generic refusal of a wrong password); TLS 1.0 and 1.1 refused, 1.2 accepted; the
      certificate names both hosts; pages are sent gzip-compressed.
+   - **A fault on the VPS, found from the client's pasted output, 2026-10-06.** The client
+     installed the redirect and reloaded (that is when it was checked), then also ran the
+     two "undo" lines that came next in the instructions, then stopped and deleted the old
+     application and deleted the old site file. Result: `sites-enabled/luznarestaurant.com`
+     is a link to a file that no longer exists, and the redirect is not linked. The running
+     Nginx still holds the redirect in memory, so everything works; but `nginx -t` now
+     fails, so the next reload is refused and **a restart or reboot would leave every site
+     on that server down**, and certificate renewals would fail. The client was given the
+     three-line fix (remove the dead link, link the redirect file, `nginx -t`, reload).
+     **Confirm it was done before anything else on that server.** Lesson: with this client,
+     never put undo commands on the page as a runnable block beside the forward path.
+   - The first deployment on the server showed two warnings worth knowing: the server's
+     Node is 20.20.2 while `@supabase/supabase-js` and `vitest` now ask for Node 22 (the
+     build works; only the browser bundle of the first is used), and npm 11 did not run
+     `deno`'s install script (not needed for a build). If Node is upgraded on that server
+     it must be checked against its other applications first.
    - Not done yet: a signed-in dashboard walk observed from here (it needs the owner's
      password, which only the owner has); stopping and deleting the old application on the
      VPS (pm2 process `luzna-restaurant`, folder `/var/www/luzna`; the client has the

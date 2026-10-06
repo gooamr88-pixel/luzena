@@ -404,13 +404,15 @@ sudo ln -s /etc/nginx/sites-available/luznarestaurant.com.redirect.conf /etc/ngi
 sudo nginx -t
 ```
 
-- [ ] `nginx -t` is successful, then `sudo systemctl reload nginx`. **If it is not:** undo
-      with the two lines below, and send the message back.
-
-  ```bash
-  sudo rm /etc/nginx/sites-enabled/luznarestaurant.com.redirect.conf
-  sudo ln -s /etc/nginx/sites-available/luznarestaurant.com /etc/nginx/sites-enabled/
-  ```
+- [ ] `nginx -t` is successful, then `sudo systemctl reload nginx`. **If it is not, do not
+      reload**, and send the message back. To undo: remove the new link in `sites-enabled`
+      and link the old file from `sites-available` again. (The undo is described and not
+      given as commands on purpose. On 2026-10-06 the commands were pasted together with
+      the undo lines that followed them, which left `sites-enabled` holding a link to the
+      old file; that file was then deleted, and a link to a missing file stops Nginx from
+      starting at all, for every site on the server. It was caught before any reload.)
+- [ ] After any change in `sites-enabled`: `ls -la /etc/nginx/sites-enabled/` shows no link
+      to a missing file, and `nginx -t` is successful.
 
 - [x] `https://luznarestaurant.com/`, `https://www.luznarestaurant.com/menu/` and
       `http://luznarestaurant.com/coming-soon` each end on `https://luzenarestaurant.com`.
