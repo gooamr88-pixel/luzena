@@ -1,7 +1,9 @@
 // Pure logic used by the pages and the build: money, hours, content validation, SEO.
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { APP_DIR, CONFIG_PATH, DOMAIN, nginxConfig } from "../scripts/build-nginx-config.mjs";
+import {
+  APP_DIR, CONFIG_PATH, DOMAIN, nginxConfig, OLD_DOMAIN, REDIRECT_CONFIG_PATH, redirectConfig,
+} from "../scripts/build-nginx-config.mjs";
 import { formatDays, formatTime, hoursByDay, isPlaceholderUrl, loadContent, telHref, validateContent } from "../build/content.js";
 import { PAGES, pageMeta } from "../build/pages.js";
 import { jsonLdScript, restaurantJsonLd, robotsTxt, sitemapXml } from "../build/seo.js";
@@ -389,5 +391,16 @@ describe("production web server configuration", () => {
     expect(config).not.toMatch(/proxy_pass|fastcgi_pass|autoindex on/);
     expect(config).toContain(`return 301 https://${DOMAIN}$request_uri;`);
     expect(DOMAIN).toBe("luzenarestaurant.com");
+    expect(config).not.toContain(OLD_DOMAIN);
+  });
+
+  it("sends the old spelling of the domain to the real one, and serves nothing from it", () => {
+    const redirect = redirectConfig();
+    expect(readFileSync(REDIRECT_CONFIG_PATH, "utf8").replace(/\r\n/g, "\n")).toBe(redirect);
+    expect(redirect.match(/server_name [^;]+;/g)).toEqual([
+      `server_name ${OLD_DOMAIN} www.${OLD_DOMAIN};`, `server_name ${OLD_DOMAIN} www.${OLD_DOMAIN};`,
+    ]);
+    expect(redirect.match(/return 301 https:\/\/luzenarestaurant\.com(\/|\$request_uri);/g)).toHaveLength(4);
+    expect(redirect).not.toMatch(/\broot |proxy_pass|try_files/);
   });
 });

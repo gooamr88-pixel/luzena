@@ -178,6 +178,13 @@ unit test fails if the committed file is stale or any location lacks a header. I
 - answers 404 for anything starting with a dot;
 - proxies nothing.
 
+**The old spelling.** The client also owns `luznarestaurant.com`, which points at the same
+server and showed an earlier "coming soon" page. By the client's decision it redirects to
+the real domain after launch. `npm run build:nginx` writes that file too
+(`deploy/nginx/luznarestaurant.com.redirect.conf`); it reuses the certificate that domain
+already has on the server. It is installed last, after the real site has been checked
+(`DEPLOYMENT_CHECKLIST.md` section 7.1).
+
 **The certificate** is Let's Encrypt, obtained with certbot before the configuration is
 enabled (the configuration names the certificate files, so Nginx will not accept it until
 they exist).

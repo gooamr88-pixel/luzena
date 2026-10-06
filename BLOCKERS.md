@@ -126,17 +126,16 @@ documentation and tested against a stand-in.
 - **Needed from you, in this order:**
   1. DONE 2026-10-06: the GitHub repository is `gooamr88-pixel/luzena`. It is **public**,
      by your decision, so the server can read it without any key.
-  2. DONE 2026-10-06, first look: the VPS is Ubuntu 24.04.4 with Nginx 1.24.0, Node
-     20.20.2, npm 11.18.0, git 2.43.0 and certbot 2.9.0, with ample disk and memory. All
-     of that is enough. **Still to be seen** before anything is added: the existing Nginx
-     site files (the second set of read-only commands in `DEPLOYMENT_CHECKLIST.md`
-     section 5.1).
+  2. DONE 2026-10-06: the VPS has been looked at twice, read-only. It is Ubuntu 24.04.4
+     with Nginx 1.24.0, Node 20.20.2, npm 11.18.0, git 2.43.0 and certbot 2.9.0 (with its
+     Nginx plugin), with ample disk and memory. No existing site claims
+     `luzenarestaurant.com` or clashes with the new site file. Nothing was changed.
   2a. **Decided by you (2026-10-06): the old-spelling domain redirects.** The VPS already
      serves `luznarestaurant.com` (without the "e"): a "Grilli - Coming Soon" page from the
-     earlier Next.js build, with its own Nginx site file. Once `luzenarestaurant.com` is
-     live, that address is to redirect to it. Not set up yet: it replaces that domain's
-     existing site file, which has to be seen first. Nothing is changed there before
-     launch.
+     earlier Next.js build. Once `luzenarestaurant.com` is live and checked, that address
+     redirects to it (`DEPLOYMENT_CHECKLIST.md` section 7.1; the file is
+     `deploy/nginx/luznarestaurant.com.redirect.conf`, and it reuses that domain's existing
+     certificate). Nothing is changed there before launch.
   3. After TEST has passed and PRODUCTION Supabase is ready: the rest of sections 5 to 7
      (a user and a folder for the site, a clone of the repository, `site.env` with the
      production publishable key, DNS, the certificate, the Nginx file, the first

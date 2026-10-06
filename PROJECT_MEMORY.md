@@ -344,6 +344,8 @@ Last full run 2026-10-05:
 - `npm test`: **186 passed, 0 failed**, 5 files
   (sql 33, dashboard 51, public 28, units 31, frontend 43: four new tests of the generated
   Nginx configuration). Re-run after the hosting change, with lint and typecheck: clean.
+  A fifth Nginx test (the old domain's redirect file) was added on 2026-10-06; only
+  `tests/frontend.test.js` was re-run for it: 44 of 44.
 - Real database, TEST/STAGING project: 5 migrations applied; `npm run verify:database`
   **30 of 30**, by query and by acting as `anon`, `authenticated` and `service_role`.
 - Real database, PRODUCTION project: 5 migrations applied; `npm run verify:database`
@@ -539,9 +541,14 @@ applications (policy, retention, email).
    itself still shows Hostinger's parking page (`2.57.91.91`). Open: the second read-only
    look (existing site files, checklist 5.1). Nothing on the VPS was changed.
    **Decided by the client (2026-10-06): after launch, the old-spelling address redirects
-   to `https://luzenarestaurant.com`.** Not set up yet: it replaces that domain's existing
-   Nginx site file, which has to be seen first (its certificate, and whether `www` is
-   covered).
+   to `https://luzenarestaurant.com`.** Prepared, not installed:
+   `deploy/nginx/luznarestaurant.com.redirect.conf` (generated; reuses that domain's
+   existing certificate, which covers `www` too) and checklist section 7.1.
+   The second read-only look was done the same day: no site on the server claims the new
+   domain or clashes with its file; a default server refuses unclaimed names; certbot has
+   its Nginx plugin; the old build is in `/var/www/luzna`, a different folder from ours.
+   **The VPS side is now ready to be set up, but only after TEST has passed and PRODUCTION
+   Supabase is deployed.**
 2a. As soon as the CLI can reach TEST, TEST project (`cgxhifkeoesvsycewwfs`) first, in
    this order: deploy the four functions; set secrets from `.env.test`; Auth settings; a
    test owner; `provision-restaurant.sql`; `npm run verify:functions` with the signed-in

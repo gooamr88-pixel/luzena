@@ -202,8 +202,12 @@ violation, so a change that would break under the policy is caught before deploy
 
 **The web server.** The Hostinger VPS only serves files. It runs no application code,
 proxies nothing, and holds no secret: the build variables on it are the public Supabase URL
-and publishable key. TLS is Let's Encrypt, TLS 1.2 and 1.3 only; `http://` and `www` redirect
-to `https://luzenarestaurant.com`. Not reviewed here, because it is outside this repository
+and publishable key. The certificate is Let's Encrypt, and the site's configuration asks
+for TLS 1.2 and 1.3; on a server that shares its ports between sites, the protocols
+actually offered are also governed by the server's default site and its TLS library, which
+this repository does not control and which have not been tested from outside. `http://`
+and `www` redirect to `https://luzenarestaurant.com`, and so does the old spelling of the
+domain. Not reviewed here, because it is outside this repository
 and has not been seen: the VPS itself (its other sites, users, SSH access, firewall,
 updates). Its owner is responsible for those.
 

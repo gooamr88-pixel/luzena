@@ -244,18 +244,22 @@ not follow the links in `sites-enabled`; the second look below uses `-R`.
 
 - [x] Node is **20.19 or newer** (20.20.2).
 - [x] `git` and `certbot` are there. Enough free memory and disk.
-- [ ] No existing site already answers for `luzenarestaurant.com`, and none listens in a
-      way that clashes. **Second look (changes nothing), output to be sent back:**
+- [x] No existing site already answers for `luzenarestaurant.com`, and none listens in a
+      way that clashes. Checked 2026-10-06 with a second read-only look
+      (`grep -RhnE "^\s*(server_name|listen|root|proxy_pass)\b" /etc/nginx/sites-enabled/`,
+      the old domain's site file, the folder listings, `certbot plugins`). What it showed
+      that matters here:
+  - Every site listens on the shared ports 80 and 443 by name, as the new file does. A
+    default server refuses any name that no site claims, so the new site answers only
+    once its own file is enabled.
+  - `/var/www/luzenarestaurant.com` does not exist yet. The old build lives in
+    `/var/www/luzna`, a different folder: do not confuse the two.
+  - The old domain has its own certificate, `/etc/letsencrypt/live/luznarestaurant.com/`,
+    covering the bare name and `www`. The redirect in section 7.1 uses it.
+  - certbot has its `nginx` plugin, which the certificate command in section 6 needs.
 
-  ```bash
-  grep -RhnE "^\s*(server_name|listen|root|proxy_pass)\b" /etc/nginx/sites-enabled/
-  cat /etc/nginx/sites-enabled/luznarestaurant.com /etc/nginx/sites-enabled/reject-all
-  ls -la /etc/nginx/sites-enabled/ /var/www/
-  ls /etc/letsencrypt/live/; certbot plugins 2>/dev/null | grep -iE "^\* "
-  ```
-
-Send the output back privately, not into this repository: it shows the server's other
-sites.
+Output from the server is sent back privately, never committed: it shows the server's
+other sites.
 
 ### 5.2 A user and a folder for this site only
 
@@ -361,6 +365,37 @@ npm run verify:site            # must end with "All site checks passed."
 **Every later deployment:** push to GitHub, run the same one command on the VPS, run
 `npm run verify:site`. If `deploy/headers.json` changed, also copy the regenerated Nginx
 file again, `sudo nginx -t`, reload.
+
+### 7.1 The old spelling redirects (decided by the client, 2026-10-06)
+
+`luznarestaurant.com`, without the "e", points at the same server and shows the earlier
+"coming soon" page. **Only after `npm run verify:site` passes on the real domain**, swap
+its site file for the redirect. The names differ by one letter: read each line before
+running it.
+
+```bash
+sudo cp /var/www/luzenarestaurant.com/repo/deploy/nginx/luznarestaurant.com.redirect.conf /etc/nginx/sites-available/
+sudo rm /etc/nginx/sites-enabled/luznarestaurant.com
+sudo ln -s /etc/nginx/sites-available/luznarestaurant.com.redirect.conf /etc/nginx/sites-enabled/
+sudo nginx -t
+```
+
+- [ ] `nginx -t` is successful, then `sudo systemctl reload nginx`. **If it is not:** undo
+      with the two lines below, and send the message back.
+
+  ```bash
+  sudo rm /etc/nginx/sites-enabled/luznarestaurant.com.redirect.conf
+  sudo ln -s /etc/nginx/sites-available/luznarestaurant.com /etc/nginx/sites-enabled/
+  ```
+
+- [ ] `https://luznarestaurant.com/`, `https://www.luznarestaurant.com/menu/` and
+      `http://luznarestaurant.com/coming-soon` each end on `https://luzenarestaurant.com`.
+- [ ] `sudo certbot renew --dry-run` still succeeds for both domains.
+
+The `rm` removes only the link; the old site file stays in `sites-available`, so the same
+two lines put the old page back at any time. The old application itself (in
+`/var/www/luzna`, and the process that runs it) is no longer reached by anyone after this.
+Stopping and removing it is the client's choice; nothing here does it.
 
 ## 8. Owner sign-in
 
