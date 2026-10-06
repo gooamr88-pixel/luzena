@@ -45,8 +45,14 @@ right canonical address, no sample banner), that no dot-file and no repository f
 fetched, that ORDER ONLINE and the application form are in the state they should be, and
 that the pages and the dashboard code name the expected Supabase project and no other. Run
 locally against a production build served with the production headers, everything that
-needs no backend passes. **Not yet run against the real server:** the site is not deployed,
-and the Nginx configuration has never been loaded by an Nginx (2026-10-05).
+needs no backend passes. On 2026-10-06 it was also run on the test site
+(`npm run build:staging`, served at `http://localhost:4173` with the production headers)
+against the deployed TEST backend: every check passes, the backend ones included. The same
+run opened the menu page, the home page and the dashboard in Chromium under the real
+Content-Security-Policy: no blocked request, the menu's real "unavailable" answer, the
+sign-in form, and the generic refusal of a wrong password. **Still not done: a signed-in
+dashboard against a real backend**, and anything on the real server: the site is not
+deployed, and the Nginx configuration has never been loaded by an Nginx.
 
 The browser tests need a Chromium. They use one already installed by Playwright under
 `%LOCALAPPDATA%\ms-playwright`, or the executable named in `CHROME_PATH`.

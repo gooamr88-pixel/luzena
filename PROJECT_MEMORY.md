@@ -581,6 +581,14 @@ applications (policy, retention, email).
      sets the same in the dashboard. Then: confirm a wrong-password sign-in answers
      "Invalid login credentials"; the signed-in half of `verify:functions` with a
      throwaway owner; the test site (`build:staging`) in a browser.
+   - **The test site against TEST, in a real browser (2026-10-06):** `.env.staging.local`
+     written with TEST's two public values; `npm run build:staging`; served at
+     `http://localhost:4173` with the production headers. `npm run verify:site` passes
+     there with the backend checks included (26 of 26, the two HTTPS checks skipped). In
+     Chromium, under the real Content-Security-Policy: the menu page asks the TEST function
+     and shows "Menu temporarily unavailable"; the home page loads clean; the dashboard
+     shows its sign-in form and answers a wrong password with its generic refusal. Not
+     done: anything signed in.
    - PRODUCTION was not touched.
 2a. (Superseded by the note above; kept for the order.) As soon as the CLI can reach TEST, TEST project (`cgxhifkeoesvsycewwfs`) first, in
    this order: deploy the four functions; set secrets from `.env.test`; Auth settings; a
