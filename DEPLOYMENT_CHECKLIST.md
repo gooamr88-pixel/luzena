@@ -61,7 +61,7 @@ Background: `docs/CONFIGURATION.md` (every setting), `BLOCKERS.md` (what is stil
 >
 > | | Project | Region | State |
 > |---|---|---|---|
-> | **TEST / STAGING** | `cgxhifkeoesvsycewwfs` | eu-west-1 (Ireland) | Five migrations applied; `npm run verify:database` passes 30 of 30. Nothing else yet. Used for all Clover **sandbox** and integration testing. Never holds real data. |
+> | **TEST / STAGING** | `cgxhifkeoesvsycewwfs` | eu-west-1 (Ireland) | Five migrations applied; `npm run verify:database` passes 30 of 30. **2026-10-06:** the four functions deployed, secrets set, the owner created and the restaurant provisioned; `npm run verify:functions` passes 15 of 15 and `npm run verify:public-access` 15 of 15. **Open: the Auth settings** (the corrected `config.toml` has to be applied; until then email sign-in is off there) and, after that, the signed-in checks. Used for all Clover **sandbox** and integration testing. Never holds real data. |
 > | **PRODUCTION** | `xqzpuqjrlrxyitjubkqk` | us-west-1 (N. California) | Five migrations applied; `npm run verify:database` passes 30 of 30; `npm run verify:public-access` passes 14 of 15. **Open: sign-ups are still switched on** (Supabase's default). Nothing else deployed. |
 >
 > **Order for any project, without exception:** (1) `supabase db push`,
@@ -138,9 +138,31 @@ For each project (`<ref>` is the project reference; every command below names it
 
   Both must answer with a permission error, never with data.
 
-- [ ] Authentication > Providers > Email: sign-ups **disabled**; minimum password length 12.
-- [ ] Authentication > URL configuration: Site URL `https://<site>/dashboard/`; the same
-      address in the redirect allow-list.
+- [ ] **Auth settings.** They are written in `supabase/config.toml` (sign-ups off, the
+      email provider ON, minimum password length 12, and each project's own site address
+      under `[remotes.*]`) and applied with:
+
+  ```
+  supabase config push --project-ref <ref>
+  ```
+
+  **Read this before running it.** It prints the difference between the project and the
+  file, then asks "Do you want to push auth config to remote? [Y/n]". **Yes is the
+  default, and it is also what happens when nothing answers the prompt: there is no dry
+  run.** It replaces the project's whole Auth configuration, using the CLI's defaults for
+  anything the file leaves out. Run it yourself in a terminal, read the difference, and
+  answer `n` if any line is not one you expect. Never run it with `--yes`, and never run
+  it to "see what it would do".
+
+  The same settings by hand, in the dashboard: Authentication > Sign In / Providers:
+  "Allow new users to sign up" **off**, the Email provider **on**, minimum password length
+  12; Authentication > URL configuration: Site URL `<site>/dashboard/`, and the same
+  address in the redirect allow-list.
+- [ ] Check it from outside: `npm run verify:public-access` ends with "The public key can
+      do nothing here", **and** a sign-in attempt with a wrong password answers "Invalid
+      login credentials", not "Email logins are disabled". The second is the trap: the
+      email provider's switch is called `enable_signup` in `config.toml`, and with it off
+      nobody can sign in at all, the owner included.
 - [ ] Authentication > Email: a custom SMTP sender (Resend works) so password-reset emails
       are delivered reliably. Supabase's built-in sender is rate limited.
 - [ ] Deploy the functions (`--use-api` bundles on Supabase's side; this machine has no
@@ -161,7 +183,9 @@ For each project (`<ref>` is the project reference; every command below names it
       (supplied by the client 2026-10-06; the same address receives job applications).
 - [ ] Check the four values in `supabase/provision-restaurant.sql` (slug `luzena`, name,
       recruitment address and owner, both `fadi.auchi@gmail.com`), and run it:
-      `supabase db query --project-ref <ref> -f supabase/provision-restaurant.sql`.
+      `supabase db query --linked --project-ref <ref> -f supabase/provision-restaurant.sql`.
+      (`--linked` here only means "a hosted project, through the Supabase API"; with
+      `--project-ref` given it uses that project and creates no link.)
 
 **Check.** The automated one first; it covers the three below and more, and is the first
 check in which the functions have a real database behind them:

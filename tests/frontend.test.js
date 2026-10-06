@@ -358,6 +358,36 @@ describe("SEO output", () => {
   });
 });
 
+describe("hosted Auth configuration (supabase/config.toml)", () => {
+  // `supabase config push` applies this file to a hosted project as written.
+  const toml = readFileSync(new URL("../supabase/config.toml", import.meta.url), "utf8").replace(/\r\n/g, "\n");
+  const section = (name) => {
+    const start = toml.indexOf(`\n[${name}]\n`);
+    expect(start, `[${name}] exists`).toBeGreaterThan(-1);
+    const rest = toml.slice(start + name.length + 4);
+    const end = rest.search(/\n\[/);
+    return end === -1 ? rest : rest.slice(0, end);
+  };
+
+  it("lets nobody sign up, and keeps a password of at least 12 characters", () => {
+    expect(section("auth")).toMatch(/^enable_signup = false$/m);
+    expect(section("auth")).toMatch(/^enable_anonymous_sign_ins = false$/m);
+    expect(section("auth")).toMatch(/^minimum_password_length = 12$/m);
+  });
+
+  it("keeps the email provider on: switching it off locks the owner out", () => {
+    expect(section("auth.email")).toMatch(/^enable_signup = true$/m);
+  });
+
+  it("gives each hosted project its own site address, and production the real domain", () => {
+    expect(section("remotes.test")).toContain('project_id = "cgxhifkeoesvsycewwfs"');
+    expect(section("remotes.production")).toContain('project_id = "xqzpuqjrlrxyitjubkqk"');
+    expect(section("remotes.production.auth")).toContain('site_url = "https://luzenarestaurant.com/dashboard/"');
+    expect(section("remotes.production.auth")).toContain('additional_redirect_urls = ["https://luzenarestaurant.com/dashboard/"]');
+    expect(section("remotes.test.auth")).not.toContain("luzenarestaurant.com");
+  });
+});
+
 describe("production web server configuration", () => {
   const config = nginxConfig();
   const { headers: rules } = JSON.parse(readFileSync(new URL("../deploy/headers.json", import.meta.url), "utf8"));

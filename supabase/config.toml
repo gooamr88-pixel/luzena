@@ -1,10 +1,21 @@
 # Supabase project configuration for this repository.
-# Set project_id to the project ref after `supabase link`.
+#
+# The [auth] sections are APPLIED TO A HOSTED PROJECT by
+#   supabase config push --project-ref <ref>
+# which replaces that project's whole Auth configuration with what is written here plus the
+# CLI's defaults for anything left out. Its confirmation prompt defaults to YES, also when
+# nothing can answer it: there is no dry run. So everything that matters is written out
+# below, and each hosted project gets its own site address under [remotes.*].
+# The CLI picks the [remotes.*] block whose project_id equals --project-ref.
 project_id = "luzna-web"
 
 [auth]
+# Where emailed links (password reset) send the owner. Overridden per hosted project below.
+site_url = "http://localhost:4173/dashboard/"
+additional_redirect_urls = ["http://localhost:4173/dashboard/"]
 # Owners are provisioned by the operator. Nobody can sign themselves up.
 enable_signup = false
+enable_anonymous_sign_ins = false
 # Access tokens live one hour; refresh tokens rotate and are single use.
 jwt_expiry = 3600
 enable_refresh_token_rotation = true
@@ -12,7 +23,37 @@ refresh_token_reuse_interval = 10
 minimum_password_length = 12
 
 [auth.email]
-enable_signup = false
+# This switch is the email PROVIDER, not sign-ups: with it off, Supabase refuses every
+# email sign-in ("Email logins are disabled") and the owner cannot get in. It must stay on.
+# New accounts are already impossible because of enable_signup = false above.
+enable_signup = true
+double_confirm_changes = true
+enable_confirmations = true
+secure_password_change = false
+# At most one email (password reset) per address per minute.
+max_frequency = "1m0s"
+otp_length = 8
+otp_expiry = 3600
+
+[auth.mfa.totp]
+enroll_enabled = true
+verify_enabled = true
+
+# TEST / STAGING (Ireland). The test site runs on this machine: npm run preview:staging.
+[remotes.test]
+project_id = "cgxhifkeoesvsycewwfs"
+
+[remotes.test.auth]
+site_url = "http://localhost:4173/dashboard/"
+additional_redirect_urls = ["http://localhost:4173/dashboard/"]
+
+# PRODUCTION (N. California).
+[remotes.production]
+project_id = "xqzpuqjrlrxyitjubkqk"
+
+[remotes.production.auth]
+site_url = "https://luzenarestaurant.com/dashboard/"
+additional_redirect_urls = ["https://luzenarestaurant.com/dashboard/"]
 
 # Each function authenticates its own callers, so the gateway JWT check is off:
 #   dashboard-api    verifies the Supabase Auth JWT itself and resolves the tenant.

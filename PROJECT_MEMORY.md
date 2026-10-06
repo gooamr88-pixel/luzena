@@ -549,7 +549,40 @@ applications (policy, retention, email).
    its Nginx plugin; the old build is in `/var/www/luzna`, a different folder from ours.
    **The VPS side is now ready to be set up, but only after TEST has passed and PRODUCTION
    Supabase is deployed.**
-2a. As soon as the CLI can reach TEST, TEST project (`cgxhifkeoesvsycewwfs`) first, in
+   **TEST backend deployed, 2026-10-06** (the client signed the CLI in with an account
+   that reaches both projects). On `cgxhifkeoesvsycewwfs` only:
+   - The four functions deployed with `--project-ref ... --use-api`; `verify_jwt` is false
+     on each, as `config.toml` says. Secrets set from `.env.test`.
+     `SUPABASE_SERVICE_ROLE_KEY` IS injected on a project with the new-style keys: the
+     open question in section 25 is answered.
+   - **KI-1 is resolved: the functions worked against a real project on first contact.**
+     No change to `runtime.ts` was needed.
+   - The owner `fadi.auchi@gmail.com` created (no password, no email sent) and
+     `provision-restaurant.sql` run with `supabase db query --linked --project-ref <ref>
+     -f ...` (`--project-ref` alone is refused by that command; no link file is created).
+   - `npm run verify:functions`: 15 of 15, plus no response showing internals.
+     `npm run verify:public-access`: 15 of 15. `supabase db advisors --type security`:
+     no error; 16 notes that tables have RLS and no policy (the design); one warning class
+     about 44 functions without a fixed `search_path` (`BLOCKERS.md` N-11); two Auth
+     warnings (leaked-password check off, few MFA options).
+   - **A mistake, and what it found.** `supabase config push --project-ref <test>` was run
+     without `--yes`, meaning to read the difference only. Its prompt defaults to yes, also
+     with nothing answering, so it APPLIED `config.toml`'s Auth section to TEST. That file
+     had `[auth.email] enable_signup = false`, which is not "no email sign-ups" but "email
+     provider off": afterwards TEST answered every sign-in with "Email logins are
+     disabled". Had this reached production the owner could not have signed in. TEST had
+     no users with a password, so nothing was lost. `config.toml` is now corrected and
+     written out in full, with each project's site address under `[remotes.*]`.
+     **Never run `config push` as a preview, and never on PRODUCTION except by the client,
+     in their own terminal, reading the difference.**
+   - **Still open on TEST:** applying the corrected Auth settings. An automatic apply
+     (`--yes`) was refused by the session's safety check, rightly; the client runs
+     `supabase config push --project-ref cgxhifkeoesvsycewwfs` and reads the difference, or
+     sets the same in the dashboard. Then: confirm a wrong-password sign-in answers
+     "Invalid login credentials"; the signed-in half of `verify:functions` with a
+     throwaway owner; the test site (`build:staging`) in a browser.
+   - PRODUCTION was not touched.
+2a. (Superseded by the note above; kept for the order.) As soon as the CLI can reach TEST, TEST project (`cgxhifkeoesvsycewwfs`) first, in
    this order: deploy the four functions; set secrets from `.env.test`; Auth settings; a
    test owner; `provision-restaurant.sql`; `npm run verify:functions` with the signed-in
    checks; `npm run verify:public-access`. Expect small fixes in `runtime.ts` on first

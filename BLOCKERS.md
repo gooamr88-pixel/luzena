@@ -102,12 +102,18 @@ documentation and tested against a stand-in.
   the functions use the service-role key, not the database password.
 - **Supplied 2026-10-06:** the owner signs in to the dashboard as `fadi.auchi@gmail.com`,
   the same address that receives job applications.
-- **Open (2026-10-06): the Supabase CLI cannot reach the TEST project.** The access token
-  the client supplied belonged to an account that sees only PRODUCTION (TEST answered 403),
-  and it has since stopped working altogether (401). TEST must be deployed and verified
-  before PRODUCTION, so nothing has been deployed. Needed: `supabase login` with an account
-  that can reach **both** projects, or the TEST project's owner inviting that account into
-  its organisation.
+- **TEST backend deployed and checked (2026-10-06).** The four functions, the secrets, the
+  owner and the restaurant are on the TEST project; `npm run verify:functions` passes 15 of
+  15 and `npm run verify:public-access` 15 of 15. The functions worked against a real
+  project on first contact.
+- **Open on TEST, needed from you: apply the Auth settings.** In a terminal in this
+  folder, run `supabase config push --project-ref cgxhifkeoesvsycewwfs`, read the
+  difference it prints, and answer `y` (`DEPLOYMENT_CHECKLIST.md` section 2 says what to
+  expect and why this one is not run for you). Until then email sign-in is off on TEST,
+  so the signed-in checks cannot run, and PRODUCTION waits for them.
+- **Found on TEST, fixed:** `supabase/config.toml` would have switched the email provider
+  off, which locks every user out, the owner included. Corrected before it could reach
+  PRODUCTION.
 - **Ready on our side:** `DEPLOYMENT_CHECKLIST.md` section 2; `supabase/provision-restaurant.sql`;
   a secrets file per environment with its own freshly generated keys
   (`supabase/functions/.env.test`, `.env.production`, both git-ignored);
@@ -209,6 +215,19 @@ with the production project's exact host and regenerate the Nginx file
 Deletion runs when an application arrives and when an owner opens the dashboard. If the
 privacy policy promises deletion by an exact day regardless of activity, add a daily
 schedule (described in `DEPLOYMENT_CHECKLIST.md`).
+
+### N-11. SQL functions without a fixed `search_path` — NON-BLOCKING · INFRASTRUCTURE
+
+Supabase's security advisor, run on the TEST database on 2026-10-06, warns that the 44 SQL
+functions do not pin their `search_path`. The risk here is low: none of them is
+`security definer`, each can be executed by the backend's role only, and they name their
+tables with the schema. It is still worth closing: a new migration that sets the search
+path on each function, run through `npm test` and applied to TEST before PRODUCTION. Not
+done yet, so that the first deployment changes as little as possible.
+
+The same run gave two Auth warnings that are dashboard settings, for you to decide: the
+leaked-password check is off (it is a paid-plan feature), and few multi-factor options are
+enabled.
 
 ### N-10. Second social link, price range — NON-BLOCKING · OPTIONAL
 

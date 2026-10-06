@@ -32,8 +32,10 @@ attempt must be refused.
 them: an unknown restaurant must answer 404 from the database, not 503. It also checks the
 session guard, CORS for the allowed origin only, the closed application form and the webhook
 secret. With `SUPABASE_PUBLIC_KEY`, `OWNER_EMAIL` and `OWNER_PASSWORD` it signs in and reads
-every dashboard screen. It writes no menu data. **Not yet run against deployed functions:**
-none are deployed (2026-10-05).
+every dashboard screen. It writes no menu data. **Run against the TEST project on
+2026-10-06, after the first deployment there: 15 of 15, and no response showing
+internals.** The signed-in half has not run yet (TEST's Auth settings are still to be
+applied). Not run against PRODUCTION: nothing is deployed there.
 
 `npm run verify:site` is the outside view of a deployed website (`SITE_URL`, and
 `EXPECT_SUPABASE_URL` set to the project that site must use). It checks HTTPS and the
