@@ -53,6 +53,10 @@ create index job_application_events_application_idx on public.job_application_ev
 alter table public.job_application_events enable row level security;
 revoke all on public.job_application_events from anon, authenticated;
 revoke all on all sequences in schema public from anon, authenticated;
+-- Said outright rather than left to default privileges: those belong to the role that
+-- creates the table, and this migration may be applied by a different role from the one
+-- that applied the first ones. The Edge Functions' role must be able to write the history.
+grant all on public.job_application_events to service_role;
 
 -- ---------------------------------------------------------------------------------------
 -- Receiving an application
