@@ -6,10 +6,11 @@ backend that keeps both in step with Clover. Ordering and payment stay in Clover
 Domain: `luzenarestaurant.com`. (The folder and package are still called `luzna-web`, from
 before the spelling was confirmed.)
 
-> **Current state.** Built and tested on one machine. Two Supabase projects exist (test and
-> production) with their databases set up and verified closed; **the site and the backend
-> functions are not deployed anywhere**. It has **never run against Clover**. The code is
-> on GitHub in a public repository. The real name, logo, address, phone, hours,
+> **Current state (2026-10-06).** The information site is **live at
+> https://luzenarestaurant.com**, with its backend on the production Supabase project. The
+> menu, online ordering and online job applications are switched off until Clover, the
+> ordering link and the privacy policy exist. It has **never run against Clover**. The code
+> is on GitHub in a public repository. The real name, logo, address, phone, hours,
 > About text and job list are in place. Photos are postponed on purpose: the site is
 > designed to publish without them. What stands between here and a live site is listed in
 > `BLOCKERS.md`; the order to do it in is `DEPLOYMENT_CHECKLIST.md`.

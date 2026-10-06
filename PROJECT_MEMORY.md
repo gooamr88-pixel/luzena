@@ -610,7 +610,28 @@ applications (policy, retention, email).
    - `config push` was NOT run on PRODUCTION and must not be run from here. Its Auth is
      as the client set it in the dashboard. Still to set there, by the client: minimum
      password length 12, Site URL and redirect `https://luzenarestaurant.com/dashboard/`.
-   - **Next:** the client runs checklist sections 5 to 7 on the VPS (the site's build file
+   **THE INFORMATION SITE IS LIVE: https://luzenarestaurant.com, 2026-10-06.** The client
+   ran checklist sections 5 to 7 on the VPS (user and folder, clone over HTTPS, `site.env`,
+   `deploy.sh`, certificate for both names valid to 2027-01-04, the Nginx file) after
+   pointing the domain's `A` record at the VPS and setting the Auth site address and
+   password length in the dashboard. `deploy/deploy.sh` and the generated Nginx file worked
+   on the real server without a change. `npm run verify:site` from here, with `WWW_URL`:
+   **28 of 28**: HTTPS and both redirects, every header exactly as in `deploy/headers.json`
+   (on pages, hashed files and the 404 page), robots, sitemap, the nine public pages, no
+   dot-file or repository file reachable, ordering and the application form off, the
+   dashboard, the PRODUCTION project and no other, and the backend reached from the site's
+   own origin.
+   - Lesson for the checklist: paste the VPS commands one block at a time. Pasted all at
+     once, the lines typed ahead during `sudo ... git clone` were swallowed, so the first
+     attempt enabled Nginx with nothing built (the domain answered 404 for some minutes).
+   - `nginx -t` prints "protocol options redefined" warnings on that server. Harmless, and
+     there before this site: the sites sharing port 443 do not all name `http2`.
+   - Not done yet: the owner's first sign-in (the first signed-in use of a real backend);
+     the old-spelling domain's redirect and the removal of the old application
+     (checklist 7.1; its pm2 process is `luzna-restaurant`, its folder `/var/www/luzna`);
+     TEST's Auth settings; narrowing the CSP to the production host; Clover; ordering
+     link; job applications.
+   - (Earlier plan, now done:) the client runs checklist sections 5 to 7 on the VPS (the site's build file
      needs PRODUCTION's publishable key, which the client has been given), then
      `npm run verify:site` from here, then the owner's first sign-in ("Forgot your
      password?"), which will be the first signed-in use of the real backend: watch it.

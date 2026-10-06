@@ -3,10 +3,16 @@
 What stands between the current state and a live site, who has to act, and what "done"
 means for each. Updated 2026-10-05.
 
-**The site is not live.** Both Supabase projects exist, test and production, with their
-databases set up and verified closed (B-5); the functions, the website and Clover are not
-deployed anywhere. Everything that could be built and verified on one machine without
-outside accounts has been; the list below is what is left.
+**The information site is live: https://luzenarestaurant.com (2026-10-06).** The backend
+is on the production Supabase project and the website on the Hostinger VPS; the outside
+check of the live site passes 28 of 28. B-5 and B-6 are done except for the items marked
+open below. The menu, online ordering and online applications remain off: B-1, B-2, B-3,
+B-4 and B-7 are what stands between here and each of them.
+
+Open right now: the owner's first sign-in (dashboard > "Forgot your password?"), which is
+also the first signed-in use of the real backend; the old-spelling domain's redirect and
+the removal of the old application from the VPS (`DEPLOYMENT_CHECKLIST.md` 7.1); resetting
+both database passwords.
 
 Categories: **BLOCKING** stops launch. **NON-BLOCKING** can follow launch. The second label
 says whose move it is: **CLIENT INPUT**, **CLOVER INPUT**, **INFRASTRUCTURE**, **LEGAL**, or
