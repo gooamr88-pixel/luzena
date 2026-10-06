@@ -212,6 +212,28 @@ certificate names the bare domain and `www`. `http://` and `www` redirect to
 and has not been seen: the VPS itself (its other sites, users, SSH access, firewall,
 updates). Its owner is responsible for those.
 
+### A merchant's own Clover API token
+
+A restaurant can connect with a token its owner creates in Clover, instead of OAuth. That
+token gives whoever holds it the access it was created with, until it is deleted in Clover,
+so it is handled as the most sensitive value in the system:
+
+- It is typed by the owner into a password field in the dashboard and sent once, over TLS,
+  with the owner's session, to the backend. This is the only time it is in a browser, and
+  the page clears the field whatever the answer. It is never in the page's address, in
+  browser storage, or in any response.
+- Owner role only. Ten attempts per person per fifteen minutes, counted before Clover is
+  asked anything. Unknown fields and malformed values are refused first.
+- It is checked against Clover before it is kept, and refused if Clover does not accept it
+  for that merchant.
+- At rest it is AES-256-GCM ciphertext, like the OAuth tokens. It is not in any log line or
+  in the audit log: tests search every log entry and audit row for it.
+- The owner can end the access at any time from either side: Disconnect in the dashboard
+  deletes the stored copy; deleting the token in Clover makes it useless, and the dashboard
+  then asks for a new one.
+- Advice for the owner: create a token for this website only, with the Inventory and
+  Merchant read permissions and nothing more, and never send it by email or chat.
+
 ## 9. Errors and logs
 
 Clients get a code, a plain sentence and a request id. Stack traces, Clover's response text

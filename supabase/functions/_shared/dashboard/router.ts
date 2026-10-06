@@ -10,7 +10,7 @@ import {
   listModifierGroupsHandler, reorderCategories, reorderCategoryItems, updateCategoryHandler,
   updateModifierGroupHandler, updateModifierHandler,
 } from "./catalog.ts";
-import { completeConnect, connectionStatus, disconnect, manualSync, startConnect } from "./connection.ts";
+import { completeConnect, connectionStatus, connectWithToken, disconnect, manualSync, startConnect } from "./connection.ts";
 import { removeItemImage, uploadItemImage } from "./images.ts";
 import { bulkItems, createItemHandler, DIETARY_TAGS, getItemDetail, listItems, updateItemHandler } from "./items.ts";
 import { authenticate, cloverApiError, type Permission, permissionsOf, rateLimit, requirePermission } from "./session.ts";
@@ -107,6 +107,8 @@ const ROUTES: Route[] = [
     handle: ({ deps, session }) => startConnect(deps, session) },
   { method: "POST", pattern: /^\/clover\/complete$/, permission: "clover.manage", limit: ["oauth", 10, 900],
     handle: async (c) => completeConnect(c.deps, c.session, await body(c)) },
+  { method: "POST", pattern: /^\/clover\/connect-token$/, permission: "clover.manage", limit: ["oauth", 10, 900],
+    handle: async (c) => connectWithToken(c.deps, c.session, await body(c)) },
   { method: "POST", pattern: /^\/clover\/disconnect$/, permission: "clover.manage", limit: ["oauth", 10, 900],
     handle: ({ deps, session }) => disconnect(deps, session) },
   { method: "POST", pattern: /^\/clover\/sync$/, permission: "menu.write", limit: ["sync", 12, 300],

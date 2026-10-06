@@ -99,7 +99,68 @@ export async function cloverView(outlet) {
     });
   };
 
-  function draw({ connection, configured }) {
+  // The second way to connect: an API token the merchant creates in their own Clover
+  // dashboard. It is sent once to the backend, which checks it with Clover and stores it
+  // encrypted. This page keeps nothing: the field is cleared whatever the outcome.
+  function tokenForm(reconnecting) {
+    const merchant = h("input", {
+      class: "d-input", id: "clover-merchant-id", name: "merchant_id", required: true, maxlength: 13,
+      autocomplete: "off", autocapitalize: "characters", spellcheck: "false", placeholder: "13 letters and digits",
+    });
+    const token = h("input", {
+      class: "d-input", id: "clover-api-token", name: "token", type: "password", required: true, maxlength: 200,
+      autocomplete: "off", spellcheck: "false",
+    });
+    const message = h("div", { class: "d-alert d-alert-bad", role: "alert", hidden: true });
+    const submit = h("button", { type: "submit", class: "d-btn d-btn-primary" }, reconnecting ? "Reconnect with this token" : "Connect with this token");
+    const form = h("form", { class: "mt-4 space-y-4", novalidate: true },
+      message,
+      h("div", {}, h("label", { class: "d-label", for: "clover-merchant-id" }, "Merchant ID"), merchant,
+        h("p", { class: "d-hint" }, "In Clover: Settings, then View all settings, then Merchants. Also in the address bar of the Clover dashboard.")),
+      h("div", {}, h("label", { class: "d-label", for: "clover-api-token" }, "API token"), token,
+        h("p", { class: "d-hint" }, "In Clover: Settings, then View all settings, then API tokens. Create a token with Inventory read and write, and Merchant read.")),
+      submit);
+
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      message.hidden = true;
+      const merchantId = merchant.value.trim().toUpperCase();
+      const value = token.value.trim();
+      if (!/^[A-Z0-9]{13}$/.test(merchantId)) {
+        message.textContent = "The merchant ID is 13 letters and digits.";
+        message.hidden = false;
+        merchant.focus();
+        return;
+      }
+      if (value.length < 16) {
+        message.textContent = "Paste the whole API token.";
+        message.hidden = false;
+        token.focus();
+        return;
+      }
+      run(submit, "Checking with Clover...", async () => {
+        try {
+          const result = await api("POST", "/clover/connect-token", { merchant_id: merchantId, token: value });
+          token.value = "";
+          toast(result.message, "ok");
+          await reload();
+        } catch (failure) {
+          token.value = "";
+          message.textContent = explain(failure);
+          message.hidden = false;
+          token.focus();
+        }
+      });
+    });
+
+    return h("div", { class: "d-card mt-5 p-5" },
+      h("h2", { class: "text-base" }, reconnecting ? "Enter a new Clover API token" : "Connect with a Clover API token"),
+      h("p", { class: "mt-2 text-sm text-muted" },
+        "For a restaurant connecting its own Clover account. The token is created by the account owner in Clover and can be deleted there at any time, which disconnects this website."),
+      form);
+  }
+
+  function draw({ connection, configured, token_connect: tokenConnect }) {
     const manage = can("clover.manage");
     const row = (term, value) => h("div", { class: "flex flex-wrap justify-between gap-x-6 gap-y-1 border-b border-line py-3 last:border-b-0" },
       h("dt", { class: "text-muted" }, term), h("dd", { class: "text-right font-medium" }, value));
@@ -112,8 +173,8 @@ export async function cloverView(outlet) {
 
     clear(region);
     append(region, 
-      !configured && h("div", { class: "d-alert d-alert-warn mb-5" },
-        "Clover has not been set up for this website yet. The site administrator needs to add the Clover app credentials before a restaurant can connect."),
+      !configured && !tokenConnect && h("div", { class: "d-alert d-alert-warn mb-5" },
+        "Clover has not been set up for this website yet. The site administrator needs to finish the Clover settings before a restaurant can connect."),
       connection.status === "needs_reauth" && h("div", { class: "d-alert d-alert-bad mb-5" },
         "Clover no longer accepts the stored authorisation. Reconnect to resume syncing and editing. The website keeps showing the last synced menu."),
 
@@ -135,6 +196,9 @@ export async function cloverView(outlet) {
           manage && configured && !connection.connected && button("Connect Clover", "d-btn-primary", connect),
           manage && configured && connection.connected && button("Reconnect", connection.status === "needs_reauth" ? "d-btn-primary" : "", connect),
           manage && connection.connected && button("Disconnect", "", disconnect))),
+
+      manage && tokenConnect && (!connection.connected || connection.status === "needs_reauth")
+        && tokenForm(connection.connected),
 
       h("div", { class: "d-card mt-5 p-5 text-sm" },
         h("h2", { class: "text-base" }, "How Clover and this dashboard work together"),

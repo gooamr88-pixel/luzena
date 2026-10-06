@@ -30,7 +30,8 @@ export class FakeClover {
     this.accessLifetimeSeconds = 3600;
   }
 
-  get accessToken() { return `access-${this.tokenGeneration}`; }
+  // As long as a real Clover token, so it passes the same checks one would.
+  get accessToken() { return `access-0000-0000-0000-00000000000${this.tokenGeneration}`; }
   get refreshToken() { return `refresh-${this.tokenGeneration}`; }
 
   newId(prefix) {

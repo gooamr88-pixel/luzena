@@ -462,6 +462,56 @@ describe("Clover connection and activity", () => {
     await context.close();
   });
 
+  it("connects with a merchant API token: checks the input, shows a refusal, and keeps the token nowhere", async () => {
+    const { page, context, problems } = await dashboard("#/clover");
+    await page.waitForSelector("text=Demo merchant");
+    // While connected there is no token form.
+    expect(await page.locator("#clover-api-token").count()).toBe(0);
+
+    await page.getByRole("button", { name: "Disconnect" }).click();
+    await dialog(page).getByRole("button", { name: "Disconnect" }).click();
+    await page.waitForSelector("#clover-api-token");
+    expect(await page.locator("main#main").innerText()).toContain("Not connected");
+    expect(await page.locator("#clover-api-token").getAttribute("type")).toBe("password");
+    expect(await page.locator("#clover-api-token").getAttribute("autocomplete")).toBe("off");
+    expect(await accessibilityViolations(page), describeViolations(await accessibilityViolations(page))).toEqual([]);
+
+    const submit = page.getByRole("button", { name: "Connect with this token" });
+    const alert = page.locator("form [role=alert]");
+
+    await page.fill("#clover-merchant-id", "too-short");
+    await page.fill("#clover-api-token", "demo-token-0000-0000-0000");
+    await submit.click();
+    expect(await alert.innerText()).toBe("The merchant ID is 13 letters and digits.");
+
+    await page.fill("#clover-merchant-id", "demomerchant1"); // typed in lower case
+    await page.fill("#clover-api-token", "short");
+    await submit.click();
+    expect(await alert.innerText()).toBe("Paste the whole API token.");
+
+    // A token Clover refuses: the reason is shown and the field is emptied.
+    await page.fill("#clover-api-token", "wrong-token-0000-0000-0000");
+    await submit.click();
+    await page.waitForFunction(() => document.querySelector("form [role=alert]")?.textContent.includes("did not accept"));
+    expect(await page.inputValue("#clover-api-token")).toBe("");
+    expect(await page.locator("main#main").innerText()).toContain("Not connected");
+
+    // An accepted token: connected, the form is gone, and the token is not on the page,
+    // in the address or in the browser's storage.
+    const token = "demo-token-0000-0000-0000";
+    await page.fill("#clover-api-token", token);
+    await submit.click();
+    await page.waitForSelector("#clover-api-token", { state: "detached" });
+    expect(await page.locator("main#main").innerText()).toContain("DEMOMERCHANT1");
+    expect(await page.locator("main#main").innerText()).toContain("Connected");
+    expect(await page.content()).not.toContain(token);
+    expect(page.url()).not.toContain(token);
+    const stored = await page.evaluate(() => JSON.stringify([{ ...window.localStorage }, { ...window.sessionStorage }]));
+    expect(stored).not.toContain(token);
+    expect(problems.filter((problem) => !/400/.test(problem))).toEqual([]);
+    await context.close();
+  });
+
   it("records changes in the activity log", async () => {
     const { page, context } = await dashboard("#/items/SAMPLEITEM005");
     await page.waitForSelector("#price");

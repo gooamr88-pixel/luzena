@@ -31,6 +31,39 @@ export function requireClover(env: Env): { clover: CloverConfig; key: string } {
   return { clover: env.clover, key: env.tokenEncryptionKey };
 }
 
+// The key alone: all that a stored connection needs in order to be used. A connection made
+// with a merchant's own API token works without any Clover app being configured.
+function requireKey(env: Env): string {
+  if (!env.tokenEncryptionKey) throw new CloverError("not_configured", "The token encryption key is missing");
+  return env.tokenEncryptionKey;
+}
+
+// A connection made with a merchant-generated API token (Clover merchant dashboard > API
+// tokens) instead of OAuth. Such a token does not expire and has no refresh token, so the
+// refresh slot holds this marker and the expiry is set far in the future. When Clover
+// rejects the token the only remedy is a new one from the merchant: see getCredentials.
+export const API_TOKEN_MARKER = "merchant-api-token:no-refresh";
+const API_TOKEN_EXPIRY = "9999-12-31T00:00:00.000Z";
+
+export async function sealApiToken(token: string, key: string) {
+  return {
+    accessEnc: await encryptSecret(token, key),
+    refreshEnc: await encryptSecret(API_TOKEN_MARKER, key),
+    accessExp: API_TOKEN_EXPIRY,
+    refreshExp: null,
+  };
+}
+
+// An API handle for a token that is not stored yet, used to check it before saving it.
+export function cloverWithToken(
+  deps: Deps, environment: keyof typeof CLOVER_HOSTS, merchantId: string, token: string, correlationId: string,
+): CloverApi {
+  return {
+    merchantId,
+    request: (call: CloverCall) => cloverFetch(deps, CLOVER_HOSTS[environment].api, token, call, correlationId),
+  };
+}
+
 export function buildAuthorizeUrl(clover: CloverConfig, state: string): string {
   const url = new URL("/oauth/v2/authorize", CLOVER_HOSTS[clover.environment].web);
   url.searchParams.set("client_id", clover.appId);
@@ -134,7 +167,7 @@ const readSecret = (deps: Deps, restaurantId: string) =>
 // restaurant out. A database lock makes exactly one instance refresh; the others wait and
 // pick up the rotated token.
 async function getCredentials(deps: Deps, restaurantId: string, rejectedToken: string | null): Promise<Credentials> {
-  const { key } = requireClover(deps.env);
+  const key = requireKey(deps.env);
 
   const usable = async (row: ConnectionSecret): Promise<Credentials | null> => {
     const expiresAt = Date.parse(row.access_token_expires_at);
@@ -171,8 +204,17 @@ async function getCredentials(deps: Deps, restaurantId: string, rejectedToken: s
       return rotated;
     }
 
+    const refreshToken = await decryptSecret(current.refresh_token_enc, key);
+    if (refreshToken === API_TOKEN_MARKER) {
+      // A merchant API token cannot be refreshed. Getting here means Clover rejected it
+      // (revoked or deleted in the merchant dashboard): the owner has to enter a new one.
+      deps.log.error("clover_api_token_rejected", { restaurant_id: restaurantId });
+      await deps.db.rpc("clover_mark_needs_reauth", { p_restaurant: restaurantId, p_error_code: "token_rejected" });
+      throw new CloverError("needs_reauth", "Clover rejected the merchant API token");
+    }
+
     try {
-      const tokens = await refreshTokens(deps, await decryptSecret(current.refresh_token_enc, key));
+      const tokens = await refreshTokens(deps, refreshToken);
       const sealed = await sealTokens(tokens, key);
       await deps.db.rpc("clover_tokens_rotate", {
         p_restaurant: restaurantId,

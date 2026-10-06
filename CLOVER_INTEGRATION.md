@@ -2,14 +2,56 @@
 
 How this system connects to Clover, what it calls, and what still has to be proven.
 
-**Status: written against Clover's documentation, not yet run against Clover.** There is no
-Clover developer account for this project yet, so no request in this document has been sent
-to a Clover server. `CLOVER_CAPABILITY_MATRIX.md` lists each capability and its evidence.
+**Status (2026-10-06): written against Clover's documentation, not yet run against Clover.**
+No request in this document has been sent to a Clover server. The client has decided to
+connect the restaurant's real Clover account without a sandbox run first; section 0 says
+how, and what that leaves unproven. `CLOVER_CAPABILITY_MATRIX.md` lists each capability and its evidence.
 `CLOVER_SANDBOX_TEST_PLAN.md` is the list of checks to run once a sandbox exists; part of it
 is automated (`npm run test:clover-sandbox`). **This integration is not production-ready
 until that plan has been run and its results recorded.**
 
-## 1. What you need from Clover
+## 0. Two ways to connect, and which one a single restaurant uses
+
+| | Merchant API token | OAuth app |
+|---|---|---|
+| What it is | A token the restaurant's Clover account owner creates in their own Clover dashboard | A Clover app, installed by the merchant, that issues expiring tokens |
+| Needs from Clover | Nothing but the merchant's own account | A production developer account **and** the app, both approved by Clover. Clover states no time for the review. |
+| Clover's guidance | "If you're not building a public-facing app ... the recommended approach is: Use merchant-generated API tokens for a simpler, app-less integration" (OAuth and tokens FAQ, read 2026-10-06) | Required for an app offered to merchants in general |
+| Settings on our side | `CLOVER_ENV` and `TOKEN_ENCRYPTION_KEY`. No app id, no app secret. | `CLOVER_ENV`, `CLOVER_APP_ID`, `CLOVER_APP_SECRET`, `CLOVER_REDIRECT_URI` |
+| In the dashboard | Clover > "Connect with a Clover API token": merchant ID and token | Clover > "Connect Clover" |
+| Token life | Until the owner deletes it in Clover. No refresh. | Access token about 30 minutes, refreshed automatically |
+| If Clover rejects it later | The connection shows "Reconnect needed" and asks for a new token. The website keeps the last menu. | The same, after a failed refresh |
+| Webhooks | None: they belong to a Clover app. Changes made in Clover reach the site through the staleness sync (within `MENU_SYNC_TTL_SECONDS`, five minutes, of the next menu view) and "Sync now". | Available once the app's webhook is verified |
+
+**This restaurant connects with a merchant API token.** It is one restaurant connecting its
+own account, there is no approved Clover app, and none is needed for this.
+
+How the token is handled (`dashboard/connection.ts`, `connectWithToken`):
+
+1. The owner, signed in, pastes the merchant ID and the token into the dashboard. It goes
+   once, over TLS, to `POST /dashboard-api/clover/connect-token` with the owner's session.
+   The page keeps nothing and clears the field whatever the outcome.
+2. Owner role only; ten attempts per person per fifteen minutes; strict format checks
+   before anything is sent to Clover.
+3. The token is proved before it is kept: one read of the merchant's inventory. A token
+   Clover rejects, a merchant ID that is not the token's, or a token without the Inventory
+   permission is refused with a plain message, and nothing is stored.
+4. It is stored like an OAuth token: AES-256-GCM in `clover_connections`. The refresh slot
+   holds a marker, not a token, and the expiry is far in the future, so no refresh is ever
+   attempted. It is never logged, never written to the audit log, never returned by any
+   endpoint.
+5. The inventory is imported. **Nothing is published**: imported items start hidden from
+   the website until the owner shows them.
+
+Every later read and write uses the same client, sync, conflict checks and error handling
+as an OAuth connection. Tested in `tests/token-connect.test.js` against the stand-in Clover.
+**Not yet run against Clover itself**: the first real use is the first real connection.
+
+Not possible to know from here, and to be seen on the owner's own screen: whether this
+merchant's Clover dashboard offers "API tokens" (Settings > View all settings > Business
+operations). If it does not, the OAuth app is the only other way, with its approval wait.
+
+## 1. What you need from Clover (OAuth app)
 
 | Item | Where it comes from | Where it goes |
 |---|---|---|

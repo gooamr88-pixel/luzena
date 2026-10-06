@@ -18,14 +18,19 @@ export function loadEnv(get: (name: string) => string | undefined): Env {
     .map((origin) => origin.trim().replace(/\/$/, ""))
     .filter(Boolean);
 
+  // Which Clover a merchant-token connection talks to. There is no default here on
+  // purpose: a production token must never be sent to the sandbox by omission, or the
+  // other way round.
+  const explicitEnvironment = value("CLOVER_ENV") as CloverEnvironment | undefined;
+  if (explicitEnvironment !== undefined && !CLOVER_ENVIRONMENTS.includes(explicitEnvironment)) {
+    throw new ConfigError("CLOVER_ENV must be one of sandbox, na, eu, la");
+  }
+
   let clover: Env["clover"] = null;
   const appId = value("CLOVER_APP_ID");
   const appSecret = value("CLOVER_APP_SECRET");
   if (appId && appSecret) {
-    const environment = (value("CLOVER_ENV") ?? "sandbox") as CloverEnvironment;
-    if (!CLOVER_ENVIRONMENTS.includes(environment)) {
-      throw new ConfigError("CLOVER_ENV must be one of sandbox, na, eu, la");
-    }
+    const environment = explicitEnvironment ?? "sandbox";
     const redirectUri = value("CLOVER_REDIRECT_URI");
     if (!redirectUri) {
       throw new ConfigError("CLOVER_REDIRECT_URI is required when Clover is configured");
@@ -54,6 +59,7 @@ export function loadEnv(get: (name: string) => string | undefined): Env {
     },
     allowedOrigins,
     clover,
+    cloverEnvironment: explicitEnvironment ?? null,
     tokenEncryptionKey: value("TOKEN_ENCRYPTION_KEY") ?? null,
     menuSyncTtlSeconds: Number.isFinite(ttl) && ttl >= 30 ? Math.floor(ttl) : 300,
     ipHashSalt: value("IP_HASH_SALT") ?? "",

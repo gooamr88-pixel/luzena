@@ -706,6 +706,39 @@ applications (policy, retention, email).
      and an approved app before any real merchant can authorise it, and states no review
      time. `BLOCKERS.md` B-1 says this plainly. Do not let the client plan a session with
      the restaurant owner around a date Clover has not confirmed.
+   **THE CLIENT'S DECISION, 2026-10-06 (later): connect the REAL merchant tomorrow, no
+   sandbox first.** "The owner already has a real Clover merchant account. Stop expanding
+   the sandbox setup for now. Prepare the project for the real Clover merchant connection
+   tomorrow." Also: do not connect or modify the real merchant yet; do not ask for a fake
+   account unless a test needs one. This sets aside the earlier rule of sandbox before
+   production; the client was told what stays unproven (`BLOCKERS.md` B-1).
+   - **A merchant account is not a Clover app.** OAuth needs an app that Clover has
+     approved; none exists and the review has no stated time. Clover's own FAQ says an
+     integration that is not a public app should use a merchant-generated API token. So a
+     second way to connect was added, beside OAuth, without a schema change:
+     `POST /clover/connect-token` (`connectWithToken`), `cloverWithToken`, `sealApiToken`
+     and the `API_TOKEN_MARKER` path in `getCredentials` (a token connection is stored like
+     an OAuth one, with a marker in the refresh slot and a far-future expiry, so no refresh
+     is tried and a rejected token becomes `needs_reauth`); `env.cloverEnvironment`
+     (`CLOVER_ENV` with NO default for this path); a token form on the dashboard's Clover
+     page, shown when the backend reports `token_connect`.
+   - Tests: `tests/token-connect.test.js`, 18 cases against the stand-in: works with no app
+     configured; owner only; malformed input never reaches Clover; a rejected token, a
+     wrong merchant, a token without inventory access and an unreachable Clover all store
+     nothing; the token is encrypted at rest and absent from every log line, audit row and
+     response; the import publishes nothing; a deleted token leads to `needs_reauth` with
+     no refresh call and the public menu intact; a new token resumes with the owner's
+     choices kept; disconnect deletes nothing in Clover; the attempt limit holds.
+   - `supabase/functions/.env.production` now also has `CLOVER_ENV=na` (local file; not
+     yet sent to Supabase). Still no app id or secret, and no job-application value.
+   - **Deployment order when the CLI is signed in** (it is signed out; the client's tokens
+     keep expiring, so ask for one that lasts a week): TEST: migration `..600`, the four
+     functions, `verify:functions`. PRODUCTION: the same, plus `secrets set` from
+     `.env.production`, then `verify:functions` and `verify:public-access`. Then the client
+     runs `deploy.sh` on the VPS and `verify:site` is run from here. **Until all of that is
+     done, the production dashboard cannot connect a merchant by token, and must not
+     connect one any other way.**
+   - The real merchant has not been touched.
 2a. (Superseded by the note above; kept for the order.) As soon as the CLI can reach TEST, TEST project (`cgxhifkeoesvsycewwfs`) first, in
    this order: deploy the four functions; set secrets from `.env.test`; Auth settings; a
    test owner; `provision-restaurant.sql`; `npm run verify:functions` with the signed-in

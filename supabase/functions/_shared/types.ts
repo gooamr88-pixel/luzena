@@ -51,6 +51,9 @@ export interface Env {
     webhookAuth: string;
     requireState: boolean;
   } | null;
+  // CLOVER_ENV as the operator set it, or null when it is not set. Connecting with a
+  // merchant's own API token needs this and the encryption key, but no Clover app.
+  cloverEnvironment: CloverEnvironment | null;
   tokenEncryptionKey: string | null;
   menuSyncTtlSeconds: number;
   ipHashSalt: string;

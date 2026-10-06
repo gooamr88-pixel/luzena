@@ -54,6 +54,26 @@ documentation and tested against a stand-in.
 - **Two answers the sandbox must give:** whether Clover returns `state` after authorisation
   (decides `CLOVER_REQUIRE_STATE`), and what the `hidden` flag does at the register.
 
+**Decided by you, 2026-10-06: connect the restaurant's real Clover account without a
+sandbox run first.** The owner has a real Clover merchant account and no Clover app
+exists. An OAuth connection is impossible without an app Clover has approved, so the
+connection is made with **an API token the owner creates in their own Clover dashboard**,
+which is what Clover recommends for an integration that serves one merchant
+(`CLOVER_INTEGRATION.md` section 0). This is built and tested against the stand-in.
+
+- **What this leaves unproven.** No line of the Clover code has run against Clover. The
+  first real request will be the check of the owner's token, and the first import will be
+  the real menu. What limits the damage if something is wrong: connecting only reads;
+  nothing is published until the owner shows it; every write is one the owner makes by
+  hand in the dashboard, checked against Clover first and reported honestly; the owner can
+  delete the token in Clover at any moment.
+- **Still needed before the visit, from you:** the Supabase CLI signed in, so that the
+  migration, the functions and `CLOVER_ENV=na` can be deployed to PRODUCTION; then one
+  `deploy.sh` run on the VPS for the dashboard. Until both are done the production
+  dashboard has no token form, and connecting any other way would publish the inventory.
+- **To be seen on the owner's screen:** whether their Clover dashboard offers "API tokens"
+  at all. If it does not, nothing can be connected that day.
+
 **State on 2026-10-06, after an audit of the whole integration:**
 
 - **Nothing has been run against Clover yet.** No sandbox account, test merchant or token

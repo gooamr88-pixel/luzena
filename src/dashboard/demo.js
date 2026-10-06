@@ -199,7 +199,22 @@ export function installDemo(state) {
       return { result: "synced", modifier_groups: groupList(), message: "Demo: saved." };
     }
 
-    if (path === "/clover" && method === "GET") return { connection, configured: true };
+    if (path === "/clover" && method === "GET") return { connection, configured: true, token_connect: true };
+    if (path === "/clover/disconnect") {
+      Object.assign(connection, { connected: false, merchant_id: null, merchant_name: null, environment: null, connected_at: null });
+      log("CLOVER_DISCONNECTED", "clover_connection", null, null);
+      return { result: "disconnected", connection, message: "Demo: disconnected. Nothing was changed in Clover." };
+    }
+    if (path === "/clover/connect-token") {
+      // The demo accepts any token except one that starts with "wrong", so both answers
+      // of the real backend can be seen. Nothing is sent anywhere and nothing is kept.
+      if (String(body.token).startsWith("wrong")) {
+        throw new ApiFailure(400, { code: "clover_token_rejected", message: "Clover did not accept this merchant ID and token. Check both and try again." });
+      }
+      Object.assign(connection, { connected: true, status: "active", merchant_id: body.merchant_id, merchant_name: "Demo merchant", environment: "sandbox", connected_at: stamp() });
+      log("CLOVER_CONNECTED", "clover_connection", body.merchant_id, { method: "api_token" });
+      return { result: "connected", connection, message: "Demo: connected. Imported items stay hidden from the website until you show them." };
+    }
     if (path === "/clover/sync") {
       Object.assign(connection, { last_sync_started_at: stamp(), last_sync_finished_at: stamp(), last_success_at: stamp() });
       log("SYNC_COMPLETED", "sync", null, { items: items.length }, "success", "SYNCED");

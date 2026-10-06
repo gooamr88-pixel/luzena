@@ -1,5 +1,7 @@
 // Clover connection: status, connect (OAuth), disconnect, manual sync.
-import { buildAuthorizeUrl, exchangeCode, openClover, requireClover, sealTokens } from "../clover/auth.ts";
+import {
+  buildAuthorizeUrl, cloverWithToken, exchangeCode, openClover, requireClover, sealApiToken, sealTokens,
+} from "../clover/auth.ts";
 import { CloverError } from "../clover/errors.ts";
 import { getMerchant } from "../clover/inventory.ts";
 import { randomToken, sha256Hex } from "../crypto.ts";
@@ -20,6 +22,95 @@ export async function connectionStatus(deps: Deps, session: Session): Promise<Re
     connection: status,
     // Whether the platform operator has set the Clover app credentials at all.
     configured: deps.env.clover !== null && deps.env.tokenEncryptionKey !== null,
+    // Whether a merchant's own API token can be entered instead (no Clover app needed).
+    token_connect: deps.env.cloverEnvironment !== null && deps.env.tokenEncryptionKey !== null,
+  });
+}
+
+const tokenSchema = v.object({
+  merchant_id: v.string({ min: 13, max: 13, pattern: /^[A-Z0-9]{13}$/ }),
+  token: v.string({ min: 16, max: 200, pattern: /^[A-Za-z0-9._~-]+$/ }),
+});
+
+// Connects with an API token the merchant created in their own Clover dashboard
+// (Settings > View all settings > API tokens), instead of OAuth. Clover's guidance for an
+// integration that serves one merchant and is not a public app. No Clover app is involved.
+//
+// The token is the owner's to give: it is typed once into the dashboard, sent here over
+// TLS with the owner's session, checked against Clover, and stored encrypted. It is never
+// logged, never written to the audit log, and never sent back to a browser.
+export async function connectWithToken(deps: Deps, session: Session, body: unknown): Promise<Response> {
+  const input = parseBody(tokenSchema, body);
+  const restaurantId = restaurantOf(session);
+  const environment = deps.env.cloverEnvironment;
+  const key = deps.env.tokenEncryptionKey;
+  if (!environment || !key) {
+    throw cloverApiError(new CloverError("not_configured", "CLOVER_ENV or the encryption key is not set"), {
+      cloverChanged: false, localChanged: false,
+    });
+  }
+
+  const reject = async (code: string, message: string) => {
+    deps.log.warn("clover_token_connect_rejected", { restaurant_id: restaurantId, reason: code });
+    await audit(deps, session, { action: "CLOVER_CONNECT_FAILED", entityType: "clover_connection", newValues: { reason: code, method: "api_token" }, result: "failed" });
+    return new ApiError(400, code, message);
+  };
+
+  // Prove the token before keeping it: one read of the inventory it will be used for.
+  const probe = cloverWithToken(deps, environment, input.merchant_id, input.token, session.requestId);
+  try {
+    await probe.request({ method: "GET", path: `/v3/merchants/${input.merchant_id}/items`, query: { limit: "1" }, retry: "read" });
+  } catch (error) {
+    const kind = error instanceof CloverError ? error.kind : "unknown";
+    if (kind === "unauthorized" || kind === "not_found") {
+      throw await reject("clover_token_rejected", "Clover did not accept this merchant ID and token. Check both and try again.");
+    }
+    if (kind === "forbidden") {
+      throw await reject("clover_token_no_inventory", "This token cannot read the inventory. In Clover, create a token with Inventory read and write.");
+    }
+    deps.log.error("clover_token_probe_failed", { restaurant_id: restaurantId, kind });
+    throw cloverApiError(error, { cloverChanged: false, localChanged: false });
+  }
+
+  const sealed = await sealApiToken(input.token, key);
+  const saved = await deps.db.rpc<{ ok: boolean; reason?: string; merchant_changed?: boolean }>("clover_connection_save", {
+    p_restaurant: restaurantId,
+    p_user: session.user.id,
+    p_merchant_id: input.merchant_id,
+    p_merchant_name: null,
+    p_environment: environment,
+    p_access_enc: sealed.accessEnc,
+    p_refresh_enc: sealed.refreshEnc,
+    p_access_exp: sealed.accessExp,
+    p_refresh_exp: sealed.refreshExp,
+  });
+  if (!saved.ok) {
+    throw await reject("merchant_in_use", "This Clover merchant is already connected to another restaurant.");
+  }
+
+  await audit(deps, session, {
+    action: "CLOVER_CONNECTED", entityType: "clover_connection", entityId: input.merchant_id,
+    newValues: { merchant_id: input.merchant_id, environment, method: "api_token", merchant_changed: saved.merchant_changed },
+    result: "success",
+  });
+
+  deps.waitUntil((async () => {
+    try {
+      const api = await openClover(deps, restaurantId, session.requestId);
+      const merchant = (await getMerchant(api)) as { name?: unknown } | null;
+      if (merchant && typeof merchant.name === "string") {
+        await deps.db.rpc("clover_set_merchant_name", { p_restaurant: restaurantId, p_name: merchant.name.slice(0, 120) });
+      }
+    } catch {
+      // Name stays unknown: the token may not have the Merchant read permission.
+    }
+    await runSync(deps, restaurantId, "connect");
+  })());
+
+  return json(200, {
+    result: "connected",
+    connection: await deps.db.rpc("clover_connection_status", { p_restaurant: restaurantId }),
+    message: "Clover connected. The menu is being imported. Imported items stay hidden from the website until you show them.",
   });
 }
 
