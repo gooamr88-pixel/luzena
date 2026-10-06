@@ -25,8 +25,9 @@ rules that came with it).
 The folder and package are still named `luzna-web`, from before the spelling was confirmed.
 
 - Project root: `C:\Users\yousef amr\Desktop\resturant\luzna-web`. Its own git repository,
-  branch `main`. First commit made 2026-10-05 (`a554188`) on the client's go-ahead. **No
-  remote**: nothing is pushed anywhere.
+  branch `main`, pushed to `https://github.com/gooamr88-pixel/luzena` (public) on
+  2026-10-06. `main` was restarted as one commit before that first push (section 30); the
+  earlier commits are on the local branch `local-history`, which is never pushed.
 - Sibling `..\grilli-next` is an earlier Next.js port of the open-source Grilli template.
   It is not part of this project and was not modified. The brief forbids React/Next.js.
 
