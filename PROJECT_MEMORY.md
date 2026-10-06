@@ -646,7 +646,11 @@ applications (policy, retention, email).
      fails, so the next reload is refused and **a restart or reboot would leave every site
      on that server down**, and certificate renewals would fail. The client was given the
      three-line fix (remove the dead link, link the redirect file, `nginx -t`, reload).
-     **Confirm it was done before anything else on that server.** Lesson: with this client,
+     **Fixed the same hour:** the client's `ls -la /etc/nginx/sites-enabled/` shows every
+     link pointing at a file that exists, the redirect among them; `nginx -t` passes and
+     Nginx was reloaded; from outside the old domain still redirects and `verify:site`
+     passes 28 of 28. The old application is stopped, removed from pm2 and deleted, with a
+     small source backup left on the server. Lesson: with this client,
      never put undo commands on the page as a runnable block beside the forward path.
    - The first deployment on the server showed two warnings worth knowing: the server's
      Node is 20.20.2 while `@supabase/supabase-js` and `vitest` now ask for Node 22 (the

@@ -12,9 +12,11 @@ B-4 and B-7 are what stands between here and each of them.
 Done since: the owner has set a password and signed in (reported by the client), and the
 old spelling of the domain redirects to the new site.
 
-Open right now: stopping and deleting the old application on the VPS
-(`DEPLOYMENT_CHECKLIST.md` 7.1); resetting both database passwords; the Auth settings of
-the TEST project.
+The old application has been stopped and removed from the VPS.
+
+Open right now: resetting both database passwords; the Auth settings of the TEST project;
+`sudo certbot renew --dry-run` on the VPS, once, to confirm both domains' certificates will
+renew.
 
 Categories: **BLOCKING** stops launch. **NON-BLOCKING** can follow launch. The second label
 says whose move it is: **CLIENT INPUT**, **CLOVER INPUT**, **INFRASTRUCTURE**, **LEGAL**, or
