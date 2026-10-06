@@ -626,11 +626,22 @@ applications (policy, retention, email).
      attempt enabled Nginx with nothing built (the domain answered 404 for some minutes).
    - `nginx -t` prints "protocol options redefined" warnings on that server. Harmless, and
      there before this site: the sites sharing port 443 do not all name `http2`.
-   - Not done yet: the owner's first sign-in (the first signed-in use of a real backend);
-     the old-spelling domain's redirect and the removal of the old application
-     (checklist 7.1; its pm2 process is `luzna-restaurant`, its folder `/var/www/luzna`);
-     TEST's Auth settings; narrowing the CSP to the production host; Clover; ordering
-     link; job applications.
+   - **After go-live, the same day:** the client reported the owner's first sign-in done
+     ("Dashboard done"); it could not be confirmed from here (the CLI was signed out
+     again). The client installed the old domain's redirect: `luznarestaurant.com`, its
+     `www` and `/coming-soon` all end on the new site, checked from outside. A second round
+     of outside tests on the live site, all passing: `verify:site` 28 of 28,
+     `verify:functions` 15 of 15 and `verify:public-access` 15 of 15 on PRODUCTION; a real
+     Chromium over the nine public pages at 390 and 1280 px, the 404 page and the
+     dashboard's sign-in screen under the real Nginx headers (no script error, blocked
+     request, policy violation or sideways scroll; the menu's real "unavailable" answer;
+     the generic refusal of a wrong password); TLS 1.0 and 1.1 refused, 1.2 accepted; the
+     certificate names both hosts; pages are sent gzip-compressed.
+   - Not done yet: a signed-in dashboard walk observed from here (it needs the owner's
+     password, which only the owner has); stopping and deleting the old application on the
+     VPS (pm2 process `luzna-restaurant`, folder `/var/www/luzna`; the client has the
+     commands); TEST's Auth settings; resetting both database passwords; narrowing the CSP
+     to the production host; N-11; Clover; ordering link; job applications.
    - (Earlier plan, now done:) the client runs checklist sections 5 to 7 on the VPS (the site's build file
      needs PRODUCTION's publishable key, which the client has been given), then
      `npm run verify:site` from here, then the owner's first sign-in ("Forgot your

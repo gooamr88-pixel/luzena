@@ -412,8 +412,9 @@ sudo nginx -t
   sudo ln -s /etc/nginx/sites-available/luznarestaurant.com /etc/nginx/sites-enabled/
   ```
 
-- [ ] `https://luznarestaurant.com/`, `https://www.luznarestaurant.com/menu/` and
+- [x] `https://luznarestaurant.com/`, `https://www.luznarestaurant.com/menu/` and
       `http://luznarestaurant.com/coming-soon` each end on `https://luzenarestaurant.com`.
+      (Checked from outside, 2026-10-06, after the client installed the redirect.)
 - [ ] `sudo certbot renew --dry-run` still succeeds for both domains.
 
 The `rm` removes only the link; the old site file stays in `sites-available`, so the same

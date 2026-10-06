@@ -205,9 +205,10 @@ proxies nothing, and holds no secret: the build variables on it are the public S
 and publishable key. The certificate is Let's Encrypt, and the site's configuration asks
 for TLS 1.2 and 1.3; on a server that shares its ports between sites, the protocols
 actually offered are also governed by the server's default site and its TLS library, which
-this repository does not control and which have not been tested from outside. `http://`
-and `www` redirect to `https://luzenarestaurant.com`, and so does the old spelling of the
-domain. Not reviewed here, because it is outside this repository
+this repository does not control. Tested from outside on 2026-10-06: TLS 1.0 and 1.1 are
+refused, TLS 1.2 is accepted (1.3 could not be tried from the test machine), and the
+certificate names the bare domain and `www`. `http://` and `www` redirect to
+`https://luzenarestaurant.com`, and so does the old spelling of the domain. Not reviewed here, because it is outside this repository
 and has not been seen: the VPS itself (its other sites, users, SSH access, firewall,
 updates). Its owner is responsible for those.
 

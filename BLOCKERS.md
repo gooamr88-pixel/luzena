@@ -9,10 +9,12 @@ check of the live site passes 28 of 28. B-5 and B-6 are done except for the item
 open below. The menu, online ordering and online applications remain off: B-1, B-2, B-3,
 B-4 and B-7 are what stands between here and each of them.
 
-Open right now: the owner's first sign-in (dashboard > "Forgot your password?"), which is
-also the first signed-in use of the real backend; the old-spelling domain's redirect and
-the removal of the old application from the VPS (`DEPLOYMENT_CHECKLIST.md` 7.1); resetting
-both database passwords.
+Done since: the owner has set a password and signed in (reported by the client), and the
+old spelling of the domain redirects to the new site.
+
+Open right now: stopping and deleting the old application on the VPS
+(`DEPLOYMENT_CHECKLIST.md` 7.1); resetting both database passwords; the Auth settings of
+the TEST project.
 
 Categories: **BLOCKING** stops launch. **NON-BLOCKING** can follow launch. The second label
 says whose move it is: **CLIENT INPUT**, **CLOVER INPUT**, **INFRASTRUCTURE**, **LEGAL**, or
