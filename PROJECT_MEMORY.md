@@ -1125,3 +1125,34 @@ which the old backend does not. The new functions work with the old website.
 
 Until the website step is done, the live site is still the old design and still shows the
 owner's email address.
+
+### 2026-10-06 Checkpoint: DEPLOYED — the redesign and the application system are live
+
+The client supplied a Supabase access token and the CLI was signed in with it. **The token
+was pasted into the chat**, so it should be revoked in the Supabase account and replaced; it
+is written in no file here.
+
+- One more commit first, `d7a8560`: the migration now grants `job_application_events` to
+  `service_role` outright. `db push` runs as the CLI's login role, not the role that applied
+  the first migrations, so default privileges could not be relied on. The SQL tests do not
+  catch this (they do not run as `service_role`); it was checked on each project afterwards.
+- **TEST** (`cgxhifkeoesvsycewwfs`): dry run showed exactly one migration, `..700`; applied.
+  17 tables, 7 migrations, row level security on the new table, `service_role` can write
+  both application tables, `anon` and `authenticated` hold nothing, the old
+  `job_application_create` is gone. The four functions redeployed. `verify:functions`: all
+  pass. The new routes answer 401 without a session.
+- **PRODUCTION** (`xqzpuqjrlrxyitjubkqk`): the same, with the same results, 0 applications
+  before and after. `verify:functions`: all pass. `verify:public-access`: 15 of 15 (run with
+  the real publishable key, read from the live dashboard bundle; a first run with a
+  truncated key answered "Invalid API key" to everything and proved nothing). The public
+  key can neither read `job_application_events` nor call `dash_applications_list`.
+  No secret was changed: the two job-application switches are still unset.
+- **The website** was already redeployed on the VPS by the client when this was checked.
+  `verify:site`: 28 of 28. Spot checks: no email address and no `mailto:` on any public page
+  or in the dashboard bundle; the placeholder hero photo is served; the map frame is on the
+  home page; `/gallery/` is in the sitemap; the dashboard bundle has the Applications
+  section; `/careers/` says "Online applications open soon".
+- Not done, because each needs something from the client: opening the application form
+  (privacy policy, B-3; retention period, B-4) and the notification email (Resend, B-7).
+- Not tested on the live system: anything signed in. The owner opening the dashboard and
+  seeing Applications (empty) is the first real use of the new routes.
