@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from "vitest";
-import { connectClover, createRestaurant, createTestDb, createUser, samplePayload } from "./helpers/db.js";
+import { connectClover, createRestaurant, createTestDb, createUser, samplePayload, showAllItems } from "./helpers/db.js";
 
-let pg, db, alpha, beta;
+let pg, db, alpha, beta, gamma;
 
 beforeAll(async () => {
   ({ pg, db } = await createTestDb());
@@ -9,6 +9,13 @@ beforeAll(async () => {
   beta = await createRestaurant(pg, "beta");
   await connectClover(pg, alpha, "MERCHANTALPHA");
   await db.rpc("menu_apply_sync", { p_restaurant: alpha, p_payload: samplePayload(), p_full: true });
+  // Alpha's owner has shown everything; most tests below are about a published menu.
+  await showAllItems(pg, alpha);
+
+  // Gamma is a restaurant that has just connected Clover and chosen nothing yet.
+  gamma = await createRestaurant(pg, "gamma");
+  await connectClover(pg, gamma, "MERCHANTGAMMA");
+  await db.rpc("menu_apply_sync", { p_restaurant: gamma, p_payload: samplePayload(), p_full: true });
 });
 
 const listNames = async (restaurant, filters = {}) =>
@@ -183,6 +190,67 @@ describe("public menu", () => {
   });
 });
 
+describe("what is public is the owner's choice, not Clover's", () => {
+  const item = (id) => db.rpc("dash_get_item", { p_restaurant: gamma, p_item: id });
+  const publicNames = async () =>
+    (await db.rpc("public_menu", { p_restaurant: gamma })).categories.flatMap((c) => c.items.map((i) => i.name));
+
+  it("publishes nothing when a merchant's inventory is first imported", async () => {
+    expect(await publicNames()).toEqual([]);
+    // The owner sees every item, each marked as not on the website.
+    expect(await listNames(gamma)).toEqual(["Salad", "Soup", "Staff meal", "Steak"]);
+    expect((await item("ITEMSOUP00001")).web_hidden).toBe(true);
+    expect((await item("ITEMSOUP00001")).on_website).toBe(false);
+    const overview = await db.rpc("dash_overview", { p_restaurant: gamma });
+    expect(overview.counts.items).toBe(4);
+    expect(overview.counts.on_website).toBe(0);
+  });
+
+  it("publishes exactly the items the owner shows", async () => {
+    await db.rpc("web_update_item", { p_restaurant: gamma, p_item: "ITEMSOUP00001", p_patch: { web_hidden: false } });
+    expect(await publicNames()).toEqual(["Soup"]);
+  });
+
+  it("never publishes an item Clover marks hidden, even if the owner shows it", async () => {
+    await db.rpc("web_update_item", { p_restaurant: gamma, p_item: "ITEMSTAFF0001", p_patch: { web_hidden: false } });
+    expect(await publicNames()).toEqual(["Soup"]);
+  });
+
+  it("keeps the owner's choices through later syncs, while Clover's fields follow Clover", async () => {
+    const payload = samplePayload();
+    payload.items.find((i) => i.id === "ITEMSOUP00001").price_cents = 850;
+    payload.items.find((i) => i.id === "ITEMSALAD0001").name = "Garden salad";
+    payload.items.push({ id: "ITEMBREAD0001", name: "Bread", price_cents: 300, category_ids: ["CATSTARTERS01"], modifier_group_ids: [] });
+    await db.rpc("menu_apply_sync", { p_restaurant: gamma, p_payload: payload, p_full: true });
+
+    // Shown stays shown, with Clover's new price. Hidden stays hidden, with Clover's new name.
+    const menu = await db.rpc("public_menu", { p_restaurant: gamma });
+    expect(menu.categories.flatMap((c) => c.items.map((i) => [i.name, i.price_cents]))).toEqual([["Soup", 850]]);
+    expect((await item("ITEMSALAD0001")).name).toBe("Garden salad");
+    expect((await item("ITEMSALAD0001")).web_hidden).toBe(true);
+    // An item added in Clover afterwards arrives hidden too.
+    expect((await item("ITEMBREAD0001")).web_hidden).toBe(true);
+  });
+
+  it("hides or archives on the website only: the item and Clover's fields stay as they are", async () => {
+    const before = await item("ITEMSOUP00001");
+    await db.rpc("web_update_item", { p_restaurant: gamma, p_item: "ITEMSOUP00001", p_patch: { web_hidden: true } });
+    await db.rpc("web_update_item", { p_restaurant: gamma, p_item: "ITEMSOUP00001", p_patch: { archived: true } });
+    expect(await publicNames()).toEqual([]);
+
+    const after = await item("ITEMSOUP00001");
+    expect(after.archived).toBe(true);
+    expect(after.removed_from_clover).toBe(false);
+    for (const field of ["id", "name", "price_cents", "price_type", "available", "hidden", "clover_modified_time"]) {
+      expect(after[field], field).toEqual(before[field]);
+    }
+    // Still there for the owner, under Archived, and restorable.
+    expect(await listNames(gamma, { status: "archived" })).toEqual(["Soup"]);
+    await db.rpc("web_update_item", { p_restaurant: gamma, p_item: "ITEMSOUP00001", p_patch: { archived: false, web_hidden: false } });
+    expect(await publicNames()).toEqual(["Soup"]);
+  });
+});
+
 describe("sync never overwrites website data", () => {
   it("keeps description, image, featured, hidden and archive across a full sync", async () => {
     await db.rpc("web_update_item", {
@@ -237,7 +305,11 @@ describe("sync never overwrites website data", () => {
     payload.items.push({ id: "ITEMBREAD0001", name: "Bread", price_cents: 300, category_ids: ["CATSTARTERS01"], modifier_group_ids: [] });
     await db.rpc("menu_apply_sync", { p_restaurant: alpha, p_payload: payload, p_full: true });
 
-    const menu = await db.rpc("public_menu", { p_restaurant: alpha });
+    // The new arrival is not public until the owner shows it.
+    let menu = await db.rpc("public_menu", { p_restaurant: alpha });
+    expect(menu.categories[0].items.map((i) => i.name)).toEqual(["Salad", "Soup"]);
+    await db.rpc("web_update_item", { p_restaurant: alpha, p_item: "ITEMBREAD0001", p_patch: { web_hidden: false } });
+    menu = await db.rpc("public_menu", { p_restaurant: alpha });
     expect(menu.categories[0].items.map((i) => i.name)).toEqual(["Salad", "Soup", "Bread"]);
     await db.rpc("menu_apply_sync", { p_restaurant: alpha, p_payload: samplePayload(), p_full: true });
   });

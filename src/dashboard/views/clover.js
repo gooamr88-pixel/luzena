@@ -141,6 +141,7 @@ export async function cloverView(outlet) {
         h("ul", { class: "mt-3 list-disc space-y-2 pl-5 text-muted" },
           h("li", {}, h("strong", { class: "text-text" }, "Stored in Clover: "), "item names, prices, availability, categories and their order, modifier groups and modifiers. Saving these here writes to Clover immediately, so the register and online ordering change too."),
           h("li", {}, h("strong", { class: "text-text" }, "Stored by this website: "), "descriptions, photos, featured items, dietary labels, whether something is shown on the website, and archiving. Clover has no fields for these, so they never reach Clover."),
+          h("li", {}, h("strong", { class: "text-text" }, "Nothing is published automatically: "), "an item imported from Clover stays hidden from the website until you show it in Items. Hiding or archiving an item here never changes or deletes it in Clover."),
           h("li", {}, "Changes made in Clover appear here after the next sync, which runs automatically and can be started with Sync now."))),
     );
   }

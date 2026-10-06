@@ -63,6 +63,15 @@ Three models were weighed against what Clover's API actually supports
 | Archive (items and categories) | This system | Database |
 | Order of items inside a category on the website | This system | Database |
 
+**Nothing is published just because it is in Clover.** An item is on the website only when
+all of these hold: the owner has shown it (`web_hidden = false`), it is not archived, Clover
+does not mark it hidden, and Clover still has it. An item that arrives from Clover, on the
+first import or later, starts with `web_hidden = true`: connecting a merchant publishes
+nothing, and the owner chooses what customers see (Items > select > Show). An item created
+in the dashboard is shown unless its form says otherwise. Hiding and archiving are website
+only: neither changes or deletes anything in Clover, and this system never calls a Clover
+`DELETE` endpoint.
+
 The schema makes the split structural: in `menu_items` and `menu_categories`, unprefixed
 columns are Clover's and are overwritten by sync; `web_*` columns and `archived_at` are ours
 and sync never touches them. A test asserts this.

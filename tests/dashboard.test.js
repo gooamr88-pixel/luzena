@@ -27,6 +27,13 @@ beforeAll(async () => {
   const sync = await h.api(owner, "POST", "/clover/sync");
   expect(sync.status).toBe(200);
   expect(sync.body.stats.items).toBe(2);
+
+  // Imported items start hidden from the website. The owner shows these two, as the
+  // dashboard's bulk action does; the tests below then start from a published menu.
+  expect((await h.api(owner, "GET", `/items/${soup}`)).body.item.web_hidden).toBe(true);
+  expect((await h.api(owner, "GET", `/items/${soup}`)).body.item.on_website).toBe(false);
+  const shown = await h.api(owner, "POST", "/items/bulk", { ids: [soup, steak], action: "show" });
+  expect(shown.body.succeeded).toHaveLength(2);
 });
 
 const item = async (id, user = owner) => (await h.api(user, "GET", `/items/${id}`)).body.item;
@@ -250,6 +257,21 @@ describe("creating an item", () => {
     expect(h.clover.itemCategories.has(`${id}|${starters}`)).toBe(true);
     expect(response.body.item.modifier_groups.map((g) => g.name)).toEqual(["Doneness"]);
     expect(response.body.item.description).toBe("Baked here.");
+    // An item the owner creates here is public, unlike one that arrives from Clover.
+    expect(response.body.item.web_hidden).toBe(false);
+    expect(response.body.item.on_website).toBe(true);
+    expect(response.body.message).toBe("Item created in Clover and added to the website.");
+  });
+
+  it("creates an item hidden from the website when the form says so", async () => {
+    const response = await h.api(owner, "POST", "/items", {
+      clover: { name: "Staff coffee", price_cents: 100 }, website: { web_hidden: true },
+    });
+    expect(response.status).toBe(201);
+    expect(h.clover.items.get(response.body.item.id).name).toBe("Staff coffee");
+    expect(response.body.item.web_hidden).toBe(true);
+    expect(response.body.item.on_website).toBe(false);
+    expect(response.body.message).toBe("Item created in Clover. It is hidden from the website.");
   });
 
   it("requires an idempotency key", async () => {

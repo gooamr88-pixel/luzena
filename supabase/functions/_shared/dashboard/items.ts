@@ -388,9 +388,10 @@ export async function createItemHandler(deps: Deps, session: Session, request: R
     );
     await refreshItem(deps, api, restaurantId, itemId);
 
-    if (hasKeys(input.website)) {
-      await deps.db.rpc("web_update_item", { p_restaurant: restaurantId, p_item: itemId, p_patch: input.website });
-    }
+    // Items that arrive from Clover start hidden from the website. One the owner creates
+    // here is shown unless the form said otherwise, so visibility is always written.
+    const website = { web_hidden: false, ...(input.website ?? {}) };
+    await deps.db.rpc("web_update_item", { p_restaurant: restaurantId, p_item: itemId, p_patch: website });
     const partial = outcome.failedParts.length > 0;
     await audit(deps, session, {
       ...base, entityId: itemId, newValues: input,
@@ -404,7 +405,9 @@ export async function createItemHandler(deps: Deps, session: Session, request: R
         clover_changed: true,
         website_changed: hasKeys(input.website),
         failed_parts: outcome.failedParts,
-        message: partial ? partialMessage(outcome.failedParts) : "Item created in Clover and added to the website.",
+        message: partial ? partialMessage(outcome.failedParts)
+          : website.web_hidden ? "Item created in Clover. It is hidden from the website."
+          : "Item created in Clover and added to the website.",
       },
     };
   });

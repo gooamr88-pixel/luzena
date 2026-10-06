@@ -34,6 +34,7 @@ export async function createTestDb() {
   // 20261005000300_storage.sql is skipped: PGlite has no storage schema.
   await pg.exec(migration("20261005000400_application_retention.sql"));
   await pg.exec(migration("20261005000500_sequence_privileges.sql"));
+  await pg.exec(migration("20261006000600_imported_items_start_hidden.sql"));
 
   const rpc = async (fn, args = {}) => {
     const names = Object.keys(args);
@@ -77,6 +78,13 @@ export async function connectClover(pg, restaurantId, merchantId = "MERCHANT0000
      values ($1, $2, 'sandbox', 'enc-access', 'enc-refresh', now() + interval '1 hour')`,
     [restaurantId, merchantId],
   );
+}
+
+// The owner choosing to show every imported item. Items from Clover start hidden from the
+// website; tests about a published menu call this after the first sync, as an owner would
+// press Show.
+export async function showAllItems(pg, restaurantId) {
+  await pg.query("update public.menu_items set web_hidden = false where restaurant_id = $1", [restaurantId]);
 }
 
 // A small inventory in the shape menu_apply_sync expects.

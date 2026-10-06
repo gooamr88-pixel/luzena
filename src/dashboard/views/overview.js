@@ -33,6 +33,10 @@ export async function overviewView(outlet) {
     connection.status === "needs_reauth" && h("div", { class: "d-alert d-alert-bad mb-5 flex flex-wrap items-center justify-between gap-3" },
       h("p", {}, "The Clover connection has expired. The website shows the last synced menu until you reconnect."),
       h("a", { href: "#/clover", class: "d-btn d-btn-sm" }, "Reconnect")),
+    // Items imported from Clover start hidden: say so while the public menu is still empty.
+    connection.connected && counts.items > 0 && counts.on_website === 0 && h("div", { class: "d-alert d-alert-info mb-5 flex flex-wrap items-center justify-between gap-3" },
+      h("p", {}, "Your Clover items are imported, but none is shown on the website yet. Choose which ones customers should see."),
+      h("a", { href: "#/items?visibility=hidden", class: "d-btn d-btn-sm" }, "Choose items")),
 
     h("div", { class: "grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6" },
       stat("Categories", data.categories, "#/categories"),

@@ -666,6 +666,46 @@ applications (policy, retention, email).
      needs PRODUCTION's publishable key, which the client has been given), then
      `npm run verify:site` from here, then the owner's first sign-in ("Forgot your
      password?"), which will be the first signed-in use of the real backend: watch it.
+   **CLOVER PREPARATION, 2026-10-06** (client's brief: have everything ready so that only
+   authorising the real restaurant's Clover account is left).
+   - **Audit.** Read: `clover/auth.ts`, `client.ts`, `config.ts`, `inventory.ts`, `sync.ts`,
+     `dashboard/connection.ts`, `public/webhook.ts`, the dashboard's Clover and Overview
+     views, the sandbox test. Compared with Clover's documentation as it reads today
+     (`high-trust-app-auth-flow`, `approval`, `creating-a-production-app`): the authorize,
+     token and refresh hosts and paths for sandbox and North America, the JSON bodies
+     (`client_id`, `client_secret`, `code`; `client_id`, `refresh_token`) and the response
+     fields (`access_token`, `access_token_expiration`, `refresh_token`,
+     `refresh_token_expiration`, Unix timestamps) all agree with the code. The app must be
+     set to Default OAuth Response = Code. Clover's overview pages now do describe `state`
+     as echoed back; the sandbox still has to show it (UA-6). No code was rewritten.
+   - **One real gap, fixed in code: imported items were public by default.**
+     `menu_items.web_hidden` defaulted to false, so the first sync would have published the
+     merchant's entire inventory. Migration `20261006000600_imported_items_start_hidden.sql`
+     makes new rows start hidden; `createItemHandler` now always writes visibility (shown
+     unless the form says hidden) and says which in its message; the connect message, the
+     Clover page and the Overview tell the owner that nothing is public until shown.
+     Tests: a restaurant that has just imported publishes nothing; showing one item
+     publishes that one; an item Clover marks hidden is never public; later syncs keep the
+     owner's choices while Clover's fields follow Clover; hiding and archiving leave the
+     row and every Clover field untouched. `npm test`: 196 of 196.
+     **NOT DEPLOYED: neither project has this migration or the changed functions, and the
+     live site has the old dashboard code.**
+   - **Sandbox test readiness.** `npm run test:clover-sandbox` exists and drives this
+     project's real client, inventory calls and normaliser against
+     `apisandbox.dev.clover.com` (hard-wired; it cannot reach production). It now reads
+     `.env.clover-sandbox.local` (git-ignored, verified) without printing it, and ends with
+     a test that proves the clean-up. **It has never run for real: no credentials exist.**
+   - **Blocked on the client's own Clover login** (nothing here can create it): the sandbox
+     developer account, a test merchant with a few items, an API token with Inventory read
+     and write, the two values in `.env.clover-sandbox.local`; for the OAuth half, a
+     sandbox app and its ID and secret.
+   - **Blocked on the CLI being signed in** (it is signed out; every call answers 401):
+     applying TEST's Auth settings (phase 8 of the brief), the new migration and functions
+     on TEST then PRODUCTION.
+   - **The limit on "tomorrow":** Clover requires an approved production developer account
+     and an approved app before any real merchant can authorise it, and states no review
+     time. `BLOCKERS.md` B-1 says this plainly. Do not let the client plan a session with
+     the restaurant owner around a date Clover has not confirmed.
 2a. (Superseded by the note above; kept for the order.) As soon as the CLI can reach TEST, TEST project (`cgxhifkeoesvsycewwfs`) first, in
    this order: deploy the four functions; set secrets from `.env.test`; Auth settings; a
    test owner; `provision-restaurant.sql`; `npm run verify:functions` with the signed-in

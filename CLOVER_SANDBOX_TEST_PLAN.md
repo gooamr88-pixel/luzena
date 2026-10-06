@@ -66,22 +66,32 @@ Never run any of this against a production merchant.
 
 ### Run
 
-PowerShell:
+Put the two values in a file named `.env.clover-sandbox.local` in the project folder
+(git-ignored; never paste them into a chat or a commit):
+
+```
+CLOVER_SANDBOX_MERCHANT_ID=XXXXXXXXXXXXX
+CLOVER_SANDBOX_TOKEN=...
+```
+
+then:
 
 ```powershell
-$env:CLOVER_SANDBOX_MERCHANT_ID = "XXXXXXXXXXXXX"
-$env:CLOVER_SANDBOX_TOKEN = "..."
 npm run test:clover-sandbox
 ```
 
-Without the variables every test is reported as skipped, with a note saying why.
+The test configuration reads only `CLOVER_SANDBOX_*` names from that file and prints none of
+them. Setting the same names in the shell works too, and wins over the file. Without them
+every test is reported as skipped, with a note saying why.
 
 ### What it does
 
 It creates one item, two categories and one modifier group, all named
 `ZZ-LUZENA-TEST ...`, exercises them, and deletes them at the end. The delete is done by the
-test for clean-up only; the application itself never deletes anything in Clover. If a run is
-interrupted, remove anything named `ZZ-LUZENA-TEST` by hand in the merchant dashboard.
+test for clean-up only; the application itself never deletes anything in Clover. The last
+test checks the clean-up: nothing named `ZZ-LUZENA-TEST` is left, the test item answers "not
+found", and the count of the merchant's own items is unchanged. It also removes anything
+with that prefix that an interrupted earlier run left behind.
 
 ### What each test settles
 
@@ -164,7 +174,13 @@ Fill in the Result column as you go.
 
 Sandbox success is necessary, not sufficient, for production:
 
-1. Clover must approve a **production** developer account and the production app.
+1. Clover must approve a **production** developer account and the production app. Clover's
+   documentation (read again 2026-10-06, `docs.clover.com/dev/docs/approval`): "You can
+   launch an integrated app for a merchant after both the app and the associated developer
+   account are approved", and production must use OAuth tokens, not a merchant's dashboard
+   token. It gives **no time for the review**. Until both approvals exist, no real
+   merchant can be connected, whatever state the code is in. Start this as early as
+   possible: it is the one step nobody on this project controls.
 2. Whether this app can stay private to one merchant or must be listed is a question for
    Clover (open row in the capability matrix).
 3. Repeat M-1 to M-5, M-9, M-14b and M-15 once against the real merchant, in a quiet hour,

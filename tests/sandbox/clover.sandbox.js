@@ -82,11 +82,31 @@ describe.skipIf(!configured)("Clover sandbox", () => {
     expect(BASE).toBe("https://apisandbox.dev.clover.com");
   });
 
+  // Everything in the merchant whose name starts with the test prefix: what this run made,
+  // and anything an interrupted earlier run left behind. Nothing else is ever selected.
+  const leftovers = async () => {
+    const named = (list) => list.filter((entry) => typeof entry?.name === "string" && entry.name.startsWith(PREFIX));
+    const all = async (path) => (await raw("GET", `${path}?limit=1000`)).body?.elements ?? [];
+    return {
+      items: named(await all("/items")),
+      groups: named(await all("/modifier_groups")),
+      categories: named(await all("/categories")),
+    };
+  };
+  const removeLeftovers = async () => {
+    const found = await leftovers();
+    for (const item of found.items) await raw("DELETE", `/items/${item.id}`).catch(() => {});
+    for (const group of found.groups) await raw("DELETE", `/modifier_groups/${group.id}`).catch(() => {});
+    for (const category of found.categories) await raw("DELETE", `/categories/${category.id}`).catch(() => {});
+  };
+
   afterAll(async () => {
-    // Clean-up only. Best effort: a failure here must not hide a test result.
+    // Clean-up only. Best effort: a failure here must not hide a test result. The last
+    // test has normally done this already; this covers a run that stopped half way.
     for (const id of created.items) await raw("DELETE", `/items/${id}`).catch(() => {});
     for (const id of created.groups) await raw("DELETE", `/modifier_groups/${id}`).catch(() => {});
     for (const id of created.categories) await raw("DELETE", `/categories/${id}`).catch(() => {});
+    await removeLeftovers().catch(() => {});
     const failures = logs.filter((entry) => entry.level !== "info");
     if (failures.length) console.log("Clover client warnings during the run:", JSON.stringify(failures, null, 2));
   });
@@ -278,6 +298,22 @@ describe.skipIf(!configured)("Clover sandbox", () => {
     // the field-level check in dashboard/items.ts reports a conflict instead of writing.
     expect(seen.price_cents).toBe(1999);
     expect(seen.price_cents).not.toBe(1575);
+  });
+
+  // -- Clean-up, verified ---------------------------------------------------------------------
+
+  it("[cleanup] removes every object this test made, and leaves the merchant's own data alone", async () => {
+    const before = (await raw("GET", "/items?limit=1000")).body.elements.filter((entry) => !entry.name.startsWith(PREFIX)).length;
+    await removeLeftovers();
+    const after = await leftovers();
+    expect(after.items.map((entry) => entry.name)).toEqual([]);
+    expect(after.groups.map((entry) => entry.name)).toEqual([]);
+    expect(after.categories.map((entry) => entry.name)).toEqual([]);
+    // The item made above is gone, by id as well as by name.
+    await expect(getItem(api, itemId)).rejects.toMatchObject({ kind: "not_found" });
+    // Nothing that was not ours was deleted.
+    const remaining = (await raw("GET", "/items?limit=1000")).body.elements.filter((entry) => !entry.name.startsWith(PREFIX)).length;
+    expect(remaining).toBe(before);
   });
 
   // -- Token endpoint shape (only when OAuth values are supplied) ---------------------------

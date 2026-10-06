@@ -77,9 +77,14 @@ For each project (`<ref>` is the project reference; every command below names it
 
 - [ ] `supabase login` has been run once on this machine, by the account that owns the
       projects. Without it, functions cannot be deployed and secrets cannot be set.
-- [ ] `supabase db push` applies five migrations:
+- [ ] `supabase db push` applies six migrations:
       `..100_schema`, `..200_functions`, `..300_storage`, `..400_application_retention`,
-      `..500_sequence_privileges`.
+      `..500_sequence_privileges`, `..600_imported_items_start_hidden`.
+      **As of 2026-10-06 both projects have the first five. The sixth is not applied
+      anywhere yet**, and `npm run verify:database` will say so until it is. It must be on
+      a project before a Clover merchant is connected to it: without it, connecting
+      publishes the merchant's whole inventory on the website at once. Apply it to TEST
+      first, with the two changed functions (`dashboard-api` redeployed), then PRODUCTION.
       (Without `supabase login`, the same works with the database password:
       `supabase db push --db-url "postgresql://postgres.<ref>:<password>@<pooler host>:5432/postgres"`.)
 - [ ] **Verify the database is closed.** Run the automated check, which covers everything

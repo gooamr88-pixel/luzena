@@ -54,6 +54,31 @@ documentation and tested against a stand-in.
 - **Two answers the sandbox must give:** whether Clover returns `state` after authorisation
   (decides `CLOVER_REQUIRE_STATE`), and what the `hidden` flag does at the register.
 
+**State on 2026-10-06, after an audit of the whole integration:**
+
+- **Nothing has been run against Clover yet.** No sandbox account, test merchant or token
+  exists for this project, and none can be created from here: it needs your own Clover
+  login. `.env.clover-sandbox.local` does not exist. `npm run test:clover-sandbox` runs
+  and reports every test as skipped.
+- **The code matches Clover's current documentation** (re-read 2026-10-06): the authorize,
+  token and refresh addresses for sandbox and production, the JSON request bodies, and the
+  token response fields. That is agreement with a document, not proof.
+- **Changed: connecting a merchant no longer publishes its inventory.** Items that arrive
+  from Clover now start hidden from the website until the owner shows them (migration
+  `..600_imported_items_start_hidden.sql`, with tests). **Not deployed yet**: the migration
+  and the changed functions must go to TEST and then PRODUCTION, and the site must be
+  redeployed, before a real merchant is connected. That needs the Supabase CLI signed in.
+- **The hard limit on "tomorrow": Clover's approval.** Clover's documentation says a real
+  merchant can use an app only "after both the app and the associated developer account
+  are approved", and gives no time for that review. Without a production developer
+  account and an approved app, the restaurant's real Clover account **cannot** be
+  authorised tomorrow, however ready the code is. If the production developer account has
+  not been applied for yet, do that first, today.
+- **Needed from you for PRODUCTION once Clover has approved:** the production App ID and
+  App Secret (into `supabase/functions/.env.production`, never into GitHub or the
+  website), with the app set to: Site URL `https://luzenarestaurant.com/dashboard/`,
+  Default OAuth Response **Code**, permissions Inventory read and write, and Merchant read.
+
 ### B-2. Clover Online Ordering link — BLOCKING for ordering · CLIENT INPUT
 
 - **Needed from you:** the address of the restaurant's Clover Online Ordering page (Clover

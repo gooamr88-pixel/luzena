@@ -147,7 +147,7 @@ export async function completeConnect(deps: Deps, session: Session, body: unknow
   return json(200, {
     result: "connected",
     connection: await deps.db.rpc("clover_connection_status", { p_restaurant: restaurantId }),
-    message: "Clover connected. The menu is being imported.",
+    message: "Clover connected. The menu is being imported. Imported items stay hidden from the website until you show them.",
   });
 }
 

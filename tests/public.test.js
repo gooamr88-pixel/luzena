@@ -41,6 +41,16 @@ describe("public menu", () => {
   it("serves the synced menu with cache headers and no private fields", async () => {
     await h.connect(alpha);
     await h.api(owner, "POST", "/clover/sync");
+
+    // Importing publishes nothing: the menu is still unavailable to the public until the
+    // owner shows at least one item.
+    const imported = await menu();
+    expect(imported.status).toBe(200);
+    expect(imported.body.categories).toEqual([]);
+    expect(JSON.stringify(imported.body)).not.toMatch(/Soup|Staff meal/);
+
+    // The owner shows everything, including the item Clover marks hidden, which stays out.
+    await h.api(owner, "POST", "/items/bulk", { ids: [soup, secretItem], action: "show" });
     await h.api(owner, "PATCH", `/items/${soup}`, { website: { description: "Fresh." } });
 
     const response = await menu();
