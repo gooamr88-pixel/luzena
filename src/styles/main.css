@@ -1,0 +1,327 @@
+/* Public website design system. Tokens first, then a small set of components.
+   The palette and the sans-serif come straight from the Luzena logo file.
+   See docs/DESIGN_SYSTEM.md for the reasoning behind each choice. */
+@import "tailwindcss";
+@import "@fontsource-variable/playfair-display/index.css";
+@import "@fontsource/open-sauce-one/400.css";
+@import "@fontsource/open-sauce-one/500.css";
+@import "@fontsource/open-sauce-one/600.css";
+@import "@fontsource/open-sauce-one/700.css";
+
+@theme {
+  /* Typography. Open Sauce One is the font of "RESTAURANT & CAFE" in the logo. The
+     wordmark's font (Hello Paris Serif) is commercial, so headings use Playfair Display,
+     a free serif with the same high-contrast character. */
+  --font-display: "Playfair Display Variable", "Playfair Display", "Iowan Old Style", Georgia, serif;
+  --font-sans: "Open Sauce One", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  /* Surfaces. paper is the logo's own background colour. */
+  --color-paper: #f6f4f0;
+  --color-sand: #efebe3;
+  --color-sand-deep: #e2dcd0;
+
+  /* Text, warm rather than grey. Contrast on paper: ink 14.3, body 9.1, muted 5.3. */
+  --color-ink: #2b211e;
+  --color-body: #4b403b;
+  --color-muted: #6e645c;
+
+  /* Brand. brand is the red of the wordmark; olive is the green of the leaves and tagline.
+     On paper: brand 4.62, brand-dark 5.92, olive 5.17. White on brand: 5.08.
+     On sand, brand drops to 4.27: do not use it there for normal-size text (use
+     brand-dark). See docs/DESIGN_SYSTEM.md. */
+  --color-brand: #bc4749;
+  --color-brand-dark: #a23b3d;
+  --color-olive: #606c38;
+  --color-olive-dark: #4d572c;
+
+  /* Only for overlays on photos (hero scrim, gallery viewer). */
+  --color-night: #1c1513;
+
+  /* Deliberately not the brand red, so an error never looks like decoration. */
+  --color-danger: #9b1c1c;
+  --color-success: #2f6b3f;
+
+  --breakpoint-xs: 24rem;
+}
+
+@layer base {
+  /* Height of the sticky header. Taller on desktop so the logo's tagline stays legible.
+     Anything that sticks below the header, or sizes itself against it, reads this. */
+  :root {
+    --header-h: 4.75rem;
+  }
+
+  @media (min-width: 64rem) {
+    :root {
+      --header-h: 5.5rem;
+    }
+  }
+
+  html {
+    scroll-behavior: smooth;
+    scroll-padding-top: calc(var(--header-h) + 4.5rem);
+    -webkit-text-size-adjust: 100%;
+  }
+
+  /* A column at least one screen tall, so the footer sits at the bottom on short pages. */
+  body {
+    @apply flex min-h-dvh flex-col bg-paper font-sans text-base leading-relaxed text-body antialiased;
+    overflow-x: clip;
+  }
+
+  main {
+    flex: 1 0 auto;
+  }
+
+  h1, h2, h3 {
+    @apply font-display font-normal text-ink;
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-olive);
+    outline-offset: 3px;
+  }
+
+  ::selection {
+    background: var(--color-brand);
+    color: #fff;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer components {
+  .container-x {
+    @apply mx-auto w-full max-w-[75rem] px-5 sm:px-8;
+  }
+
+  .section {
+    @apply py-16 sm:py-24;
+  }
+
+  /* Set like the logo's tagline: olive, bold, widely spaced capitals. */
+  .eyebrow {
+    @apply text-xs font-bold tracking-[0.22em] text-olive uppercase;
+  }
+
+  .h-display {
+    @apply text-[clamp(2.5rem,6.6vw,4.75rem)] leading-[1.06] tracking-[-0.01em];
+  }
+
+  .h-section {
+    @apply text-[clamp(1.9rem,4vw,2.9rem)] leading-[1.12] tracking-[-0.005em];
+  }
+
+  .lead {
+    @apply text-lg leading-relaxed text-body;
+  }
+
+  .rule {
+    @apply h-0.5 w-14 bg-brand;
+  }
+
+  /* Buttons: 48px tall for touch, uppercase tracking to echo the logo's tagline. */
+  .btn {
+    @apply inline-flex min-h-12 items-center justify-center gap-2 border px-7 text-center text-[0.78rem] font-bold tracking-[0.14em] uppercase transition-colors duration-200;
+  }
+
+  .btn-sm {
+    @apply min-h-11 px-4 text-[0.7rem] sm:px-5;
+  }
+
+  .btn-primary {
+    @apply border-brand bg-brand text-white hover:border-brand-dark hover:bg-brand-dark;
+  }
+
+  .btn-outline {
+    @apply border-ink/30 text-ink hover:border-brand hover:text-brand;
+  }
+
+  /* For buttons that sit on a photo. */
+  .btn-on-photo {
+    @apply border-white/70 text-white hover:border-white hover:bg-white hover:text-ink;
+  }
+
+  .btn[disabled],
+  .btn[aria-disabled="true"] {
+    @apply cursor-not-allowed opacity-60;
+  }
+
+  .text-link {
+    @apply text-ink underline decoration-brand/60 underline-offset-4 transition-colors hover:text-brand;
+  }
+
+  /* Header */
+  .skip-link {
+    @apply sr-only bg-brand px-4 py-3 font-semibold text-white focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[60];
+  }
+
+  .sample-banner {
+    @apply bg-olive px-4 py-1.5 text-center text-xs font-semibold tracking-wide text-white;
+  }
+
+  .site-header {
+    @apply sticky top-0 z-40 border-b border-ink/10 bg-paper/95 backdrop-blur-md;
+  }
+
+  .nav-link {
+    @apply relative py-2 text-[0.76rem] font-semibold tracking-[0.12em] text-body uppercase transition-colors hover:text-brand;
+  }
+
+  .nav-link[aria-current="page"] {
+    @apply text-brand;
+  }
+
+  .icon-button {
+    @apply inline-flex size-11 items-center justify-center border border-ink/20 text-ink transition-colors hover:border-brand hover:text-brand;
+  }
+
+  .mobile-nav {
+    @apply m-0 h-dvh max-h-none w-full max-w-none bg-paper p-0 text-ink;
+  }
+
+  .mobile-nav::backdrop {
+    background: var(--color-paper);
+  }
+
+  /* Page header used by every inner page */
+  .page-hero {
+    @apply border-b border-ink/10 bg-sand pt-14 pb-12 sm:pt-20 sm:pb-16;
+  }
+
+  /* Cards and panels. Semi-opaque white reads as a card on both paper and sand. */
+  .panel {
+    @apply border border-ink/10 bg-white/60 p-6 sm:p-8;
+  }
+
+  .hours-row {
+    @apply flex items-baseline justify-between gap-6 border-b border-ink/10 py-2.5 text-sm last:border-b-0;
+  }
+
+  /* Menu */
+  .menu-item {
+    @apply flex gap-4 py-5;
+  }
+
+  .menu-item-name {
+    @apply font-display text-[1.3rem] leading-snug text-ink;
+  }
+
+  .menu-item-leader {
+    @apply mx-1 mb-1.5 min-w-6 flex-1 self-end border-b border-dotted border-ink/30;
+  }
+
+  .menu-item-price {
+    @apply font-display text-[1.25rem] font-medium whitespace-nowrap text-brand;
+  }
+
+  /* An item that is out of stock steps back by colour, not by opacity: fading the whole
+     row pushed its text and its "Unavailable today" tag below AA contrast. */
+  .menu-item-unavailable .menu-item-name,
+  .menu-item-unavailable .menu-item-price {
+    @apply text-muted;
+  }
+
+  .menu-item-unavailable img {
+    @apply opacity-60;
+  }
+
+  .tag {
+    @apply inline-flex items-center border border-olive/35 px-2 py-0.5 text-[0.66rem] font-semibold tracking-[0.08em] text-olive-dark uppercase;
+  }
+
+  .tag-muted {
+    @apply border-danger/40 text-danger;
+  }
+
+  .chip {
+    @apply inline-flex min-h-11 items-center border border-ink/15 bg-paper px-4 text-[0.74rem] font-semibold tracking-[0.1em] whitespace-nowrap text-body uppercase transition-colors hover:border-brand hover:text-brand;
+  }
+
+  .chip[aria-current="true"] {
+    @apply border-brand bg-brand text-white;
+  }
+
+  /* Forms */
+  .field-label {
+    @apply mb-2 block text-[0.74rem] font-bold tracking-[0.1em] text-ink uppercase;
+  }
+
+  .field-input {
+    @apply block min-h-12 w-full border border-ink/25 bg-white px-4 py-3 text-base text-ink transition-colors placeholder:text-muted/80 hover:border-ink/45 focus:border-olive;
+  }
+
+  .field-input[aria-invalid="true"] {
+    @apply border-danger;
+  }
+
+  .field-hint {
+    @apply mt-2 text-sm text-muted;
+  }
+
+  .field-error {
+    @apply mt-2 text-sm font-semibold text-danger;
+  }
+
+  .alert {
+    @apply border px-5 py-4 text-sm;
+  }
+
+  .alert-error {
+    @apply border-danger/40 bg-danger/8 text-danger;
+  }
+
+  .alert-success {
+    @apply border-success/40 bg-success/10 text-success;
+  }
+
+  .skeleton {
+    @apply animate-pulse bg-sand-deep;
+  }
+
+  /* Gallery */
+  .gallery-tile {
+    @apply relative block w-full overflow-hidden bg-sand-deep;
+  }
+
+  .gallery-tile img {
+    @apply size-full object-cover transition-transform duration-500;
+  }
+
+  .gallery-tile:hover img,
+  .gallery-tile:focus-visible img {
+    transform: scale(1.04);
+  }
+
+  /* The photo viewer is the one dark surface: photos read best on it. */
+  .lightbox {
+    @apply m-0 h-dvh max-h-none w-full max-w-none bg-night/96 p-0 text-white;
+  }
+
+  .lightbox::backdrop {
+    background: rgb(28 21 19 / 0.9);
+  }
+
+  .lightbox .icon-button {
+    @apply border-white/35 bg-night/60 text-white hover:border-white hover:text-white;
+  }
+
+  .site-footer {
+    @apply border-t border-ink/10 bg-sand;
+  }
+}

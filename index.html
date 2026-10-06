@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en" data-menu-url="{{build.menuUrl}}" data-currency="{{site.currency}}" data-locale="{{site.locale}}">
+<head>
+  {{> head}}
+</head>
+<body>
+  {{> header}}
+
+  <main id="main">
+    {{#if site.hero.image}}
+    <!-- Photo hero. Fills the first screen, but never grows past 54rem on very tall
+         displays. Text is white because it sits on the photo, over a dark scrim. -->
+    <section class="relative isolate flex h-[min(calc(100svh-var(--header-h)),54rem)] min-h-[34rem] items-end overflow-hidden" aria-labelledby="hero-title">
+      {{picture site.hero.image alt=site.hero.imageAlt sizes="100vw" class="absolute inset-0 -z-20 size-full object-cover" loading="eager" fetchpriority="high"}}
+      <div class="absolute inset-0 -z-10 bg-gradient-to-t from-night/85 via-night/40 to-night/10" aria-hidden="true"></div>
+      <div class="container-x pt-24 pb-14 sm:pb-20">
+        <div class="max-w-3xl">
+          {{#if site.hero.eyebrow}}<p class="eyebrow text-white">{{site.hero.eyebrow}}</p>{{/if}}
+          <h1 id="hero-title" class="h-display mt-4 text-white">{{site.hero.headline}}</h1>
+          {{#if site.hero.text}}<p class="lead mt-6 max-w-xl text-white/90">{{site.hero.text}}</p>{{/if}}
+          <div class="mt-9 flex flex-col gap-3 sm:flex-row">
+            <a href="{{site.orderHref}}" class="btn btn-primary"{{#if site.orderIsExternal}} rel="noopener"{{/if}}>Order Online</a>
+            <a href="/menu/" class="btn btn-on-photo">View the Menu</a>
+          </div>
+        </div>
+      </div>
+    </section>
+    {{else}}
+    <!-- No hero photo yet: a typographic hero on the logo's own colours. -->
+    <section class="border-b border-ink/10 bg-sand" aria-labelledby="hero-title">
+      <div class="container-x py-20 text-center sm:py-28">
+        <div class="mx-auto max-w-3xl">
+          {{#if site.hero.eyebrow}}<p class="eyebrow">{{site.hero.eyebrow}}</p>{{/if}}
+          <h1 id="hero-title" class="h-display mt-5">{{site.hero.headline}}</h1>
+          <div class="rule mx-auto mt-8"></div>
+          {{#if site.hero.text}}<p class="lead mx-auto mt-8 max-w-xl">{{site.hero.text}}</p>{{/if}}
+          <div class="mt-10 flex flex-col justify-center gap-3 sm:flex-row">
+            <a href="{{site.orderHref}}" class="btn btn-primary"{{#if site.orderIsExternal}} rel="noopener"{{/if}}>Order Online</a>
+            <a href="/menu/" class="btn btn-outline">View the Menu</a>
+          </div>
+        </div>
+      </div>
+    </section>
+    {{/if}}
+
+    <!-- Filled from the live menu by featured.js. Stays hidden if the menu cannot be loaded. -->
+    <section class="section border-b border-ink/10" aria-labelledby="featured-title" data-featured hidden>
+      <div class="container-x">
+        <div class="flex flex-wrap items-end justify-between gap-6">
+          <div>
+            <p class="eyebrow">Featured</p>
+            <h2 id="featured-title" class="h-section mt-3">From our menu</h2>
+          </div>
+          <a href="/menu/" class="text-link text-sm font-semibold tracking-[0.12em] uppercase">See the full menu</a>
+        </div>
+        <ul class="mt-8 grid gap-x-14 divide-y divide-ink/10 md:grid-cols-2 md:divide-y-0" data-featured-list></ul>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="story-title">
+      <div class="container-x grid items-center gap-10 lg:grid-cols-2 lg:gap-16">
+        {{#if site.about.image}}
+        <div class="aspect-[4/3] overflow-hidden bg-sand-deep">
+          {{picture site.about.image alt=site.about.imageAlt sizes="(min-width: 1024px) 36rem, 100vw" class="size-full object-cover"}}
+        </div>
+        {{/if}}
+        <div>
+          <p class="eyebrow">Our story</p>
+          <h2 id="story-title" class="h-section mt-3">{{#if site.about.headline}}{{site.about.headline}}{{else}}About {{site.fullName}}{{/if}}</h2>
+          <div class="rule mt-6"></div>
+          {{#each (first site.about.paragraphs 1)}}<p class="lead mt-6">{{this}}</p>{{/each}}
+          <a href="/about/" class="btn btn-outline mt-8">Read our story</a>
+        </div>
+        {{#unless site.about.image}}{{#if site.about.values.length}}
+        <!-- No photo for this section yet: the second column carries what to expect. -->
+        <ul class="divide-y divide-ink/15 border-y border-ink/15">
+          {{#each site.about.values}}
+          <li class="flex gap-5 py-6">
+            <span class="font-display text-3xl leading-none text-brand" aria-hidden="true">0{{inc @index}}</span>
+            <div>
+              <h3 class="text-xl">{{title}}</h3>
+              <p class="mt-1.5">{{text}}</p>
+            </div>
+          </li>
+          {{/each}}
+        </ul>
+        {{/if}}{{/unless}}
+      </div>
+    </section>
+
+    {{#if site.primaryLocation}}
+    <section class="section border-y border-ink/10 bg-sand" aria-labelledby="visit-title">
+      <div class="container-x grid gap-10 lg:grid-cols-2 lg:gap-16">
+        <div>
+          <p class="eyebrow">Visit us</p>
+          <h2 id="visit-title" class="h-section mt-3">Find us</h2>
+          <div class="rule mt-6"></div>
+          <address class="mt-6 text-lg leading-relaxed text-ink not-italic">
+            {{site.primaryLocation.street}}<br>{{site.primaryLocation.cityLine}}
+          </address>
+          <p class="mt-3"><a href="{{site.primaryLocation.phoneHref}}" class="text-link">{{site.primaryLocation.phone}}</a></p>
+          <div class="mt-8 flex flex-col gap-3 sm:flex-row">
+            <a href="{{site.primaryLocation.directionsUrl}}" class="btn btn-outline" target="_blank" rel="noopener">Get directions<span class="sr-only"> (opens in a new tab)</span></a>
+            <a href="/locations/" class="btn btn-outline">Location details</a>
+          </div>
+        </div>
+        <div class="panel self-start">
+          <h3 class="font-sans text-xs font-semibold tracking-[0.22em] text-olive uppercase">Opening hours</h3>
+          <div class="mt-4">{{> hours site.primaryLocation}}</div>
+        </div>
+      </div>
+    </section>
+    {{else}}
+    <section class="section border-y border-ink/10 bg-sand">
+      <div class="container-x">{{> coming-soon}}</div>
+    </section>
+    {{/if}}
+
+    {{#if site.hasGallery}}
+    <section class="section" aria-labelledby="gallery-title">
+      <div class="container-x">
+        <div class="flex flex-wrap items-end justify-between gap-6">
+          <div>
+            <p class="eyebrow">Gallery</p>
+            <h2 id="gallery-title" class="h-section mt-3">A look inside</h2>
+          </div>
+          <a href="/gallery/" class="text-link text-sm font-semibold tracking-[0.12em] uppercase">View all photos</a>
+        </div>
+        <ul class="mt-10 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+          {{#each (first site.gallery 4)}}
+          <li class="aspect-square overflow-hidden bg-sand-deep">{{picture image alt=alt sizes="(min-width: 1024px) 18rem, 50vw" class="size-full object-cover"}}</li>
+          {{/each}}
+        </ul>
+      </div>
+    </section>
+    {{/if}}
+
+    <section class="section border-t border-ink/10 bg-sand" aria-labelledby="team-title">
+      <div class="container-x flex flex-col items-start justify-between gap-8 lg:flex-row lg:items-center">
+        <div class="max-w-2xl">
+          <p class="eyebrow">Careers</p>
+          <h2 id="team-title" class="h-section mt-3">Join our team</h2>
+          <p class="lead mt-4">We are hiring for the kitchen, the cafe and the floor. See the open positions and apply online.</p>
+        </div>
+        <a href="/careers/" class="btn btn-primary shrink-0">See open positions</a>
+      </div>
+    </section>
+  </main>
+
+  {{> footer}}
+  <script type="module" src="/src/js/main.js"></script>
+  <script type="module" src="/src/js/featured.js"></script>
+</body>
+</html>

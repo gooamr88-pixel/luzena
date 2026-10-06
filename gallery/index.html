@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  {{> head}}
+</head>
+<body>
+  {{> header}}
+
+  <main id="main">
+    <div class="page-hero">
+      <div class="container-x">
+        <p class="eyebrow">{{site.name}}</p>
+        <h1 class="h-display mt-3">Gallery</h1>
+      </div>
+    </div>
+
+    <section class="section">
+      <div class="container-x">
+        {{#if site.hasGallery}}
+        <ul class="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3" data-gallery>
+          {{#each site.gallery}}
+          <li class="aspect-square">
+            <button type="button" class="gallery-tile size-full" data-gallery-open="{{@index}}" aria-haspopup="dialog">
+              {{picture image alt=alt sizes="(min-width: 1024px) 24rem, 50vw" class=""}}
+              <span class="sr-only">View larger</span>
+            </button>
+          </li>
+          {{/each}}
+        </ul>
+        {{else}}
+        <p class="lead max-w-xl">Photos are on their way. In the meantime, come and see for yourself.</p>
+        <a href="/locations/" class="btn btn-primary mt-8">Find us</a>
+        {{/if}}
+      </div>
+    </section>
+  </main>
+
+  {{#if site.hasGallery}}
+  <dialog class="lightbox" aria-label="Photo viewer" data-lightbox>
+    <div class="flex h-full flex-col">
+      <div class="flex shrink-0 items-center justify-between px-4 py-3">
+        <p class="text-sm text-white/75" data-lightbox-count aria-live="polite"></p>
+        <button type="button" class="icon-button" data-lightbox-close>
+          <span class="sr-only">Close photo viewer</span>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M5 5l14 14M19 5L5 19"/></svg>
+        </button>
+      </div>
+      <div class="relative flex min-h-0 flex-1 items-center justify-center px-4 pb-4">
+        <button type="button" class="icon-button absolute left-3 z-10 bg-night/60 sm:left-6" data-lightbox-prev>
+          <span class="sr-only">Previous photo</span>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+        </button>
+        <figure class="flex max-h-full min-h-0 flex-col items-center">
+          <div class="min-h-0 [&_img]:max-h-[78dvh] [&_img]:w-auto [&_img]:max-w-full [&_img]:object-contain" data-lightbox-stage></div>
+          <figcaption class="mt-3 text-center text-sm text-white/90" data-lightbox-caption></figcaption>
+        </figure>
+        <button type="button" class="icon-button absolute right-3 z-10 bg-night/60 sm:right-6" data-lightbox-next>
+          <span class="sr-only">Next photo</span>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
+        </button>
+      </div>
+    </div>
+  </dialog>
+  {{/if}}
+
+  {{> footer}}
+  <script type="module" src="/src/js/main.js"></script>
+  {{#if site.hasGallery}}<script type="module" src="/src/js/gallery.js"></script>{{/if}}
+</body>
+</html>

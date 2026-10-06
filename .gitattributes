@@ -1,0 +1,4 @@
+# Files that run on the Linux server keep Unix line endings on every machine.
+*.sh text eol=lf
+*.conf text eol=lf
+deploy/site.env.example text eol=lf

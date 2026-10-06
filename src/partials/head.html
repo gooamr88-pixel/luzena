@@ -1,0 +1,17 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{page.title}}</title>
+{{#if page.description}}<meta name="description" content="{{page.description}}">{{/if}}
+{{#if page.noindex}}<meta name="robots" content="noindex, nofollow">{{else}}<link rel="canonical" href="{{page.canonical}}">{{/if}}
+<meta name="theme-color" content="#f6f4f0">
+<meta name="color-scheme" content="light">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="{{site.fullName}}">
+<meta property="og:title" content="{{page.title}}">
+{{#if page.description}}<meta property="og:description" content="{{page.description}}">{{/if}}
+<meta property="og:url" content="{{page.canonical}}">
+{{#if page.ogImage}}<meta property="og:image" content="{{page.ogImage}}">
+<meta name="twitter:card" content="summary_large_image">{{else}}<meta name="twitter:card" content="summary">{{/if}}
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/src/styles/main.css">
+{{page.jsonLd}}

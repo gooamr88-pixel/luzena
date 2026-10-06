@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+  {{> head}}
+</head>
+<body>
+  {{> header}}
+
+  <main id="main">
+    <section class="section">
+      <div class="container-x max-w-2xl py-16 text-center">
+        <p class="eyebrow">Error 404</p>
+        <h1 class="h-display mt-4">Page not found</h1>
+        <p class="lead mt-5">The page you are looking for has moved or does not exist.</p>
+        <div class="mt-9 flex flex-col justify-center gap-3 sm:flex-row">
+          <a href="/" class="btn btn-primary">Back to home</a>
+          <a href="/menu/" class="btn btn-outline">View the Menu</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  {{> footer}}
+  <script type="module" src="/src/js/main.js"></script>
+</body>
+</html>

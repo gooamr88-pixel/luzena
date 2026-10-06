@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en" data-menu-url="{{build.menuUrl}}" data-currency="{{site.currency}}" data-locale="{{site.locale}}">
+<head>
+  {{> head}}
+</head>
+<body>
+  {{> header}}
+
+  <main id="main">
+    <div class="page-hero">
+      <div class="container-x">
+        <p class="eyebrow">{{site.name}}</p>
+        <h1 class="h-display mt-3">Menu</h1>
+        <p class="lead mt-5 max-w-2xl">Prices and availability come straight from our kitchen's system, so what you see here is what we are serving.</p>
+        <a href="{{site.orderHref}}" class="btn btn-primary mt-8"{{#if site.orderIsExternal}} rel="noopener"{{/if}}>Order Online</a>
+      </div>
+    </div>
+
+    <!-- Category links. Filled by menu.js. -->
+    <nav class="sticky top-(--header-h) z-30 border-b border-ink/10 bg-paper/95 backdrop-blur-md" aria-label="Menu categories" data-menu-nav hidden>
+      <ul class="container-x flex gap-2 overflow-x-auto py-3" data-menu-nav-list></ul>
+    </nav>
+
+    <div class="container-x section" data-menu aria-live="polite" aria-busy="true">
+      <!-- Loading state. Replaced by menu.js. -->
+      <div data-menu-loading>
+        <p class="sr-only">Loading the menu</p>
+        <div class="skeleton h-9 w-48"></div>
+        <div class="mt-8 grid gap-x-14 gap-y-8 md:grid-cols-2" aria-hidden="true">
+          <div class="space-y-3"><div class="skeleton h-6 w-3/4"></div><div class="skeleton h-4 w-full"></div></div>
+          <div class="space-y-3"><div class="skeleton h-6 w-2/3"></div><div class="skeleton h-4 w-5/6"></div></div>
+          <div class="space-y-3"><div class="skeleton h-6 w-1/2"></div><div class="skeleton h-4 w-full"></div></div>
+          <div class="space-y-3"><div class="skeleton h-6 w-3/5"></div><div class="skeleton h-4 w-4/5"></div></div>
+          <div class="space-y-3"><div class="skeleton h-6 w-2/3"></div><div class="skeleton h-4 w-full"></div></div>
+          <div class="space-y-3"><div class="skeleton h-6 w-1/2"></div><div class="skeleton h-4 w-3/4"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <noscript>
+      <div class="container-x pb-24">
+        <div class="alert alert-error">
+          The menu needs JavaScript to load.
+          {{#if site.orderUrl}}You can see it on our <a class="underline" href="{{site.orderUrl}}">online ordering page</a>.{{/if}}
+          {{#if site.primaryLocation.phone}}Or call us on {{site.primaryLocation.phone}}.{{/if}}
+        </div>
+      </div>
+    </noscript>
+
+    <!-- Shown by menu.js when the menu cannot be loaded. -->
+    <template data-menu-error-template>
+      <div class="mx-auto max-w-xl text-center">
+        <h2 class="h-section">Menu temporarily unavailable</h2>
+        <p class="lead mt-4">Please try again shortly.</p>
+        <div class="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
+          <button type="button" class="btn btn-primary" data-menu-retry>Try again</button>
+          {{#if site.primaryLocation.phoneHref}}<a href="{{site.primaryLocation.phoneHref}}" class="btn btn-outline">Call {{site.primaryLocation.phone}}</a>{{/if}}
+        </div>
+      </div>
+    </template>
+  </main>
+
+  {{> footer}}
+  <script type="module" src="/src/js/main.js"></script>
+  <script type="module" src="/src/js/menu.js"></script>
+</body>
+</html>

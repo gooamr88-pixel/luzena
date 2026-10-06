@@ -1,0 +1,57 @@
+{
+  "name": "luzna-web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20.19"
+  },
+  "scripts": {
+    "dev": "cross-env CONTENT_PROFILE=sample VITE_DASHBOARD_DEMO=1 vite",
+    "build": "vite build",
+    "build:sample": "cross-env CONTENT_PROFILE=sample vite build",
+    "build:demo": "cross-env CONTENT_PROFILE=sample VITE_DASHBOARD_DEMO=1 vite build",
+    "preview": "vite preview",
+    "build:staging": "vite build --mode staging --outDir .cache/staging-site --emptyOutDir",
+    "preview:staging": "vite preview --outDir .cache/staging-site --port 4173 --strictPort",
+    "build:nginx": "node scripts/build-nginx-config.mjs",
+    "check:content": "node scripts/check-content.js",
+    "lint": "eslint .",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "check:deno": "deno check supabase/functions/dashboard-api/index.ts supabase/functions/public-menu/index.ts supabase/functions/job-application/index.ts supabase/functions/clover-webhook/index.ts && node scripts/deno-smoke.mjs",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "build:e2e": "vite build --outDir .cache/e2e/production --emptyOutDir && cross-env CONTENT_PROFILE=sample VITE_DASHBOARD_DEMO=1 VITE_SUPABASE_URL=https://e2e-project.supabase.co vite build --outDir .cache/e2e/demo --emptyOutDir",
+    "test:browser": "npm run build:e2e && vitest run --config vitest.browser.config.js",
+    "test:clover-sandbox": "vitest run --config vitest.sandbox.config.js",
+    "measure:performance": "node scripts/measure-performance.mjs",
+    "verify:database": "node scripts/verify-database.mjs",
+    "verify:public-access": "node scripts/verify-public-access.mjs",
+    "verify:functions": "node scripts/verify-functions.mjs",
+    "verify:site": "node scripts/verify-site.mjs",
+    "verify": "npm run lint && npm run typecheck && npm run check:content && npm test && npm run check:deno && npm run test:browser"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
+    "@eslint/js": "^10.0.1",
+    "@fontsource-variable/playfair-display": "^5.3.0",
+    "@fontsource/open-sauce-one": "^5.3.0",
+    "@tailwindcss/vite": "^4.3.3",
+    "axe-core": "^4.13.0",
+    "cross-env": "^10.1.0",
+    "deno": "^2.9.6",
+    "eslint": "^10.12.0",
+    "globals": "^17.13.0",
+    "handlebars": "^4.7.9",
+    "pg": "^8.23.1",
+    "playwright-core": "^1.63.0",
+    "sharp": "^0.35.5",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.2",
+    "vitest": "^5.0.3"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.117.2"
+  }
+}

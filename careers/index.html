@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en" data-api="{{build.apiBase}}" data-restaurant="{{site.restaurantSlug}}">
+<head>
+  {{> head}}
+</head>
+<body>
+  {{> header}}
+
+  <main id="main">
+    <div class="page-hero">
+      <div class="container-x">
+        <p class="eyebrow">Careers</p>
+        <h1 class="h-display mt-3">Join our team</h1>
+        {{#if site.careers.intro}}<p class="lead mt-5 max-w-2xl">{{site.careers.intro}}</p>{{/if}}
+        {{#if site.careers.applicationsOpen}}<a href="#apply" class="btn btn-primary mt-8">Apply now</a>{{else}}<a href="#positions-title" class="btn btn-primary mt-8">See open positions</a>{{/if}}
+      </div>
+    </div>
+
+    <section class="section" aria-labelledby="positions-title">
+      <div class="container-x">
+        <div class="flex flex-wrap items-end justify-between gap-6">
+          <div>
+            <h2 id="positions-title" class="h-section">Open positions</h2>
+            <div class="rule mt-6"></div>
+          </div>
+          <p class="text-sm text-muted">{{site.careers.positions.length}} roles across the kitchen, the cafe and the floor. Open a role to read more.</p>
+        </div>
+
+        <!-- Jump links, one per department. -->
+        <nav aria-label="Departments" class="mt-8">
+          <ul class="flex flex-wrap gap-2">
+            {{#each site.careers.departments}}<li><a href="#department-{{@index}}" class="chip">{{name}} <span class="ml-2 text-muted">{{positions.length}}</span></a></li>{{/each}}
+          </ul>
+        </nav>
+
+        <div class="mt-12 grid gap-x-16 gap-y-14 lg:grid-cols-2">
+          {{#each site.careers.departments}}
+          <section id="department-{{@index}}" aria-labelledby="department-title-{{@index}}">
+            <h3 id="department-title-{{@index}}" class="eyebrow font-sans">{{name}}</h3>
+            <!-- Each role is a native disclosure, so it works with a keyboard and without JavaScript. -->
+            <div class="mt-4 border-t border-ink/15">
+              {{#each positions}}
+              <details class="position group border-b border-ink/15" id="role-{{slug}}">
+                <summary class="flex min-h-14 cursor-pointer list-none items-center justify-between gap-4 py-3 [&::-webkit-details-marker]:hidden">
+                  <span class="font-display text-[1.35rem] leading-snug text-ink group-open:text-brand">{{title}}</span>
+                  <svg class="shrink-0 text-olive transition-transform duration-200 group-open:rotate-180" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+                </summary>
+                <div class="pb-7">
+                  {{#if type}}<p class="mb-4 flex flex-wrap gap-2"><span class="tag">{{type}}</span>{{#if location}}<span class="tag">{{location}}</span>{{/if}}</p>{{/if}}
+                  {{#if summary}}<p>{{summary}}</p>{{/if}}
+                  {{#if responsibilities.length}}
+                  <h4 class="mt-5 text-[0.7rem] font-bold tracking-[0.16em] text-ink uppercase">What you will do</h4>
+                  <ul class="mt-2.5 list-disc space-y-1.5 pl-5 marker:text-brand">{{#each responsibilities}}<li>{{this}}</li>{{/each}}</ul>
+                  {{/if}}
+                  {{#if requirements.length}}
+                  <h4 class="mt-5 text-[0.7rem] font-bold tracking-[0.16em] text-ink uppercase">What we look for</h4>
+                  <ul class="mt-2.5 list-disc space-y-1.5 pl-5 marker:text-brand">{{#each requirements}}<li>{{this}}</li>{{/each}}</ul>
+                  {{/if}}
+                  {{#if @root.site.careers.applicationsOpen}}<a href="#apply" class="btn btn-primary btn-sm mt-6" data-apply-for="{{title}}">Apply<span class="sr-only"> for {{title}}</span></a>{{/if}}
+                </div>
+              </details>
+              {{/each}}
+            </div>
+          </section>
+          {{/each}}
+        </div>
+
+        {{#if site.careers.applicationsOpen}}<p class="mt-12 max-w-2xl text-sm text-muted">Do not see your role? Apply anyway and tell us what you do in the message.</p>{{/if}}
+      </div>
+    </section>
+
+    {{#unless site.careers.applicationsOpen}}
+    <!-- Online applications are switched off (careers.applications.enabled in
+         content/site.json). They collect personal data, so they stay off until a privacy
+         policy is published. No form, and no script, is sent to the browser. -->
+    <section id="apply" class="section border-t border-ink/10 bg-sand" aria-labelledby="apply-title">
+      <div class="container-x">
+        <div class="panel max-w-2xl">
+          <p class="eyebrow">Apply</p>
+          <h2 id="apply-title" class="h-section mt-3 text-3xl">Online applications open soon</h2>
+          <p class="mt-4">We are getting our application form ready. Please check back shortly.</p>
+          {{#if site.primaryLocation}}
+          <p class="mt-4">In the meantime, you can reach us on <a href="{{site.primaryLocation.phoneHref}}" class="text-link">{{site.primaryLocation.phone}}</a>.</p>
+          {{/if}}
+        </div>
+      </div>
+    </section>
+    {{else}}
+    <section id="apply" class="section border-t border-ink/10 bg-sand" aria-labelledby="apply-title">
+      <div class="container-x grid gap-12 lg:grid-cols-[1fr_1.4fr] lg:gap-16">
+        <div>
+          <p class="eyebrow">Apply</p>
+          <h2 id="apply-title" class="h-section mt-3">Send your application</h2>
+          <p class="mt-5">It takes a few minutes. Your details go only to the people who hire for {{site.fullName}}.</p>
+          {{#if site.careers.image}}
+          <div class="mt-8 hidden aspect-[4/3] overflow-hidden bg-sand-deep lg:block">{{picture site.careers.image alt=site.careers.imageAlt sizes="28rem" class="size-full object-cover"}}</div>
+          {{/if}}
+        </div>
+
+        <div>
+          <div data-apply-success hidden tabindex="-1" class="alert alert-success" role="status">
+            <p class="font-semibold">Thank you. Your application has been received.</p>
+            <p class="mt-1">We read every application and will contact you if there is a match.</p>
+          </div>
+
+          <form data-apply-form novalidate class="space-y-6" enctype="multipart/form-data">
+            <div data-apply-error hidden tabindex="-1" class="alert alert-error" role="alert"></div>
+
+            <div class="grid gap-6 sm:grid-cols-2">
+              <div>
+                <label class="field-label" for="full_name">Full name</label>
+                <input class="field-input" id="full_name" name="full_name" type="text" autocomplete="name" required minlength="2" maxlength="100">
+                <p class="field-error" id="full_name-error" hidden></p>
+              </div>
+              <div>
+                <label class="field-label" for="position">Position</label>
+                <select class="field-input" id="position" name="position" required>
+                  <option value="">Choose a position</option>
+                  {{#each site.careers.departments}}
+                  <optgroup label="{{name}}">
+                    {{#each positions}}<option value="{{title}}">{{title}}</option>{{/each}}
+                  </optgroup>
+                  {{/each}}
+                  <option value="Other">Other (tell us in the message)</option>
+                </select>
+                <p class="field-error" id="position-error" hidden></p>
+              </div>
+              <div>
+                <label class="field-label" for="email">Email</label>
+                <input class="field-input" id="email" name="email" type="email" autocomplete="email" inputmode="email" required maxlength="254">
+                <p class="field-error" id="email-error" hidden></p>
+              </div>
+              <div>
+                <label class="field-label" for="phone">Phone</label>
+                <input class="field-input" id="phone" name="phone" type="tel" autocomplete="tel" inputmode="tel" required maxlength="25">
+                <p class="field-error" id="phone-error" hidden></p>
+              </div>
+            </div>
+
+            <div>
+              <label class="field-label" for="cv">Resume / CV <span class="font-normal tracking-normal text-muted normal-case">(optional)</span></label>
+              <input class="field-input file:mr-4 file:border-0 file:bg-sand-deep file:px-4 file:py-2 file:text-sm file:font-semibold file:text-ink" id="cv" name="cv" type="file"
+                accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" aria-describedby="cv-hint">
+              <p class="field-hint" id="cv-hint">PDF, DOC or DOCX, up to 5 MB.</p>
+              <p class="field-error" id="cv-error" hidden></p>
+            </div>
+
+            <div>
+              <label class="field-label" for="message">Cover message <span class="font-normal tracking-normal text-muted normal-case">(optional)</span></label>
+              <textarea class="field-input" id="message" name="message" rows="5" maxlength="3000"></textarea>
+              <p class="field-error" id="message-error" hidden></p>
+            </div>
+
+            <!-- Left empty by people. Hidden from assistive technology and from the tab order. -->
+            <div class="absolute -left-[9999px]" aria-hidden="true">
+              <label for="company_website">Leave this field empty</label>
+              <input id="company_website" name="company_website" type="text" tabindex="-1" autocomplete="off">
+            </div>
+
+            <div>
+              <label class="flex items-start gap-3 text-sm">
+                <input class="mt-1 size-5 shrink-0 accent-brand" id="consent" name="consent" type="checkbox" value="yes" required>
+                <span>I agree that {{site.fullName}} may store these details and contact me about this application. Read our <a href="{{site.legal.privacyUrl}}" class="text-link" target="_blank" rel="noopener">privacy policy<span class="sr-only"> (opens in a new tab)</span></a>.</span>
+              </label>
+              <p class="field-error" id="consent-error" hidden></p>
+            </div>
+
+            <button type="submit" class="btn btn-primary w-full sm:w-auto" data-apply-submit>Send application</button>
+          </form>
+        </div>
+      </div>
+    </section>
+    {{/unless}}
+  </main>
+
+  {{> footer}}
+  <script type="module" src="/src/js/main.js"></script>
+  {{#if site.careers.applicationsOpen}}<script type="module" src="/src/js/careers.js"></script>{{/if}}
+</body>
+</html>

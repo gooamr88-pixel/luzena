@@ -1,0 +1,206 @@
+{
+  "_readme": "PRODUCTION content. Every null or empty value is something the client has not supplied yet. `npm run check:content` lists what is missing; `npm run build` refuses to build until the required fields are filled. Do not put invented facts here. The hero and About text was written from the restaurant's own Instagram description and is awaiting the owner's approval. Address, phone, email, hours, breakfast times, Maps link and domain were supplied by the client on 2026-10-05. Photos are postponed: leave the image fields null until real photos are in content/media/. See docs/CONFIGURATION.md for ordering.url, careers.applications and legal.",
+
+  "siteUrl": "https://luzenarestaurant.com",
+  "restaurantSlug": "luzena",
+  "name": "Luzena",
+  "fullName": "Luzena Restaurant & Cafe",
+  "tagline": null,
+  "description": "Luzena Restaurant & Cafe in El Cajon, CA. Mediterranean flavors meet Western comfort food, made fresh to order. Breakfast every day, open late.",
+  "cuisine": ["Mediterranean", "Western"],
+  "priceRange": null,
+  "locale": "en-US",
+  "currency": "USD",
+  "logo": "logo.svg",
+  "ogImage": null,
+
+  "hero": {
+    "eyebrow": "Restaurant & Cafe",
+    "headline": "Mediterranean flavors meet Western comfort food",
+    "text": "Fresh dishes, made to order, in El Cajon. Breakfast every day from 8 AM.",
+    "image": null,
+    "imageAlt": null
+  },
+
+  "about": {
+    "headline": "Mediterranean flavors, Western comfort",
+    "paragraphs": [
+      "Luzena Restaurant & Cafe is where Mediterranean flavors meet Western comfort food. We bring the two together on one menu, so the whole table finds something to enjoy.",
+      "We cook fresh, and we cook to order. Each dish is prepared when you ask for it, not before.",
+      "We are a restaurant and a cafe under one roof. Join us for a full meal with family and friends, or simply drop in for a coffee."
+    ],
+    "values": [
+      { "title": "Fresh, made to order", "text": "Every dish is prepared when it is ordered, from fresh ingredients." },
+      { "title": "Mediterranean meets Western", "text": "The flavors of the Mediterranean alongside the comfort food you already know." },
+      { "title": "Restaurant and cafe", "text": "A place for a full meal, and a place for a coffee." }
+    ],
+    "image": null,
+    "imageAlt": null
+  },
+
+  "ordering": {
+    "url": null
+  },
+
+  "locations": [
+    {
+      "id": "el-cajon",
+      "name": null,
+      "street": "315 El Cajon Blvd",
+      "city": "El Cajon",
+      "region": "CA",
+      "postalCode": "92020",
+      "country": "US",
+      "timezone": "America/Los_Angeles",
+      "phone": "+1 619-499-5779",
+      "email": "fadi.auchi@gmail.com",
+      "mapsUrl": "https://maps.app.goo.gl/WTwNqRWv3dyaetAQ8",
+      "mapsEmbedUrl": null,
+      "geo": null,
+      "image": null,
+      "imageAlt": null,
+      "hours": [
+        { "days": ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday"], "opens": "08:00", "closes": "00:00" },
+        { "days": ["Friday", "Saturday"], "opens": "08:00", "closes": "02:00" }
+      ],
+      "services": [
+        { "name": "Breakfast", "days": ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"], "opens": "08:00", "closes": "12:00" }
+      ]
+    }
+  ],
+
+  "legal": {
+    "privacyPolicyUrl": null,
+    "privacy": {
+      "updated": null,
+      "sections": []
+    }
+  },
+
+  "social": {
+    "instagram": "https://www.instagram.com/luzenarestaurant/",
+    "facebook": null,
+    "tiktok": null
+  },
+
+  "gallery": [],
+
+  "careers": {
+    "applications": {
+      "enabled": false
+    },
+    "intro": "We are building our opening team and looking for people who love food and great hospitality. Experience is a plus. Passion is a must.",
+    "image": null,
+    "imageAlt": null,
+    "positions": [
+      {
+        "slug": "restaurant-manager", "department": "Management", "title": "Restaurant Manager", "type": null, "location": null,
+        "summary": "Leads the whole restaurant and cafe day to day, and is responsible for the guest experience, the team and the numbers.",
+        "responsibilities": ["Run daily operations across the kitchen, the cafe and the dining room", "Hire, train and schedule the team", "Handle guest feedback and resolve problems on the spot", "Manage stock, suppliers, costs and cash", "Keep food safety and cleanliness standards met at all times"],
+        "requirements": ["Experience managing a restaurant or cafe", "Confident leading and motivating a team", "Comfortable with ordering, rotas and basic reporting"]
+      },
+      {
+        "slug": "assistant-manager", "department": "Management", "title": "Assistant Manager / Shift Supervisor", "type": null, "location": null,
+        "summary": "Runs the shift, supports the manager and steps in wherever the team needs help.",
+        "responsibilities": ["Open and close the restaurant", "Lead the team during service", "Look after guests and deal with any issues", "Handle the till and end-of-day cash-up"],
+        "requirements": ["Experience in a supervisory role in hospitality", "Calm and organised during busy service", "Available for evenings and weekends"]
+      },
+      {
+        "slug": "head-chef", "department": "Kitchen", "title": "Head Chef", "type": null, "location": null,
+        "summary": "Leads the kitchen and owns the quality of every plate that leaves it.",
+        "responsibilities": ["Lead and train the kitchen team", "Develop and maintain the menu and its recipes", "Control ordering, stock and food cost", "Keep the kitchen to food safety and hygiene standards"],
+        "requirements": ["Experience running a professional kitchen", "Strong knowledge of Mediterranean and Western cooking", "Food safety certification"]
+      },
+      {
+        "slug": "sous-chef", "department": "Kitchen", "title": "Sous Chef", "type": null, "location": null,
+        "summary": "Second in command in the kitchen, running service alongside the Head Chef.",
+        "responsibilities": ["Run the pass and keep service moving", "Supervise and coach the cooks", "Cover the kitchen when the Head Chef is away", "Check quality, portions and presentation"],
+        "requirements": ["Experience as a sous chef or senior line cook", "Able to lead a team under pressure", "Good knowledge of food safety"]
+      },
+      {
+        "slug": "line-cook", "department": "Kitchen", "title": "Line Cook", "type": null, "location": null,
+        "summary": "Cooks dishes to order on a station during service.",
+        "responsibilities": ["Prepare and cook dishes to the restaurant's recipes", "Set up and stock your station before service", "Keep your station clean and organised", "Work with the team to send orders out on time"],
+        "requirements": ["Experience cooking in a restaurant kitchen", "Able to work quickly and accurately", "Reliable and a good team player"]
+      },
+      {
+        "slug": "prep-cook", "department": "Kitchen", "title": "Prep Cook", "type": null, "location": null,
+        "summary": "Prepares ingredients so the kitchen is ready for service.",
+        "responsibilities": ["Wash, peel, chop and portion ingredients", "Prepare sauces, dressings and basic recipes", "Label, date and store food correctly", "Keep the prep area clean"],
+        "requirements": ["Basic knife skills", "Careful and organised", "Kitchen experience is a plus, not a requirement"]
+      },
+      {
+        "slug": "pastry-chef-baker", "department": "Kitchen", "title": "Pastry Chef / Baker", "type": null, "location": null,
+        "summary": "Makes the desserts, pastries and baked goods for the restaurant and the cafe.",
+        "responsibilities": ["Bake and prepare pastries and desserts each day", "Keep the cafe display fresh and well stocked", "Follow recipes precisely and keep quality consistent", "Manage pastry ingredients and stock"],
+        "requirements": ["Experience in pastry or baking", "Attention to detail and presentation", "Comfortable with early starts"]
+      },
+      {
+        "slug": "kitchen-assistant", "department": "Kitchen", "title": "Kitchen Assistant", "type": null, "location": null,
+        "summary": "Supports the cooks and keeps the kitchen running smoothly.",
+        "responsibilities": ["Help with basic food preparation", "Receive and put away deliveries", "Keep work surfaces, floors and storage areas clean", "Assist wherever the kitchen needs an extra pair of hands"],
+        "requirements": ["Willing to learn", "Hard-working and dependable", "No experience needed"]
+      },
+      {
+        "slug": "dishwasher", "department": "Kitchen", "title": "Dishwasher / Kitchen Steward", "type": null, "location": null,
+        "summary": "Keeps dishes, equipment and the kitchen clean throughout service.",
+        "responsibilities": ["Wash dishes, pots, pans and utensils", "Keep the dishwashing area tidy and safe", "Empty bins and help with end-of-day cleaning", "Put clean items back where they belong"],
+        "requirements": ["Reliable and punctual", "Able to work on your feet in a busy kitchen", "No experience needed"]
+      },
+      {
+        "slug": "head-barista", "department": "Cafe", "title": "Head Barista", "type": null, "location": null,
+        "summary": "Leads the coffee bar and sets the standard for every drink served.",
+        "responsibilities": ["Prepare espresso drinks and other beverages to a high standard", "Train and guide the barista team", "Look after the coffee machines and grinders", "Order coffee, milk and cafe supplies"],
+        "requirements": ["Solid experience as a barista", "Able to dial in espresso and steam milk well", "Friendly, and comfortable leading others"]
+      },
+      {
+        "slug": "barista", "department": "Cafe", "title": "Barista", "type": null, "location": null,
+        "summary": "Makes coffee and other drinks, and looks after cafe guests.",
+        "responsibilities": ["Prepare coffee, tea and other drinks", "Take orders and serve guests at the counter", "Keep the coffee bar clean and stocked", "Handle payments accurately"],
+        "requirements": ["Barista experience preferred", "Warm and welcoming with guests", "Able to work quickly during busy periods"]
+      },
+      {
+        "slug": "cafe-attendant", "department": "Cafe", "title": "Cafe Counter Attendant", "type": null, "location": null,
+        "summary": "Serves guests at the cafe counter and keeps the display looking its best.",
+        "responsibilities": ["Greet guests and take their orders", "Serve food and drinks from the counter", "Keep the display, tables and counter clean", "Restock cups, napkins and other supplies"],
+        "requirements": ["Friendly and helpful", "Tidy and attentive", "No experience needed"]
+      },
+      {
+        "slug": "host", "department": "Front of House", "title": "Host / Hostess", "type": null, "location": null,
+        "summary": "The first person guests meet when they arrive.",
+        "responsibilities": ["Welcome guests and show them to their table", "Manage the waiting list and seating plan", "Answer the phone and help with enquiries", "Thank guests as they leave"],
+        "requirements": ["Warm, polite and well presented", "Organised when it gets busy", "Good spoken communication"]
+      },
+      {
+        "slug": "server", "department": "Front of House", "title": "Waiter / Waitress", "type": null, "location": null,
+        "summary": "Looks after guests at the table from the first hello to the bill.",
+        "responsibilities": ["Take food and drink orders accurately", "Know the menu and answer guests' questions", "Serve food and drinks and check that guests are happy", "Present the bill and take payment"],
+        "requirements": ["Serving experience preferred", "Friendly and attentive", "Able to stay calm and quick during busy service"]
+      },
+      {
+        "slug": "food-runner", "department": "Front of House", "title": "Food Runner", "type": null, "location": null,
+        "summary": "Brings dishes from the kitchen to the right table, quickly and correctly.",
+        "responsibilities": ["Deliver food to tables as soon as it is ready", "Check each plate against the order", "Support the servers and the kitchen during service", "Help keep the dining room tidy"],
+        "requirements": ["Quick on your feet", "Good attention to detail", "No experience needed"]
+      },
+      {
+        "slug": "busser", "department": "Front of House", "title": "Busser", "type": null, "location": null,
+        "summary": "Keeps tables clean and ready for the next guests.",
+        "responsibilities": ["Clear and reset tables", "Refill water and bring bread or cutlery when needed", "Keep the dining room and service stations stocked and clean", "Support the servers"],
+        "requirements": ["Hard-working and reliable", "Works well in a team", "No experience needed"]
+      },
+      {
+        "slug": "cashier", "department": "Front of House", "title": "Cashier", "type": null, "location": null,
+        "summary": "Takes orders and payments, and handles takeaway and online orders.",
+        "responsibilities": ["Take orders and payments at the till", "Prepare and hand over takeaway and online orders", "Answer questions about the menu", "Balance the till at the end of the shift"],
+        "requirements": ["Comfortable using a till or POS system", "Accurate with cash and cards", "Polite and patient with guests"]
+      },
+      {
+        "slug": "cleaner", "department": "Support", "title": "Cleaner", "type": null, "location": null,
+        "summary": "Keeps the restaurant, the cafe and the restrooms spotless.",
+        "responsibilities": ["Clean dining areas, restrooms and entrances", "Mop floors and empty bins", "Restock soap, paper and other supplies", "Report anything that needs repair"],
+        "requirements": ["Thorough and dependable", "Able to work independently", "No experience needed"]
+      }
+    ]
+  }
+}

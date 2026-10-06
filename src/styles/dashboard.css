@@ -1,0 +1,216 @@
+/* Owner dashboard. A separate, light, dense theme: this is a work tool, not the brand site. */
+@import "tailwindcss";
+@import "@fontsource/open-sauce-one/400.css";
+@import "@fontsource/open-sauce-one/500.css";
+@import "@fontsource/open-sauce-one/600.css";
+@import "@fontsource/open-sauce-one/700.css";
+@import "@fontsource-variable/playfair-display/index.css";
+
+@theme {
+  --font-sans: "Open Sauce One", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Playfair Display Variable", "Playfair Display", Georgia, serif;
+
+  --color-surface: #ffffff;
+  --color-canvas: #f6f5f2;
+  --color-line: #e4e1da;
+  --color-line-strong: #cfcbc1;
+  --color-text: #1c1a17;
+  --color-muted: #6a655c;
+  --color-accent: #1c1a17;
+  --color-focus: #606c38;
+
+  --color-ok: #17663a;
+  --color-ok-bg: #e5f4ea;
+  --color-warn: #8a5a00;
+  --color-warn-bg: #fdf1d4;
+  --color-bad: #a8261b;
+  --color-bad-bg: #fde8e5;
+  --color-info: #1f4f8f;
+  --color-info-bg: #e6eefa;
+
+  /* The public site's palette (same values as main.css), used only inside the "website
+     preview" panel so the preview looks exactly like the public menu. */
+  --color-paper: #f6f4f0;
+  --color-ink: #2b211e;
+  --color-body: #4b403b;
+  --color-brand: #bc4749;
+  --color-olive: #606c38;
+  --color-olive-dark: #4d572c;
+  --color-danger: #9b1c1c;
+}
+
+@layer base {
+  body {
+    @apply bg-canvas font-sans text-[0.94rem] leading-normal text-text antialiased;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+  }
+
+  h1, h2, h3 {
+    @apply font-semibold text-text;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer components {
+  .d-btn {
+    @apply inline-flex min-h-10 cursor-pointer items-center justify-center gap-2 rounded-md border border-line-strong bg-surface px-3.5 text-sm font-semibold whitespace-nowrap text-text transition-colors hover:bg-canvas disabled:cursor-not-allowed disabled:opacity-55;
+  }
+
+  .d-btn-primary {
+    @apply border-accent bg-accent text-white hover:bg-black;
+  }
+
+  .d-btn-danger {
+    @apply border-bad bg-bad text-white hover:bg-[#8c1f16];
+  }
+
+  .d-btn-quiet {
+    @apply border-transparent bg-transparent hover:bg-black/5;
+  }
+
+  .d-btn-sm {
+    @apply min-h-9 px-2.5 text-[0.82rem];
+  }
+
+  .d-icon-btn {
+    @apply inline-flex size-10 cursor-pointer items-center justify-center rounded-md border border-transparent text-muted transition-colors hover:bg-black/5 hover:text-text disabled:cursor-not-allowed disabled:opacity-40;
+  }
+
+  .d-card {
+    @apply rounded-lg border border-line bg-surface;
+  }
+
+  .d-label {
+    @apply mb-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.82rem] font-semibold text-text;
+  }
+
+  .d-input {
+    @apply block min-h-10 w-full rounded-md border border-line-strong bg-surface px-3 py-2 text-[0.94rem] text-text placeholder:text-muted/80 hover:border-muted focus:border-focus disabled:bg-canvas disabled:text-muted;
+  }
+
+  .d-input[aria-invalid="true"] {
+    @apply border-bad;
+  }
+
+  .d-hint {
+    @apply mt-1.5 text-[0.82rem] text-muted;
+  }
+
+  .d-error {
+    @apply mt-1.5 text-[0.82rem] font-medium text-bad;
+  }
+
+  .d-badge {
+    @apply inline-flex items-center gap-1 rounded-full border border-line bg-canvas px-2 py-0.5 text-[0.72rem] font-semibold whitespace-nowrap text-muted;
+  }
+
+  .d-badge-ok { @apply border-ok/25 bg-ok-bg text-ok; }
+  .d-badge-warn { @apply border-warn/25 bg-warn-bg text-warn; }
+  .d-badge-bad { @apply border-bad/25 bg-bad-bg text-bad; }
+  .d-badge-info { @apply border-info/25 bg-info-bg text-info; }
+
+  /* Says where a field is stored, right next to its label. */
+  .d-source {
+    @apply rounded border border-line px-1.5 py-px text-[0.66rem] font-semibold tracking-wide text-muted uppercase;
+  }
+
+  .d-alert {
+    @apply rounded-md border px-4 py-3 text-sm;
+  }
+
+  .d-alert-ok { @apply border-ok/30 bg-ok-bg text-ok; }
+  .d-alert-warn { @apply border-warn/30 bg-warn-bg text-warn; }
+  .d-alert-bad { @apply border-bad/30 bg-bad-bg text-bad; }
+  .d-alert-info { @apply border-info/30 bg-info-bg text-info; }
+
+  .d-table {
+    @apply w-full border-collapse text-left text-sm;
+  }
+
+  .d-table thead th {
+    @apply border-b border-line bg-canvas px-3 py-2.5 text-[0.74rem] font-semibold tracking-wide whitespace-nowrap text-muted uppercase;
+  }
+
+  .d-table td {
+    @apply border-b border-line px-3 py-2.5 align-middle;
+  }
+
+  .d-table tbody tr:hover {
+    @apply bg-canvas/70;
+  }
+
+  .d-switch {
+    @apply relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full bg-line-strong transition-colors disabled:cursor-wait disabled:opacity-60;
+  }
+
+  .d-switch[aria-checked="true"] {
+    @apply bg-ok;
+  }
+
+  .d-switch::after {
+    content: "";
+    @apply absolute left-0.5 size-5 rounded-full bg-white shadow transition-transform;
+  }
+
+  .d-switch[aria-checked="true"]::after {
+    transform: translateX(1.25rem);
+  }
+
+  .d-nav-link {
+    @apply flex min-h-10 items-center gap-3 rounded-md px-3 text-sm font-medium text-muted transition-colors hover:bg-black/5 hover:text-text;
+  }
+
+  .d-nav-link[aria-current="page"] {
+    @apply bg-accent text-white hover:bg-accent hover:text-white;
+  }
+
+  .d-dialog {
+    @apply m-auto w-[calc(100%-2rem)] max-w-lg rounded-xl border border-line bg-surface p-0 text-text shadow-2xl;
+  }
+
+  .d-dialog::backdrop {
+    background: rgb(28 26 23 / 0.5);
+  }
+
+  .d-drawer {
+    @apply m-0 h-dvh max-h-none w-72 max-w-[85vw] border-r border-line bg-surface p-0 text-text;
+  }
+
+  .d-drawer::backdrop {
+    background: rgb(28 26 23 / 0.5);
+  }
+
+  .d-skeleton {
+    @apply animate-pulse rounded bg-line;
+  }
+
+  .d-section-title {
+    @apply text-[0.74rem] font-semibold tracking-wide text-muted uppercase;
+  }
+
+  /* Website preview: the public menu's own classes, on the public site's own surface.
+     Keep these rules identical to the ones in main.css. #6e645c is the public site's
+     "muted", which is not the dashboard's. */
+  .preview-surface {
+    @apply rounded-lg border border-line bg-paper px-5 py-1 font-sans text-body;
+  }
+
+  .menu-item { @apply flex gap-4 py-5; }
+  .menu-item-name { @apply font-display text-[1.3rem] leading-snug font-normal text-ink; }
+  .menu-item-leader { @apply mx-1 mb-1.5 min-w-6 flex-1 self-end border-b border-dotted border-ink/30; }
+  .menu-item-price { @apply font-display text-[1.25rem] font-medium whitespace-nowrap text-brand; }
+  .menu-item-unavailable .menu-item-name, .menu-item-unavailable .menu-item-price { @apply text-[#6e645c]; }
+  .menu-item-unavailable img { @apply opacity-60; }
+  .tag { @apply inline-flex items-center border border-olive/35 px-2 py-0.5 text-[0.66rem] font-semibold tracking-[0.08em] text-olive-dark uppercase; }
+  .tag-muted { @apply border-danger/40 text-danger; }
+}

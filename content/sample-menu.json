@@ -1,0 +1,57 @@
+{
+  "_readme": "SAMPLE fixture in the exact shape the public-menu function returns. Fictional dishes and prices, used only by the sample profile so the Menu page can be reviewed without a Clover connection. Never part of a production build.",
+  "version": 1,
+  "currency": "USD",
+  "synced_at": null,
+  "categories": [
+    {
+      "id": "SAMPLECAT0001",
+      "name": "Starters",
+      "items": [
+        { "id": "SAMPLEITEM001", "name": "Roasted Tomato Soup", "description": "Sample description. Slow-roasted tomatoes, basil oil, toasted sourdough.", "price_cents": 900, "price_type": "FIXED", "unit_name": null, "available": true, "image_url": null, "featured": true, "dietary": ["vegetarian"], "modifier_groups": [] },
+        { "id": "SAMPLEITEM002", "name": "Charred Octopus", "description": "Sample description. Smoked paprika, lemon, warm potato salad.", "price_cents": 1600, "price_type": "FIXED", "unit_name": null, "available": true, "image_url": null, "featured": false, "dietary": ["gluten-free"], "modifier_groups": [] },
+        { "id": "SAMPLEITEM003", "name": "Burrata & Heirloom Tomato", "description": "Sample description. Aged balsamic, basil, olive oil.", "price_cents": 1400, "price_type": "FIXED", "unit_name": null, "available": false, "image_url": null, "featured": false, "dietary": ["vegetarian", "gluten-free"], "modifier_groups": [] },
+        { "id": "SAMPLEITEM004", "name": "Crispy Calamari", "description": "Sample description. Lemon aioli, pickled chilli.", "price_cents": 1300, "price_type": "FIXED", "unit_name": null, "available": true, "image_url": null, "featured": true, "dietary": ["spicy"], "modifier_groups": [] }
+      ]
+    },
+    {
+      "id": "SAMPLECAT0002",
+      "name": "Mains",
+      "items": [
+        {
+          "id": "SAMPLEITEM005", "name": "Grilled Ribeye", "description": "Sample description. 12 oz, herb butter, roasted shallots.", "price_cents": 3800, "price_type": "FIXED", "unit_name": null, "available": true, "image_url": null, "featured": true, "dietary": ["gluten-free"],
+          "modifier_groups": [
+            { "id": "SAMPLEGRP0001", "name": "Doneness", "min_required": 1, "max_allowed": 1, "modifiers": [
+              { "id": "SAMPLEMOD0001", "name": "Rare", "price_cents": 0, "available": true },
+              { "id": "SAMPLEMOD0002", "name": "Medium", "price_cents": 0, "available": true },
+              { "id": "SAMPLEMOD0003", "name": "Well done", "price_cents": 0, "available": true }
+            ] },
+            { "id": "SAMPLEGRP0002", "name": "Add a side", "min_required": 0, "max_allowed": 2, "modifiers": [
+              { "id": "SAMPLEMOD0004", "name": "Truffle fries", "price_cents": 600, "available": true },
+              { "id": "SAMPLEMOD0005", "name": "Grilled greens", "price_cents": 500, "available": false }
+            ] }
+          ]
+        },
+        { "id": "SAMPLEITEM006", "name": "Pan-Seared Sea Bass", "description": "Sample description. Fennel, citrus, brown butter.", "price_cents": 3200, "price_type": "FIXED", "unit_name": null, "available": true, "image_url": null, "featured": true, "dietary": ["gluten-free"], "modifier_groups": [] },
+        { "id": "SAMPLEITEM007", "name": "Wild Mushroom Risotto", "description": "Sample description. Arborio rice, parmesan, thyme.", "price_cents": 2400, "price_type": "FIXED", "unit_name": null, "available": true, "image_url": null, "featured": false, "dietary": ["vegetarian"], "modifier_groups": [] },
+        { "id": "SAMPLEITEM008", "name": "Catch of the Day", "description": "Sample description. Ask your server.", "price_cents": null, "price_type": "VARIABLE", "unit_name": null, "available": true, "image_url": null, "featured": false, "dietary": [], "modifier_groups": [] }
+      ]
+    },
+    {
+      "id": "SAMPLECAT0003",
+      "name": "Desserts",
+      "items": [
+        { "id": "SAMPLEITEM009", "name": "Dark Chocolate Tart", "description": "Sample description. Sea salt, creme fraiche.", "price_cents": 1100, "price_type": "FIXED", "unit_name": null, "available": true, "image_url": null, "featured": true, "dietary": ["vegetarian"], "modifier_groups": [] },
+        { "id": "SAMPLEITEM010", "name": "Lemon Olive Oil Cake", "description": null, "price_cents": 1000, "price_type": "FIXED", "unit_name": null, "available": true, "image_url": null, "featured": true, "dietary": ["dairy-free"], "modifier_groups": [] }
+      ]
+    },
+    {
+      "id": "SAMPLECAT0004",
+      "name": "Drinks",
+      "items": [
+        { "id": "SAMPLEITEM011", "name": "House Lemonade", "description": null, "price_cents": 500, "price_type": "FIXED", "unit_name": null, "available": true, "image_url": null, "featured": false, "dietary": ["vegan"], "modifier_groups": [] },
+        { "id": "SAMPLEITEM012", "name": "Espresso", "description": null, "price_cents": 350, "price_type": "FIXED", "unit_name": null, "available": true, "image_url": null, "featured": false, "dietary": [], "modifier_groups": [] }
+      ]
+    }
+  ]
+}

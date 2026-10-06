@@ -1,0 +1,32 @@
+# Supabase project configuration for this repository.
+# Set project_id to the project ref after `supabase link`.
+project_id = "luzna-web"
+
+[auth]
+# Owners are provisioned by the operator. Nobody can sign themselves up.
+enable_signup = false
+# Access tokens live one hour; refresh tokens rotate and are single use.
+jwt_expiry = 3600
+enable_refresh_token_rotation = true
+refresh_token_reuse_interval = 10
+minimum_password_length = 12
+
+[auth.email]
+enable_signup = false
+
+# Each function authenticates its own callers, so the gateway JWT check is off:
+#   dashboard-api    verifies the Supabase Auth JWT itself and resolves the tenant.
+#   public-menu      public read endpoint.
+#   job-application  public form endpoint (origin check, rate limit, bot traps).
+#   clover-webhook   authenticated by the X-Clover-Auth shared secret.
+[functions.dashboard-api]
+verify_jwt = false
+
+[functions.public-menu]
+verify_jwt = false
+
+[functions.job-application]
+verify_jwt = false
+
+[functions.clover-webhook]
+verify_jwt = false

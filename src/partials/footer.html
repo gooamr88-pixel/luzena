@@ -1,0 +1,52 @@
+<footer class="site-footer">
+  <div class="container-x grid gap-10 py-14 sm:grid-cols-2 lg:grid-cols-4">
+    <div>
+      {{#if site.logo}}{{picture site.logo alt=site.fullName class="h-16 w-auto"}}{{else}}<p class="font-display text-3xl tracking-[0.04em] text-brand">{{site.name}}</p>{{/if}}
+      {{#if site.tagline}}<p class="mt-3 text-sm text-muted">{{site.tagline}}</p>{{/if}}
+      <a href="{{site.orderHref}}" class="btn btn-primary btn-sm mt-6"{{#if site.orderIsExternal}} rel="noopener"{{/if}}>Order Online</a>
+    </div>
+
+    {{#if site.primaryLocation}}
+    <div>
+      <h2 class="eyebrow font-sans">Visit</h2>
+      <address class="mt-4 text-sm leading-relaxed not-italic">
+        {{site.primaryLocation.street}}<br>{{site.primaryLocation.cityLine}}
+      </address>
+      <p class="mt-3 text-sm"><a href="{{site.primaryLocation.phoneHref}}" class="text-link">{{site.primaryLocation.phone}}</a></p>
+      {{#if site.primaryLocation.email}}<p class="mt-2 text-sm"><a href="mailto:{{site.primaryLocation.email}}" class="text-link break-all">{{site.primaryLocation.email}}</a></p>{{/if}}
+      <p class="mt-3 text-sm"><a href="{{site.primaryLocation.directionsUrl}}" class="text-link" target="_blank" rel="noopener">Get directions<span class="sr-only"> (opens in a new tab)</span></a></p>
+    </div>
+
+    <div>
+      <h2 class="eyebrow font-sans">Hours</h2>
+      <dl class="mt-4 space-y-1.5 text-sm">
+        {{#each site.primaryLocation.hoursSummary}}
+        <div class="flex justify-between gap-4"><dt>{{days}}</dt><dd class="font-medium text-ink">{{time}}</dd></div>
+        {{/each}}
+      </dl>
+      {{#each site.primaryLocation.servicesSummary}}
+      <p class="mt-3 text-sm"><span class="font-semibold text-ink">{{name}}:</span> {{days}}, {{time}}</p>
+      {{/each}}
+    </div>
+    {{/if}}
+
+    <div>
+      <h2 class="eyebrow font-sans">Explore</h2>
+      <ul class="mt-4 space-y-2 text-sm">
+        {{#each site.nav}}<li><a href="{{href}}" class="transition-colors hover:text-brand-dark">{{label}}</a></li>{{/each}}
+      </ul>
+      {{#if site.socialLinks.length}}
+      <h2 class="eyebrow mt-7 font-sans">Follow</h2>
+      <ul class="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-sm">
+        {{#each site.socialLinks}}<li><a href="{{url}}" class="text-link" target="_blank" rel="noopener">{{label}}<span class="sr-only"> (opens in a new tab)</span></a></li>{{/each}}
+      </ul>
+      {{/if}}
+    </div>
+  </div>
+  <div class="border-t border-ink/10">
+    <div class="container-x flex flex-wrap items-center justify-between gap-x-6 gap-y-2 py-5 text-xs text-muted">
+      <p>&copy; {{build.year}} {{site.fullName}}. All rights reserved.</p>
+      {{#if site.legal.privacyUrl}}<a href="{{site.legal.privacyUrl}}" class="underline underline-offset-4 hover:text-ink"{{#if site.legal.privacyIsExternal}} target="_blank" rel="noopener"{{/if}}>Privacy policy</a>{{/if}}
+    </div>
+  </div>
+</footer>

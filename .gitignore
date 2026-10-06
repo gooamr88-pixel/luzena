@@ -1,0 +1,18 @@
+/node_modules/
+/dist/
+/.cache/
+/.visual/
+/supabase/.temp/
+/supabase/.branches/
+
+# Secrets. Only the *.example files are committed.
+.env
+.env.*
+!.env.example
+/supabase/functions/.env
+/supabase/functions/.env.*
+!/supabase/functions/.env.example
+
+*.log
+Thumbs.db
+.DS_Store

@@ -1,0 +1,18 @@
+{{!--
+  Opening hours for one location, day by day, then named services such as breakfast.
+  Render it with a location as its context: inside an each-location loop, or by passing
+  site.primaryLocation.
+
+  Keep template syntax out of HTML comments in partials: Handlebars still runs it, and a
+  partial that mentions itself in a comment includes itself without end.
+--}}
+<dl>
+  {{#each hoursByDay}}
+  <div class="hours-row"><dt>{{day}}</dt><dd class="font-medium text-ink">{{time}}</dd></div>
+  {{/each}}
+</dl>
+{{#if servicesSummary.length}}
+<ul class="mt-4 space-y-1 border-t border-ink/10 pt-4 text-sm">
+  {{#each servicesSummary}}<li><span class="font-semibold text-ink">{{name}}:</span> {{days}}, {{time}}</li>{{/each}}
+</ul>
+{{/if}}

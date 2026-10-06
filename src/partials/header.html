@@ -1,0 +1,49 @@
+<a href="#main" class="skip-link">Skip to content</a>
+{{#if build.sample}}<p class="sample-banner">Sample address, hours and photos, for design review only.</p>{{/if}}
+<header class="site-header">
+  <div class="container-x flex h-(--header-h) items-center justify-between gap-3">
+    <a href="/" class="flex shrink-0 items-center" aria-label="{{site.fullName}}, home">
+      {{#if site.logo}}{{picture site.logo alt="" class="h-10 w-auto xs:h-12 lg:h-14" loading="eager"}}{{else}}<span class="font-display text-[1.7rem] leading-none tracking-[0.04em] text-brand sm:text-3xl">{{site.name}}</span>{{/if}}
+    </a>
+
+    <nav aria-label="Main" class="hidden lg:block">
+      <ul class="flex items-center gap-7">
+        {{#each site.nav}}
+        <li><a href="{{href}}" class="nav-link"{{#if (eq href @root.page.path)}} aria-current="page"{{/if}}>{{label}}</a></li>
+        {{/each}}
+      </ul>
+    </nav>
+
+    <div class="flex items-center gap-2 sm:gap-3">
+      <a href="{{site.orderHref}}" class="btn btn-primary btn-sm"{{#if site.orderIsExternal}} rel="noopener"{{/if}}>Order Online</a>
+      <button type="button" class="icon-button lg:hidden" aria-haspopup="dialog" aria-controls="mobile-nav" data-nav-open>
+        <span class="sr-only">Open navigation</span>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M3 7h18M3 12h18M3 17h18"/></svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+<dialog id="mobile-nav" class="mobile-nav" aria-label="Navigation">
+  <div class="flex h-full flex-col">
+    <div class="container-x flex h-(--header-h) shrink-0 items-center justify-between border-b border-ink/10">
+      {{#if site.logo}}{{picture site.logo alt=site.fullName class="h-10 w-auto xs:h-12" loading="eager"}}{{else}}<span class="font-display text-[1.7rem] leading-none tracking-[0.04em] text-brand">{{site.name}}</span>{{/if}}
+      <button type="button" class="icon-button" data-nav-close>
+        <span class="sr-only">Close navigation</span>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M5 5l14 14M19 5L5 19"/></svg>
+      </button>
+    </div>
+    <nav aria-label="Main" class="container-x flex-1 overflow-y-auto py-6">
+      <ul>
+        <li><a href="/" class="block border-b border-ink/10 py-4 font-display text-3xl text-ink aria-[current=page]:text-brand"{{#if (eq "/" page.path)}} aria-current="page"{{/if}}>Home</a></li>
+        {{#each site.nav}}
+        <li><a href="{{href}}" class="block border-b border-ink/10 py-4 font-display text-3xl text-ink aria-[current=page]:text-brand"{{#if (eq href @root.page.path)}} aria-current="page"{{/if}}>{{label}}</a></li>
+        {{/each}}
+      </ul>
+    </nav>
+    <div class="container-x shrink-0 space-y-3 border-t border-ink/10 py-5">
+      <a href="{{site.orderHref}}" class="btn btn-primary w-full"{{#if site.orderIsExternal}} rel="noopener"{{/if}}>Order Online</a>
+      {{#if site.primaryLocation.phoneHref}}<a href="{{site.primaryLocation.phoneHref}}" class="btn btn-outline w-full">Call {{site.primaryLocation.phone}}</a>{{/if}}
+    </div>
+  </div>
+</dialog>

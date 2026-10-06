@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+  {{> head}}
+</head>
+<body>
+  {{> header}}
+
+  <main id="main">
+    <div class="page-hero">
+      <div class="container-x">
+        <p class="eyebrow">About us</p>
+        <h1 class="h-display mt-3 max-w-4xl">{{#if site.about.headline}}{{site.about.headline}}{{else}}About {{site.fullName}}{{/if}}</h1>
+      </div>
+    </div>
+
+    <section class="section" aria-labelledby="story-title">
+      <div class="container-x grid items-start gap-10 lg:grid-cols-2 lg:gap-16">
+        <div class="max-w-xl">
+          <h2 id="story-title" class="eyebrow font-sans">Our story</h2>
+          <div class="rule mt-5"></div>
+          <div class="mt-8 space-y-6">
+            {{#each site.about.paragraphs}}<p class="{{#if @first}}font-display text-[1.45rem] leading-snug text-ink sm:text-[1.7rem]{{else}}text-lg{{/if}}">{{this}}</p>{{/each}}
+          </div>
+        </div>
+
+        {{#if site.about.image}}
+        <div class="aspect-[4/5] overflow-hidden bg-sand-deep lg:sticky lg:top-32">
+          {{picture site.about.image alt=site.about.imageAlt sizes="(min-width: 1024px) 36rem, 100vw" class="size-full object-cover" loading="eager"}}
+        </div>
+        {{else}}{{#if site.logo}}
+        <!-- No photo yet: the logo on its own colours stands in for it. -->
+        <div class="flex aspect-[4/3] items-center justify-center border border-ink/10 bg-sand p-10 sm:p-16 lg:sticky lg:top-32">
+          {{picture site.logo alt=site.fullName class="w-full max-w-sm" loading="eager"}}
+        </div>
+        {{/if}}{{/if}}
+      </div>
+    </section>
+
+    {{#if site.about.values.length}}
+    <section class="section border-y border-ink/10 bg-sand" aria-labelledby="values-title">
+      <div class="container-x">
+        <p class="eyebrow">What to expect</p>
+        <h2 id="values-title" class="h-section mt-3">How we do things</h2>
+        <ul class="mt-10 grid gap-6 md:grid-cols-3">
+          {{#each site.about.values}}
+          <li class="panel">
+            <p class="font-display text-4xl leading-none text-brand" aria-hidden="true">0{{inc @index}}</p>
+            <h3 class="mt-5 text-2xl">{{title}}</h3>
+            <p class="mt-3">{{text}}</p>
+          </li>
+          {{/each}}
+        </ul>
+      </div>
+    </section>
+    {{/if}}
+
+    <section class="section" aria-labelledby="visit-title">
+      <div class="container-x flex flex-col items-start justify-between gap-8 lg:flex-row lg:items-center">
+        <div class="max-w-2xl">
+          <p class="eyebrow">Come and see us</p>
+          <h2 id="visit-title" class="h-section mt-3">Pull up a chair</h2>
+          {{#if site.primaryLocation}}
+          <p class="lead mt-4">You will find us at {{site.primaryLocation.street}}, {{site.primaryLocation.city}}.{{#each site.primaryLocation.servicesSummary}} {{name}} is served {{#if (eq days "Every day")}}every day{{else}}{{days}}{{/if}}, {{time}}.{{/each}}</p>
+          {{else}}
+          <p class="lead mt-4">Have a look at the menu, or come and work with us.</p>
+          {{/if}}
+        </div>
+        <div class="flex shrink-0 flex-col gap-3 sm:flex-row">
+          <a href="/menu/" class="btn btn-primary">View the Menu</a>
+          {{#if site.primaryLocation}}<a href="{{site.primaryLocation.directionsUrl}}" class="btn btn-outline" target="_blank" rel="noopener">Get directions<span class="sr-only"> (opens in a new tab)</span></a>{{else}}<a href="/careers/" class="btn btn-outline">Join our team</a>{{/if}}
+        </div>
+      </div>
+    </section>
+  </main>
+
+  {{> footer}}
+  <script type="module" src="/src/js/main.js"></script>
+</body>
+</html>

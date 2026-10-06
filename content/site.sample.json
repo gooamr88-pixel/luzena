@@ -1,0 +1,54 @@
+{
+  "_readme": "SAMPLE OVERRIDES for development and design review. The sample profile starts from the real content in site.json and lays these values on top, to fill in only what does not exist yet: photos, an ordering link, and a privacy policy (so the application form can be reviewed). Everything here is a stand-in and can never reach a production build: only `npm run dev`, `build:sample` and `build:demo` read this file, and those builds are marked as samples and blocked from search engines. Entries in `locations` are matched to the real ones by `id`.",
+
+  "ogImage": "hero.jpg",
+
+  "hero": {
+    "image": "hero.jpg",
+    "imageAlt": "Sample photo: a plated dish on a dark table"
+  },
+
+  "about": {
+    "image": "about.jpg",
+    "imageAlt": "Sample photo: the dining room"
+  },
+
+  "ordering": {
+    "url": "https://example.com/sample-clover-ordering-link"
+  },
+
+  "locations": [
+    {
+      "id": "el-cajon",
+      "image": "location.jpg",
+      "imageAlt": "Sample photo: the restaurant interior"
+    }
+  ],
+
+  "gallery": [
+    { "image": "gallery-1.jpg", "alt": "Sample photo 1" },
+    { "image": "gallery-2.jpg", "alt": "Sample photo 2" },
+    { "image": "gallery-3.jpg", "alt": "Sample photo 3" },
+    { "image": "gallery-4.jpg", "alt": "Sample photo 4" },
+    { "image": "gallery-5.jpg", "alt": "Sample photo 5" },
+    { "image": "gallery-6.jpg", "alt": "Sample photo 6" }
+  ],
+
+  "legal": {
+    "privacy": {
+      "updated": "Sample",
+      "sections": [
+        { "heading": "Sample privacy policy", "paragraphs": ["This is stand-in text so the page layout and the application form can be reviewed. It is not the restaurant's privacy policy and says nothing about how data is really handled."] },
+        { "heading": "Sample section", "paragraphs": ["Replace this with the real policy in content/site.json under legal.privacy.sections."] }
+      ]
+    }
+  },
+
+  "careers": {
+    "applications": {
+      "enabled": true
+    },
+    "image": "team.jpg",
+    "imageAlt": "Sample photo: the team at work"
+  }
+}

@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en" data-restaurant-name="{{site.fullName}}" data-logo="{{mediaUrl site.logo}}" data-locale="{{site.locale}}" data-api="{{build.apiBase}}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{page.title}}</title>
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="referrer" content="no-referrer">
+  <meta name="theme-color" content="#f6f5f2">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/src/styles/dashboard.css">
+</head>
+<body>
+  <div id="app">
+    <p class="p-8 text-muted" role="status">Loading the dashboard...</p>
+  </div>
+  <div id="toasts" class="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex flex-col items-center gap-2 p-4 sm:items-end" aria-live="polite"></div>
+  <noscript><p class="p-8">The dashboard needs JavaScript.</p></noscript>
+  <script type="module" src="/src/dashboard/main.js"></script>
+</body>
+</html>

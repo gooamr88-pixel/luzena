@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  {{> head}}
+</head>
+<body>
+  {{> header}}
+
+  <main id="main">
+    <div class="page-hero">
+      <div class="container-x">
+        <p class="eyebrow">{{site.name}}</p>
+        <h1 class="h-display mt-3">Privacy policy</h1>
+        {{#if site.legal.privacy.updated}}<p class="mt-5 text-sm text-muted">Last updated: {{site.legal.privacy.updated}}</p>{{/if}}
+      </div>
+    </div>
+
+    <section class="section">
+      <div class="container-x">
+        {{#if site.legal.privacy.sections.length}}
+        <!-- The text comes from legal.privacy.sections in content/site.json. It is written
+             by the restaurant and its advisers, not generated. -->
+        <div class="max-w-3xl space-y-10">
+          {{#each site.legal.privacy.sections}}
+          <section>
+            <h2 class="text-2xl">{{heading}}</h2>
+            <div class="mt-4 space-y-4">
+              {{#each paragraphs}}<p>{{this}}</p>{{/each}}
+            </div>
+          </section>
+          {{/each}}
+        </div>
+        {{else}}
+        <p class="lead max-w-2xl">Our privacy policy will be published here.</p>
+        <a href="/" class="btn btn-outline mt-8">Back to home</a>
+        {{/if}}
+      </div>
+    </section>
+  </main>
+
+  {{> footer}}
+  <script type="module" src="/src/js/main.js"></script>
+</body>
+</html>

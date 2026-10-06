@@ -1,0 +1,13 @@
+<!-- Shown wherever an address, phone or hours would be, until a location is added to
+     content/site.json. It promises nothing about dates. -->
+<div class="panel max-w-2xl">
+  <p class="eyebrow">Visit us</p>
+  <h2 class="h-section mt-3 text-3xl">Address and hours coming soon</h2>
+  <p class="mt-4">We will post our address, phone number and opening hours here as soon as they are confirmed.</p>
+  {{#if site.socialLinks.length}}
+  <p class="mt-4">Until then, follow us for news.</p>
+  <ul class="mt-5 flex flex-wrap gap-3">
+    {{#each site.socialLinks}}<li><a href="{{url}}" class="btn btn-outline btn-sm" target="_blank" rel="noopener">{{label}}<span class="sr-only"> (opens in a new tab)</span></a></li>{{/each}}
+  </ul>
+  {{/if}}
+</div>
