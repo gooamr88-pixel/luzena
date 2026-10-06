@@ -35,6 +35,7 @@ export async function createTestDb() {
   await pg.exec(migration("20261005000400_application_retention.sql"));
   await pg.exec(migration("20261005000500_sequence_privileges.sql"));
   await pg.exec(migration("20261006000600_imported_items_start_hidden.sql"));
+  await pg.exec(migration("20261006000700_job_application_workflow.sql"));
 
   const rpc = async (fn, args = {}) => {
     const names = Object.keys(args);

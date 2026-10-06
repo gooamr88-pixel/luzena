@@ -1,6 +1,6 @@
 /* Public website design system. Tokens first, then a small set of components.
-   The palette and the sans-serif come straight from the Luzena logo file.
-   See docs/DESIGN_SYSTEM.md for the reasoning behind each choice. */
+   Warm and dark-accented: a night header and hero, cream pages, gold accents, a forest
+   green for the "visit us" band. See docs/DESIGN_SYSTEM.md for the reasoning. */
 @import "tailwindcss";
 @import "@fontsource-variable/playfair-display/index.css";
 @import "@fontsource/open-sauce-one/400.css";
@@ -15,45 +15,54 @@
   --font-display: "Playfair Display Variable", "Playfair Display", "Iowan Old Style", Georgia, serif;
   --font-sans: "Open Sauce One", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
 
-  /* Surfaces. paper is the logo's own background colour. */
+  /* Light surfaces. paper is the logo's own background colour. */
   --color-paper: #f6f4f0;
   --color-sand: #efebe3;
   --color-sand-deep: #e2dcd0;
+
+  /* Dark surfaces. night: header, hero, page headers, footer, photo viewer.
+     forest: the "visit us" band and photo-less tiles. */
+  --color-night: #18120f;
+  --color-forest: #1c2a22;
+  --color-forest-light: #2a3d31;
 
   /* Text, warm rather than grey. Contrast on paper: ink 14.3, body 9.1, muted 5.3. */
   --color-ink: #2b211e;
   --color-body: #4b403b;
   --color-muted: #6e645c;
 
-  /* Brand. brand is the red of the wordmark; olive is the green of the leaves and tagline.
-     On paper: brand 4.62, brand-dark 5.92, olive 5.17. White on brand: 5.08.
-     On sand, brand drops to 4.27: do not use it there for normal-size text (use
-     brand-dark). See docs/DESIGN_SYSTEM.md. */
-  --color-brand: #bc4749;
-  --color-brand-dark: #a23b3d;
+  /* Accent. gold is a FILL: buttons, rules, icons on dark. It is too light to be text on a
+     light surface (2.3 on paper), so text there uses brand, the same hue taken down to
+     bronze: 5.3 on paper, 4.9 on sand, 5.8 on white. Inside a dark surface brand becomes
+     gold again (see the dark scope below), so `text-brand` is always the readable accent. */
+  --color-gold: #c9a063;
+  --color-gold-light: #dbb87e;
+  --color-brand: #835f20;
+  --color-brand-dark: #6b4d18;
+
+  /* The green of the logo's leaves: dietary tags and the sample banner. */
   --color-olive: #606c38;
   --color-olive-dark: #4d572c;
 
-  /* Only for overlays on photos (hero scrim, gallery viewer). */
-  --color-night: #1c1513;
-
-  /* Deliberately not the brand red, so an error never looks like decoration. */
   --color-danger: #9b1c1c;
   --color-success: #2f6b3f;
+
+  --shadow-card: 0 1px 2px rgb(43 33 30 / 0.05), 0 8px 24px -12px rgb(43 33 30 / 0.18);
+  --shadow-lift: 0 2px 4px rgb(43 33 30 / 0.06), 0 18px 36px -16px rgb(43 33 30 / 0.28);
 
   --breakpoint-xs: 24rem;
 }
 
 @layer base {
-  /* Height of the sticky header. Taller on desktop so the logo's tagline stays legible.
-     Anything that sticks below the header, or sizes itself against it, reads this. */
+  /* Height of the sticky header. Anything that sticks below the header, or sizes itself
+     against it, reads this. */
   :root {
-    --header-h: 4.75rem;
+    --header-h: 4.5rem;
   }
 
   @media (min-width: 64rem) {
     :root {
-      --header-h: 5.5rem;
+      --header-h: 5.25rem;
     }
   }
 
@@ -82,14 +91,15 @@
     text-wrap: pretty;
   }
 
+  /* brand is bronze on light surfaces and gold on dark ones, so the ring shows on both. */
   :focus-visible {
-    outline: 2px solid var(--color-olive);
+    outline: 2px solid var(--color-brand);
     outline-offset: 3px;
   }
 
   ::selection {
-    background: var(--color-brand);
-    color: #fff;
+    background: var(--color-gold);
+    color: var(--color-night);
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -106,25 +116,44 @@
 }
 
 @layer components {
+  /* DARK SCOPE. Inside a dark surface the text tokens are re-pointed, so the same
+     components (headings, .eyebrow, .btn-outline, .text-link, .icon-button, borders drawn
+     from ink) read correctly without a second set of classes. Put `on-dark` on any new
+     dark block. On night: ink 18.6, body 13.7, muted 8.4, brand (gold) 7.7. */
+  .on-dark,
+  .site-header,
+  .site-footer,
+  .page-hero,
+  .mobile-nav,
+  .lightbox {
+    --color-ink: #ffffff;
+    --color-body: #e4dcd2;
+    --color-muted: #b8ada1;
+    --color-brand: #c9a063;
+    --color-brand-dark: #dbb87e;
+    --color-olive: #b9c48d;
+    --color-olive-dark: #cbd4a6;
+    color: var(--color-body);
+  }
+
   .container-x {
     @apply mx-auto w-full max-w-[75rem] px-5 sm:px-8;
   }
 
   .section {
-    @apply py-16 sm:py-24;
+    @apply py-14 sm:py-20;
   }
 
-  /* Set like the logo's tagline: olive, bold, widely spaced capitals. */
   .eyebrow {
-    @apply text-xs font-bold tracking-[0.22em] text-olive uppercase;
+    @apply text-xs font-semibold tracking-[0.2em] text-brand uppercase;
   }
 
   .h-display {
-    @apply text-[clamp(2.5rem,6.6vw,4.75rem)] leading-[1.06] tracking-[-0.01em];
+    @apply text-[clamp(2.5rem,6vw,4.75rem)] leading-[1.05] tracking-[-0.01em];
   }
 
   .h-section {
-    @apply text-[clamp(1.9rem,4vw,2.9rem)] leading-[1.12] tracking-[-0.005em];
+    @apply text-[clamp(1.85rem,3.2vw,2.6rem)] leading-[1.14] tracking-[-0.005em];
   }
 
   .lead {
@@ -132,20 +161,25 @@
   }
 
   .rule {
-    @apply h-0.5 w-14 bg-brand;
+    @apply h-0.5 w-14 bg-gold;
   }
 
-  /* Buttons: 48px tall for touch, uppercase tracking to echo the logo's tagline. */
+  /* Buttons: 48px tall for touch. */
   .btn {
-    @apply inline-flex min-h-12 items-center justify-center gap-2 border px-7 text-center text-[0.78rem] font-bold tracking-[0.14em] uppercase transition-colors duration-200;
+    @apply inline-flex min-h-12 items-center justify-center gap-2.5 rounded-md border px-6 text-center text-[0.95rem] leading-tight font-semibold transition-colors duration-200;
+  }
+
+  .btn svg {
+    @apply size-[1.15em] shrink-0;
   }
 
   .btn-sm {
-    @apply min-h-11 px-4 text-[0.7rem] sm:px-5;
+    @apply min-h-11 px-4 text-sm sm:px-5;
   }
 
+  /* Night text on gold: 7.7. White on gold would be 2.4, so it is never used. */
   .btn-primary {
-    @apply border-brand bg-brand text-white hover:border-brand-dark hover:bg-brand-dark;
+    @apply border-gold bg-gold text-night hover:border-gold-light hover:bg-gold-light;
   }
 
   .btn-outline {
@@ -154,7 +188,12 @@
 
   /* For buttons that sit on a photo. */
   .btn-on-photo {
-    @apply border-white/70 text-white hover:border-white hover:bg-white hover:text-ink;
+    @apply border-white/55 bg-night/25 text-white backdrop-blur-sm hover:border-white hover:bg-white hover:text-night;
+  }
+
+  /* The second button on a dark surface. */
+  .btn-light {
+    @apply border-white bg-white text-night hover:border-paper hover:bg-sand;
   }
 
   .btn[disabled],
@@ -166,9 +205,22 @@
     @apply text-ink underline decoration-brand/60 underline-offset-4 transition-colors hover:text-brand;
   }
 
+  /* A link that ends in an arrow; the arrow steps forward on hover. */
+  .arrow-link {
+    @apply inline-flex min-h-11 items-center gap-2 text-[0.95rem] font-semibold text-brand transition-colors hover:text-brand-dark;
+  }
+
+  .arrow-link svg {
+    @apply size-5 transition-transform duration-200;
+  }
+
+  .arrow-link:hover svg {
+    transform: translateX(3px);
+  }
+
   /* Header */
   .skip-link {
-    @apply sr-only bg-brand px-4 py-3 font-semibold text-white focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[60];
+    @apply sr-only bg-gold px-4 py-3 font-semibold text-night focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[60];
   }
 
   .sample-banner {
@@ -176,41 +228,233 @@
   }
 
   .site-header {
-    @apply sticky top-0 z-40 border-b border-ink/10 bg-paper/95 backdrop-blur-md;
+    @apply sticky top-0 z-40 border-b border-white/10 bg-night/95 backdrop-blur-md;
+  }
+
+  /* Home page: the header lies over the hero and starts clear, then settles into its solid
+     form over the first few rems of scrolling. Done in CSS, so there is no script to fail
+     and leave white links over a cream page. A browser without scroll-driven animations
+     simply shows the solid header from the start. */
+  @supports (animation-timeline: scroll()) {
+    .site-header-overlay {
+      animation: header-settle linear both;
+      animation-timeline: scroll(root block);
+      animation-range: 0 7rem;
+    }
+  }
+
+  @keyframes header-settle {
+    from {
+      border-bottom-color: transparent;
+      background-color: transparent;
+      backdrop-filter: blur(0);
+    }
+  }
+
+  /* The logo file is drawn in red and green for a light ground. On dark it is shown as a
+     single white shape. */
+  .logo-light {
+    filter: brightness(0) invert(1);
   }
 
   .nav-link {
-    @apply relative py-2 text-[0.76rem] font-semibold tracking-[0.12em] text-body uppercase transition-colors hover:text-brand;
+    @apply relative py-2 text-[0.92rem] font-medium text-white/85 transition-colors hover:text-white;
+  }
+
+  .nav-link::after {
+    @apply absolute inset-x-0 -bottom-0.5 h-px origin-left scale-x-0 bg-gold transition-transform duration-200 content-[''];
+  }
+
+  .nav-link:hover::after,
+  .nav-link[aria-current="page"]::after {
+    @apply scale-x-100;
   }
 
   .nav-link[aria-current="page"] {
-    @apply text-brand;
+    @apply text-white;
   }
 
   .icon-button {
-    @apply inline-flex size-11 items-center justify-center border border-ink/20 text-ink transition-colors hover:border-brand hover:text-brand;
+    @apply inline-flex size-11 items-center justify-center rounded-md border border-ink/20 text-ink transition-colors hover:border-brand hover:text-brand;
   }
 
   .mobile-nav {
-    @apply m-0 h-dvh max-h-none w-full max-w-none bg-paper p-0 text-ink;
+    @apply m-0 h-dvh max-h-none w-full max-w-none bg-night p-0;
   }
 
   .mobile-nav::backdrop {
-    background: var(--color-paper);
+    background: var(--color-night);
   }
 
-  /* Page header used by every inner page */
+  /* DARK BACKDROPS. A warm glow from the top right, and the logo's leaf as a faint
+     watermark. Used by the home hero when there is no photo, and by every page header. */
+  .glow {
+    background:
+      radial-gradient(60rem 30rem at 85% -10%, rgb(201 160 99 / 0.22), transparent 65%),
+      radial-gradient(40rem 26rem at 0% 110%, rgb(42 61 49 / 0.55), transparent 70%);
+  }
+
+  .leaf-mark {
+    background-color: var(--color-gold);
+    mask: url("/leaf.svg") center / contain no-repeat;
+  }
+
+  /* Home hero. Pulled up under the header, which lies over it. */
+  .hero {
+    @apply relative isolate -mt-(--header-h) flex min-h-[min(46rem,100svh)] items-center overflow-hidden bg-night pt-(--header-h);
+  }
+
+  /* Page header used by every inner page: one dark block with the site header above it. */
   .page-hero {
-    @apply border-b border-ink/10 bg-sand pt-14 pb-12 sm:pt-20 sm:pb-16;
+    @apply relative isolate overflow-hidden bg-night pt-12 pb-12 sm:pt-16 sm:pb-16;
   }
 
-  /* Cards and panels. Semi-opaque white reads as a card on both paper and sand. */
+  .page-hero .h-display {
+    @apply text-[clamp(2.25rem,5vw,3.75rem)];
+  }
+
+  .page-hero::before {
+    @apply absolute inset-0 -z-10 content-[''];
+    background: radial-gradient(52rem 22rem at 90% -20%, rgb(201 160 99 / 0.2), transparent 65%);
+  }
+
+  .page-hero::after {
+    @apply absolute -right-10 -bottom-16 -z-10 size-72 opacity-[0.07] content-[''] sm:right-[6%] sm:size-80;
+    background-color: var(--color-gold);
+    mask: url("/leaf.svg") center / contain no-repeat;
+  }
+
+  /* Cards and panels. */
   .panel {
-    @apply border border-ink/10 bg-white/60 p-6 sm:p-8;
+    @apply rounded-xl border border-ink/10 bg-white/70 p-6 shadow-card sm:p-8;
+  }
+
+  /* A panel on a dark surface. */
+  .panel-dark {
+    @apply rounded-xl border border-white/12 bg-white/6 p-6 sm:p-8;
+  }
+
+  /* A framed photo. The <picture> wrapper must not stand between the frame and the photo,
+     or the photo cannot take the frame's height. */
+  .media {
+    @apply overflow-hidden rounded-xl bg-sand-deep;
+  }
+
+  .media picture,
+  .gallery-tile picture {
+    display: contents;
+  }
+
+  /* The Google map: a frame the shape of a photo, with the same corners. The colour shows
+     while the map loads. */
+  .map-frame {
+    @apply block aspect-[4/3] w-full rounded-xl border border-ink/15 bg-sand-deep shadow-card;
   }
 
   .hours-row {
     @apply flex items-baseline justify-between gap-6 border-b border-ink/10 py-2.5 text-sm last:border-b-0;
+  }
+
+  /* A line of contact detail with its icon: address, phone, hours. */
+  .detail-row {
+    @apply flex items-start gap-3.5;
+  }
+
+  .detail-row > svg {
+    @apply mt-0.5 size-5 shrink-0 text-brand;
+  }
+
+  /* A row that scrolls sideways on phones and becomes a grid from 640px. The row bleeds to
+     the screen edge so the next card peeks in and shows there is more. */
+  .snap-row {
+    @apply -mx-5 flex snap-x snap-mandatory gap-4 overflow-x-auto px-5 py-2 sm:mx-0 sm:grid sm:gap-6 sm:overflow-visible sm:p-0;
+    scroll-padding-inline: 1.25rem;
+    scrollbar-width: none;
+  }
+
+  .snap-row > * {
+    @apply w-[78%] shrink-0 snap-start sm:w-auto;
+  }
+
+  /* Home: a menu category. A photo when one of its dishes has one, otherwise forest green. */
+  .category-tile {
+    @apply relative isolate flex aspect-[5/4] flex-col justify-end overflow-hidden rounded-xl bg-forest p-4 sm:aspect-auto sm:h-52 text-white shadow-card transition-shadow duration-300 hover:shadow-lift sm:p-5;
+    background-image: linear-gradient(150deg, var(--color-forest-light), var(--color-forest) 70%);
+  }
+
+  .category-tile img {
+    @apply absolute inset-0 -z-20 size-full object-cover transition-transform duration-500;
+  }
+
+  .category-tile:hover img,
+  .category-tile:focus-visible img {
+    transform: scale(1.05);
+  }
+
+  /* The scrim that keeps the name readable over a photo. */
+  .category-tile-scrim {
+    @apply absolute inset-0 -z-10 bg-gradient-to-t from-night/85 via-night/15 to-transparent;
+  }
+
+  .category-tile-leaf {
+    @apply absolute -top-6 -right-6 -z-10 size-28 opacity-[0.14];
+  }
+
+  .category-tile svg {
+    @apply size-5 text-gold transition-transform duration-200;
+  }
+
+  .category-tile:hover svg {
+    transform: translateX(3px);
+  }
+
+  /* Home: a featured dish. */
+  .dish-card {
+    @apply overflow-hidden rounded-xl bg-white shadow-card transition-shadow duration-300 hover:shadow-lift;
+  }
+
+  .dish-card-media {
+    @apply relative aspect-[16/11] overflow-hidden bg-sand-deep;
+  }
+
+  .dish-card-media img {
+    @apply size-full object-cover transition-transform duration-500;
+  }
+
+  .dish-card:hover .dish-card-media img {
+    transform: scale(1.05);
+  }
+
+  /* Home: one of the "what to expect" points, as an icon over a short label. */
+  .feature {
+    @apply flex flex-col items-center gap-3 text-center text-sm font-medium text-ink;
+  }
+
+  .feature-icon {
+    @apply flex size-12 items-center justify-center rounded-full border border-brand/35 text-brand;
+  }
+
+  .feature-icon svg {
+    @apply size-6;
+  }
+
+  /* Home: the photo strip. It scrolls sideways at every width. */
+  .strip {
+    @apply -mx-5 flex snap-x snap-mandatory gap-3 overflow-x-auto px-5 sm:-mx-8 sm:gap-4 sm:px-8 lg:mx-0 lg:px-0;
+    scroll-padding-inline: 1.25rem;
+    scrollbar-width: none;
+  }
+
+  .strip > * {
+    @apply aspect-[4/3] w-[72%] shrink-0 snap-start sm:w-[40%] lg:w-[calc((100%-3rem)/4)];
+  }
+
+  .round-button {
+    @apply inline-flex size-11 items-center justify-center rounded-full border border-ink/20 text-ink transition-colors hover:border-ink hover:bg-ink hover:text-paper aria-disabled:cursor-default aria-disabled:border-ink/10 aria-disabled:text-muted aria-disabled:hover:bg-transparent aria-disabled:hover:text-muted;
+  }
+
+  .round-button svg {
+    @apply size-5;
   }
 
   /* Menu */
@@ -242,7 +486,7 @@
   }
 
   .tag {
-    @apply inline-flex items-center border border-olive/35 px-2 py-0.5 text-[0.66rem] font-semibold tracking-[0.08em] text-olive-dark uppercase;
+    @apply inline-flex items-center rounded-sm border border-olive/35 px-2 py-0.5 text-[0.66rem] font-semibold tracking-[0.08em] text-olive-dark uppercase;
   }
 
   .tag-muted {
@@ -250,20 +494,43 @@
   }
 
   .chip {
-    @apply inline-flex min-h-11 items-center border border-ink/15 bg-paper px-4 text-[0.74rem] font-semibold tracking-[0.1em] whitespace-nowrap text-body uppercase transition-colors hover:border-brand hover:text-brand;
+    @apply inline-flex min-h-11 items-center rounded-full border border-ink/15 bg-white/70 px-5 text-sm font-medium whitespace-nowrap text-body transition-colors hover:border-brand hover:text-brand;
   }
 
   .chip[aria-current="true"] {
-    @apply border-brand bg-brand text-white;
+    @apply border-night bg-night text-white;
   }
 
   /* Forms */
   .field-label {
-    @apply mb-2 block text-[0.74rem] font-bold tracking-[0.1em] text-ink uppercase;
+    @apply mb-2 block text-sm font-semibold text-ink;
   }
 
   .field-input {
-    @apply block min-h-12 w-full border border-ink/25 bg-white px-4 py-3 text-base text-ink transition-colors placeholder:text-muted/80 hover:border-ink/45 focus:border-olive;
+    @apply block min-h-12 w-full rounded-md border border-ink/25 bg-white px-4 py-3 text-base text-ink transition-colors placeholder:text-muted/80 hover:border-ink/45 focus:border-brand;
+  }
+
+  textarea.field-input {
+    @apply leading-relaxed;
+  }
+
+  /* One of several boxes to tick: the whole row is the target, and a ticked row is tinted. */
+  .choice {
+    @apply flex min-h-12 cursor-pointer items-center gap-3 rounded-md border border-ink/25 bg-white px-4 py-2 text-[0.95rem] text-ink transition-colors hover:border-ink/45 has-[:checked]:border-brand has-[:checked]:bg-[#fbf5ea] has-[:focus-visible]:border-brand;
+  }
+
+  .choice input {
+    @apply size-5 shrink-0 accent-brand;
+  }
+
+  .choice:has([aria-invalid="true"]) {
+    @apply border-danger;
+  }
+
+  /* The question above a group of fields. A <legend> does not take a top margin from its
+     neighbours, so the space is its own. */
+  legend.field-label {
+    @apply mb-1;
   }
 
   .field-input[aria-invalid="true"] {
@@ -279,7 +546,7 @@
   }
 
   .alert {
-    @apply border px-5 py-4 text-sm;
+    @apply rounded-md border px-5 py-4 text-sm;
   }
 
   .alert-error {
@@ -291,12 +558,12 @@
   }
 
   .skeleton {
-    @apply animate-pulse bg-sand-deep;
+    @apply animate-pulse rounded-md bg-sand-deep;
   }
 
   /* Gallery */
   .gallery-tile {
-    @apply relative block w-full overflow-hidden bg-sand-deep;
+    @apply relative block w-full overflow-hidden rounded-xl bg-sand-deep;
   }
 
   .gallery-tile img {
@@ -308,13 +575,12 @@
     transform: scale(1.04);
   }
 
-  /* The photo viewer is the one dark surface: photos read best on it. */
   .lightbox {
-    @apply m-0 h-dvh max-h-none w-full max-w-none bg-night/96 p-0 text-white;
+    @apply m-0 h-dvh max-h-none w-full max-w-none bg-night/96 p-0;
   }
 
   .lightbox::backdrop {
-    background: rgb(28 21 19 / 0.9);
+    background: rgb(24 18 15 / 0.9);
   }
 
   .lightbox .icon-button {
@@ -322,6 +588,6 @@
   }
 
   .site-footer {
-    @apply border-t border-ink/10 bg-sand;
+    @apply bg-night;
   }
 }

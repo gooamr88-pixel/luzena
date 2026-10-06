@@ -17,8 +17,8 @@ Clover. Ordering and payment stay in Clover.
 Confirmed by the client on 2026-10-05: 315 El Cajon Blvd, El Cajon, CA 92020; phone
 +1 619-499-5779; email and recruitment email `fadi.auchi@gmail.com`; open Sunday to
 Thursday 8 AM to 12 AM, Friday and Saturday 8 AM to 2 AM; breakfast every day 8 AM to
-12 PM; Google Maps link `https://maps.app.goo.gl/WTwNqRWv3dyaetAQ8`. **Photos are postponed
-on purpose and are not a blocker.** The client's earlier instruction was "do not deploy
+12 PM; Google Maps link `https://maps.app.goo.gl/WTwNqRWv3dyaetAQ8`. **The restaurant's own photos have not arrived;
+since 2026-10-06 placeholder stock photos are shown in their place (section 14).** The client's earlier instruction was "do not deploy
 yet"; on 2026-10-05 the client gave the go-ahead to deploy (section 25 has the order and the
 rules that came with it).
 
@@ -217,21 +217,43 @@ sniffed from bytes; CSP without inline script or style; no `innerHTML`.
 
 ## 14. UI/UX Decisions
 
-- Public site: LIGHT, built on the logo: cream page (`#F6F4F0`), terracotta red (`#BC4749`)
-  for buttons and prices, olive (`#606C38`) for labels. Playfair Display headings, Open
-  Sauce One text. Square corners, one gradient (hero scrim). The first version was dark with
-  a gold accent; it was replaced on 2026-10-05 because the logo is drawn for a light ground.
-- The hero has two forms: photo with white text, or text-only on `sand` when there is no
-  photo. Production uses the text-only form until real photos arrive.
-- Do not set normal-size text in `brand` on a `sand` surface (4.27:1). See DESIGN_SYSTEM.md.
+- Public site, since 2026-10-06: follows the home page design that was supplied that day.
+  Dark (`night`) header, hero, page headers and footer; cream pages (`#F6F4F0`); gold
+  (`#C9A063`) buttons and accents; a forest green "visit us" band; rounded photo tiles and
+  cards. Playfair Display headings, Open Sauce One text. History: dark with a gold accent
+  first; light cream/terracotta/olive from the logo on 2026-10-05; this design on
+  2026-10-06. The logo is shown white on the dark surfaces.
+- Gold is a fill, never text on light: accent text is `brand` (bronze `#835F20`), which
+  turns back to gold inside a dark surface (the `on-dark` scope). Buttons are dark text on
+  gold, not white as the supplied design shows: white on gold is 2.4:1.
+- The home page header lies over the hero and turns solid on scroll, in CSS only.
+- The hero has two forms: photo behind a scrim, or the same dark block with a glow and the
+  logo's leaf.
+- PLACEHOLDER PHOTOS, by instruction of 2026-10-06: the live site shows
+  `content/media/placeholder-*.jpg` (hero, our story, gallery, location) until real photos
+  replace them, never the photo-less layouts. They are the design template's stock photos:
+  not this restaurant, licence never checked. The photo-less layouts remain in the
+  templates for a slot whose photo is removed and not replaced.
+- Home page: category tiles and "most popular dishes" cards come from the live menu
+  (`featured.js`). A category or dish without a photo of its own gets one of
+  `defaultDishPhotos` (placeholders too), so a placeholder can sit beside a real dish's
+  name without showing that dish. With that list empty they fall back to green tiles and
+  text-only cards.
+- "Visit Us" has a Google map (`mapsEmbedUrl`, built from the name and address, no API
+  key), beside the details on a laptop and below them on a phone. Also on the Locations
+  page. It loads Google's page in a frame, lazily.
+- Dashboard, since 2026-10-06: the public site's design language (night sidebar with the
+  white logo, gold primary buttons, serif page titles, the same cards and fields), no
+  longer a neutral theme of its own. Status colours are its only addition.
 - Never fade text with `opacity` to show a state: it lowers contrast invisibly. An
   out-of-stock menu item uses the `muted` colour (`.menu-item-unavailable`).
 - Hours are shown day by day, then a line per service (breakfast).
 - Careers: 18 roles in 5 departments, each a native `<details>` disclosure.
 - The sample profile is the real content with sample values laid over only what is missing.
-- Dashboard: light, dense, separate stylesheet. Every field is tagged "Clover" or "Website".
+- Dashboard: dense, separate stylesheet. Every field is tagged "Clover" or "Website".
 - Switches and save buttons never show a state the server has not confirmed.
-- Phones: item table becomes cards; editor save bar is fixed to the bottom.
+- Below 1280 px the item table becomes cards; on phones the editor save bar is fixed to the
+  bottom.
 - ORDER ONLINE links straight to Clover when configured; otherwise to `/order/`.
 
 ## 15. Design System
@@ -809,13 +831,14 @@ audit log, role-based access designed for future roles.
 - The production build must fail when required content is missing, and must refuse the
   demo flag. Sample values must never reach a production build: they live only in
   `site.sample.json` and are applied only by the sample profile.
-- Colours come from the logo. Change the tokens in `main.css`, never hard-code a colour in
-  a template. The `.menu-item` and `.tag` rules in `dashboard.css` must match `main.css`.
+- Colours are tokens. Change them in `main.css`, never hard-code a colour in a template;
+  on a dark block use the `on-dark` scope, not a second set of colour classes. The `.menu-item` and `.tag` rules in `dashboard.css` must match `main.css`.
 - Deploy only in the order the client gave (section 25): TEST before PRODUCTION, and no
-  Clover in production before the sandbox plan passes. Do not publish the stock photos in
-  `content/sample-media/`: only sample builds read them, a browser test fails if any photo
-  appears in the production build, and on the server Nginx's root is the built release,
-  never the repository.
+  Clover in production before the sandbox plan passes. The only stock photos that may be published are the copies in
+  `content/media/placeholder-*.jpg`, and only until real photos replace them: a browser
+  test fails if any other image appears in the production build. `content/sample-media/`
+  is read only by sample builds, and on the server Nginx's root is the built release, never
+  the repository.
 - Hosting is the client's Hostinger VPS. Never Vercel. The VPS holds no secret, runs no
   application code and proxies nothing; nobody connects to it from this machine.
 - The Nginx file is generated from `deploy/headers.json`. Never edit it by hand, here or on
@@ -974,3 +997,102 @@ VPS, not Vercel (section 25 has both instructions and the four choices that foll
   their own terminal so the token is never in the chat.
 - Not done, and waiting on the client: `supabase login`, the owner's email, a GitHub
   repository, the read-only look at the VPS.
+
+### 2026-10-06 Checkpoint: public site redesigned to the supplied home page design
+
+A home page design (one image) was supplied with the instruction to match it or better it:
+dark photo hero under the header, gold buttons, category photo tiles, popular dish cards, a
+story block with a photo and icons, a photo strip, a dark green "visit us" band.
+
+- `src/styles/main.css` rewritten: new tokens (night, forest, gold, bronze `brand`), the
+  `on-dark` scope, rounded corners, shadows, and the new components. Every page inherits
+  it; `.page-hero` is now dark on all inner pages.
+- Home page rebuilt in that order of sections. `src/js/featured.js` now fills category
+  tiles and dish cards from `<template>` elements; new `src/js/strip.js` for the photo
+  strip's arrows; new `src/partials/icon.html`; new `public/leaf.svg` (the logo's leaf,
+  used as a CSS mask).
+- Header, footer and phone menu are dark with the logo in white. Menu links from the home
+  page (`/menu/#menu-ID`) now scroll to their category once the menu has rendered.
+- Content: `hero` text replaced with the design's ("A Place for Every Moment"), not yet
+  approved by the owner; `about.values` gained an `icon` each. The About text is unchanged:
+  the design's "our story" wording and two of its four points ("Family Friendly", "Local
+  Community") are claims nobody has confirmed, so they were not copied.
+- Not done: the design's video play button (there is no video).
+- Dashboard preview: accent colour and tag corners changed, to stay identical to the
+  public menu.
+
+### 2026-10-06 Checkpoint: placeholder photos live, map in "Visit Us", dashboard restyled
+
+Three instructions, all on 2026-10-06, after the public redesign above.
+
+- **Placeholder photos on the live site.** "Keep the sample photos visible on the live site
+  as the default images; do not switch to the no-photo fallback; until we replace them with
+  the owner's real photos." Eight stock photos copied from `content/sample-media/` to
+  `content/media/placeholder-*.jpg` and named in `content/site.json` (hero, about, location,
+  five gallery photos). New `defaultDishPhotos` in the content file: `featured.js` gives one
+  to a category tile or featured dish that has no photo. The gallery page is therefore
+  published and in the sitemap. This reverses the earlier rule that no stock photo may be
+  published; the licence question it rested on is still open, and the photos do not show
+  this restaurant. `ogImage` and `careers.image` were left unset.
+- **Google map.** `locations[0].mapsEmbedUrl` set to a keyless Google Maps embed of the name
+  and address; the build refuses any address that is not `https://www.google.com/maps...`.
+  `geo` is still unset. The browser tests answer for Google with an empty page.
+- **Dashboard restyled** to the public site's design language across every screen: sign-in,
+  overview, items, item editor, categories, modifiers, Clover, activity, dialogs, drawer.
+  Styling and layout only: `src/styles/dashboard.css`, the shell in `main.js`, the shared
+  blocks in `ui.js`, and class names in the views. No request, route, permission or data
+  flow changed. Two layout changes: item cards instead of the table below 1280 px, and the
+  item filters regrouped. One wording fix: "Up to six featured items" is now four.
+- One browser test was made to wait: "asks before leaving with unsaved changes" read the
+  address before the dialog had closed, and failed once on a busy machine.
+- Nothing committed, nothing deployed.
+
+### 2026-10-06 Checkpoint: job applications become a dashboard workflow; the email leaves the website
+
+Instruction: a complete application system for the Join Our Team page. The applicant's form,
+then the database, then the dashboard, then an email to the owner; the owner's address off
+every public page but kept as the recipient; nothing committed or deployed.
+
+What existed already: the form (name, email, phone, position, message, CV), the
+`job-application` function, the private `cvs` bucket, the recipient in
+`restaurants.recruitment_email`, rate limiting, bot traps, the two switches and the
+retention period. The email, with the CV attached, was the only record.
+
+What changed:
+
+- **The database is the record, the email a notification.** New migration
+  `20261006000700_job_application_workflow.sql`: the new answers, a `status`
+  (new, reviewing, shortlisted, interview, hired, rejected), a `submission_id`, and
+  `job_application_events` (17 tables now). The applicant is answered once the application
+  is stored; the email goes after. A failed or unconfigured email no longer fails the
+  application: it is marked, and the dashboard says so. `job_application_create` was
+  dropped in favour of `job_application_submit`.
+- **The form** asks, besides contact details and position: full-time or part-time, when the
+  applicant could work (five boxes), when they could start, how much experience, whether
+  they are legally authorized to work in the United States; optionally their experience in
+  their own words, an introduction and a CV. The authorization question and the wording of
+  every question are the engineer's and have not been approved by the client.
+- **Duplicates and spam:** a per-visit `submission_id` makes a repeated send one
+  application; 3 a day per email address (hashed) on top of 5 an hour per connection; the
+  honeypot, the minimum fill time and the origin check as before.
+- **The dashboard** has an Applications section (owners and managers; not staff): list with
+  search, stage pills, position and date filters; one application in full with its history;
+  stage changes with a note; CV download. A gold number in the sidebar counts new ones.
+- **The CV has no address.** It is streamed through the authenticated dashboard API as a
+  download. No public URL, no signed URL, not attached to the email. Downloads are recorded.
+- **The email:** "New Job Application — name — position", a summary and a button to the
+  application in the dashboard. Not in it: the CV and the applicant's own words.
+- **The owner's address is off the website.** `locations[0].email` is `null`; it was in the
+  footer, on Contact and on Locations, and in the data given to search engines. It stays in
+  `supabase/provision-restaurant.sql` and the database as the recipient. A browser test
+  scans every file of both builds for it. It is still written in this repository's
+  documents, and the repository is public (section 25).
+- **Not switched on.** `careers.applications.enabled` is still `false` and the two secrets
+  are still unset: B-3 (privacy policy) and B-4 (retention period) are the client's, and the
+  migration and both functions are not deployed. Until then the live Careers page says
+  applications open soon. The live site also still shows the address until it is redeployed.
+- B-7 (Resend) no longer blocks applications, only the notification.
+- Tested: `tests/applications.test.js` runs the whole path on the real handlers and real
+  SQL (form request, database, dashboard API, email, CV download, access by role and by
+  restaurant, retention). Browser tests cover the form and the dashboard screens on the
+  demo data. Not tested: any of it against a deployed project, and a real email.

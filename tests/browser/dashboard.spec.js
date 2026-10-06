@@ -250,6 +250,8 @@ describe("item editor", () => {
 
     expect(await dialog(page).innerText()).toContain("Discard unsaved changes?");
     await dialog(page).getByRole("button", { name: "Cancel" }).click();
+    // The address is put back once the dialog has closed, a moment after the press.
+    await page.waitForFunction(() => location.hash === "#/items/SAMPLEITEM005");
     expect(await page.locator("main#main h1").innerText()).toBe("Grilled Ribeye");
     expect(new URL(page.url()).hash).toBe("#/items/SAMPLEITEM005");
     expect(await page.locator("#price").inputValue()).toBe("41.00");
@@ -527,9 +529,208 @@ describe("Clover connection and activity", () => {
   });
 });
 
+describe("job applications", () => {
+  const OMAR = "00000000-0000-4000-8000-000000000004";
+  const daysAgo = (days) => {
+    const date = new Date();
+    date.setDate(date.getDate() - days);
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  };
+
+  it("lists every application, newest first, and counts the new ones in the sidebar", async () => {
+    const { page, context, problems } = await dashboard("#/applications");
+    await waitForRows(page, 6);
+    expect(await page.locator("main#main h1").innerText()).toBe("Job applications");
+    const names = await page.locator("table.d-table tbody th a").allInnerTexts();
+    expect(names).toEqual(["Maya Thompson", "Daniel Ortiz", "Priya Nair", "Omar Haddad", "Lena Fischer", "Chris Wallace"]);
+    const first = await rows(page).first().innerText();
+    expect(first).toContain("Barista");
+    expect(first).toContain("New");
+    expect(first).toContain("CV");
+    expect(await page.locator('aside a[data-nav="#/applications"] .d-nav-count').innerText()).toMatch(/^2/);
+    expect(await page.locator('.d-pill[aria-pressed="true"]').innerText()).toMatch(/All\s*6/);
+    // The list is for finding an application. Contact details are on the application itself.
+    expect(await page.locator("main#main").innerText()).not.toMatch(/@example\.test|555 01/);
+    expect(problems).toEqual([]);
+    await context.close();
+  });
+
+  it("searches, and filters by status, position and date", async () => {
+    const { page, context } = await dashboard("#/applications");
+    await waitForRows(page, 6);
+
+    await page.fill("#filter-search", "ortiz");
+    await waitForRows(page, 1);
+    expect(await rows(page).first().innerText()).toContain("Daniel Ortiz");
+    // Found by email address too, though the list does not show it.
+    await page.fill("#filter-search", "priya.nair@example");
+    await page.waitForFunction(() => document.querySelector("table.d-table tbody tr")?.textContent.includes("Priya Nair"));
+    expect(await rows(page).count()).toBe(1);
+    await page.fill("#filter-search", "");
+    await waitForRows(page, 6);
+
+    await page.locator(".d-pill", { hasText: "Interview" }).click();
+    await waitForRows(page, 1);
+    expect(await rows(page).first().innerText()).toContain("Omar Haddad");
+    expect(await page.locator('.d-pill[aria-pressed="true"]').innerText()).toMatch(/Interview\s*1/);
+    await page.locator(".d-pill", { hasText: "All" }).click();
+    await waitForRows(page, 6);
+
+    await page.selectOption("#filter-position", "Barista");
+    await waitForRows(page, 1);
+    expect(await rows(page).first().innerText()).toContain("Maya Thompson");
+    await page.selectOption("#filter-position", "");
+    await waitForRows(page, 6);
+
+    // Applied in the last three days: four of the six.
+    await page.fill("#filter-from", daysAgo(3));
+    await waitForRows(page, 4);
+    await page.fill("#filter-to", daysAgo(2));
+    await page.waitForFunction(() => document.querySelectorAll("table.d-table tbody tr").length < 4);
+    expect(await page.locator("table.d-table tbody").innerText()).not.toContain("Maya Thompson");
+
+    await page.getByRole("button", { name: "Clear filters" }).click();
+    await waitForRows(page, 6);
+    expect(await page.locator("#filter-from").inputValue()).toBe("");
+
+    // Nothing matching says so, and offers nothing misleading.
+    await page.fill("#filter-search", "nobody-of-that-name");
+    await page.waitForSelector("text=No applications match these filters");
+    await context.close();
+  });
+
+  it("opens an application with every answer, the contact details and its history", async () => {
+    const { page, context, problems } = await dashboard("#/applications");
+    await waitForRows(page, 6);
+    await row(page, "Omar Haddad").getByRole("link", { name: /Open/ }).click();
+    await page.waitForFunction(() => document.querySelector("main#main h1")?.textContent === "Omar Haddad");
+    expect(new URL(page.url()).hash).toBe(`#/applications/${OMAR}`);
+
+    const text = await page.locator("main#main").innerText();
+    for (const expected of [
+      "Head Chef", "Full-time", "Weekday evenings, Weekend evenings", "Within a month", "More than 5 years",
+      "Twelve years in Mediterranean kitchens", "The applicant did not write an introduction.",
+      "omar.haddad@example.test", "+1 619 555 0114", "Omar-Haddad-CV.docx", "47 kB",
+    ]) expect(text, expected).toContain(expected);
+    expect(await page.locator('main#main a[href="mailto:omar.haddad@example.test"]').count()).toBe(1);
+    expect(await page.locator('main#main a[href="tel:+16195550114"]').count()).toBe(1);
+
+    // Newest first: the interview, then the download, the shortlisting, the email, the arrival.
+    const history = await page.locator(".d-timeline > li").allInnerTexts();
+    expect(history).toHaveLength(5);
+    expect(history[0]).toContain("Status changed from Shortlisted to Interview");
+    expect(history[0]).toContain("Interview on Thursday at 3 PM.");
+    expect(history[0]).toContain("by owner@example.com");
+    expect(history[1]).toContain("CV downloaded");
+    expect(history[4]).toContain("Application received");
+    expect(problems).toEqual([]);
+    await context.close();
+  });
+
+  it("changes the status with a note, and records it in the history, the list and the activity log", async () => {
+    const { page, context } = await dashboard(`#/applications/${OMAR}`);
+    await page.waitForSelector("#application-status");
+    const save = page.getByRole("button", { name: "Update status" });
+    expect(await save.isDisabled()).toBe(true);
+
+    await page.selectOption("#application-status", "hired");
+    await page.fill("#application-note", "Offer accepted. Starts on the 1st.");
+    await save.click();
+    await page.waitForFunction(() => document.querySelector(".d-timeline > li")?.textContent.includes("to Hired"));
+    expect(await toast(page).innerText()).toMatch(/status changed/i);
+    expect(await page.locator("main#main header .d-badge").innerText()).toBe("Hired");
+    const latest = await page.locator(".d-timeline > li").first().innerText();
+    expect(latest).toContain("Status changed from Interview to Hired");
+    expect(latest).toContain("Offer accepted. Starts on the 1st.");
+    expect(await page.locator("#application-status").inputValue()).toBe("hired");
+
+    // A note on its own, without moving the application.
+    await page.fill("#application-note", "Paperwork sent.");
+    await page.getByRole("button", { name: "Add note" }).click();
+    await page.waitForFunction(() => document.querySelector(".d-timeline > li")?.textContent.includes("Paperwork sent."));
+    expect(await page.locator(".d-timeline > li").first().innerText()).toContain("Note added");
+
+    await page.locator('aside a[data-nav="#/applications"]').click();
+    await waitForRows(page, 6);
+    expect(await row(page, "Omar Haddad").innerText()).toContain("Hired");
+    expect(await page.locator(".d-pill", { hasText: "Hired" }).innerText()).toMatch(/Hired\s*2/);
+
+    await page.locator('aside a[data-nav="#/activity"]').click();
+    await page.waitForSelector("table.d-table tbody tr");
+    const log = await page.locator("table.d-table tbody").innerText();
+    expect(log).toContain("Job application status changed");
+    // The activity log says an application moved. It does not say whose.
+    expect(log).not.toContain("Omar");
+    await context.close();
+  });
+
+  it("moves a new application on, and the sidebar count follows", async () => {
+    const { page, context } = await dashboard("#/applications/00000000-0000-4000-8000-000000000001");
+    await page.waitForSelector("#application-status");
+    const count = page.locator('aside a[data-nav="#/applications"] .d-nav-count');
+    await page.waitForFunction(() => document.querySelector('aside [data-new-applications]')?.textContent.startsWith("2"));
+    await page.selectOption("#application-status", "reviewing");
+    await page.getByRole("button", { name: "Update status" }).click();
+    await page.waitForFunction(() => document.querySelector('aside [data-new-applications]')?.textContent.startsWith("1"));
+    expect(await count.innerText()).toMatch(/^1/);
+    await context.close();
+  });
+
+  it("downloads the CV as a file through the signed-in session, and records the download", async () => {
+    const { page, context, problems } = await dashboard(`#/applications/${OMAR}`);
+    await page.waitForSelector("#application-status");
+    const before = await page.locator(".d-timeline > li").count();
+    const [download] = await Promise.all([
+      page.waitForEvent("download"),
+      page.getByRole("button", { name: "Download CV" }).click(),
+    ]);
+    expect(download.suggestedFilename()).toBe("Omar-Haddad-CV.docx");
+    // It is handed over as a file made in the page, not as an address anyone could open.
+    expect(download.url()).toMatch(/^blob:/);
+    await page.waitForFunction((count) => document.querySelectorAll(".d-timeline > li").length === count + 1, before);
+    expect(await page.locator(".d-timeline > li").first().innerText()).toContain("CV downloaded");
+    expect(await page.locator('main#main a[href*="cv"], main#main a[download]').count()).toBe(0);
+    expect(problems).toEqual([]);
+    await context.close();
+  });
+
+  it("says when there is no CV, and when the notification email did not go out", async () => {
+    const { page, context } = await dashboard("#/applications/00000000-0000-4000-8000-000000000006");
+    await page.waitForSelector("#application-status");
+    const text = await page.locator("main#main").innerText();
+    expect(text).toContain("No CV was uploaded with this application.");
+    expect(text).toContain("The notification email for this application could not be sent.");
+    expect(text).toContain("Notification email could not be sent");
+    expect(text).toMatch(/Authorized to work in the US\s+No/);
+    expect(await page.getByRole("button", { name: "Download CV" }).count()).toBe(0);
+    await context.close();
+  });
+
+  it("explains an application that is no longer there, and an address that is not one", async () => {
+    const { page, context } = await dashboard("#/applications/00000000-0000-4000-8000-00000000ffff");
+    await page.waitForSelector("text=This application does not exist");
+    await page.evaluate(() => { location.hash = "#/applications/not-an-id"; });
+    await page.waitForSelector("text=Page not found");
+    await context.close();
+  });
+
+  it("keeps no applicant's details in the browser after the page is left", async () => {
+    const { page, context } = await dashboard(`#/applications/${OMAR}`);
+    await page.waitForSelector("#application-status");
+    await page.locator('aside a[data-nav="#/items"]').click();
+    await waitForRows(page, 12);
+    const kept = await page.evaluate(() => JSON.stringify([{ ...window.localStorage }, { ...window.sessionStorage }, document.cookie]));
+    expect(kept).not.toMatch(/omar|haddad|example\.test/i);
+    expect(await page.locator("body").innerText()).not.toMatch(/omar/i);
+    await context.close();
+  });
+});
+
 describe("accessibility of each dashboard screen", () => {
   it.each([
     ["overview", "#/", 'a[href="#/items"]'],
+    ["applications", "#/applications", "table.d-table tbody tr"],
+    ["an application", "#/applications/00000000-0000-4000-8000-000000000004", "#application-status"],
     ["items", "#/items", "table.d-table tbody tr"],
     ["categories", "#/categories", "main#main ol > li"],
     ["modifiers", "#/modifiers", "main#main section.d-card"],
@@ -571,6 +772,24 @@ describe("on a phone", () => {
     await context.close();
   });
 
+  it("shows applications as cards, opens one and changes its status", async () => {
+    const { page, context } = await dashboard("#/applications", phone);
+    await page.waitForSelector("main#main ul > li.d-card");
+    expect(await page.locator("table.d-table").isVisible()).toBe(false);
+    expect(await page.locator("main#main ul > li.d-card").count()).toBe(6);
+    await page.locator("main#main ul > li.d-card", { hasText: "Priya Nair" }).getByRole("link", { name: /Open/ }).click();
+    await page.waitForSelector("#application-status");
+    await page.selectOption("#application-status", "shortlisted");
+    await page.getByRole("button", { name: "Update status" }).click();
+    await page.waitForFunction(() => document.querySelector(".d-timeline > li")?.textContent.includes("to Shortlisted"));
+    // Every control on the page is big enough for a thumb, as elsewhere in the dashboard.
+    const small = await page.evaluate(() =>
+      [...document.querySelectorAll("main#main button, main#main select, main#main textarea, main#main a.d-btn")]
+        .filter((node) => node.getClientRects().length > 0 && node.getBoundingClientRect().height < 36).length);
+    expect(small).toBe(0);
+    await context.close();
+  });
+
   it("keeps the save button on screen while editing", async () => {
     const { page, context } = await dashboard("#/items/SAMPLEITEM005", phone);
     await page.waitForSelector("#name");
@@ -586,6 +805,7 @@ describe("on a phone", () => {
   it.each([
     ["overview", "#/"], ["items", "#/items"], ["item editor", "#/items/SAMPLEITEM005"], ["new item", "#/items/new"],
     ["categories", "#/categories"], ["modifiers", "#/modifiers"], ["Clover", "#/clover"], ["activity", "#/activity"],
+    ["applications", "#/applications"], ["an application", "#/applications/00000000-0000-4000-8000-000000000004"],
   ])("%s fits every screen width from 360px to 1440px without sideways scrolling", async (_name, hash) => {
     const { page, context } = await dashboard(hash, { width: 360, height: 800 });
     for (const width of VIEWPORT_WIDTHS) {

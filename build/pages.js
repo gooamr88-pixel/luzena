@@ -41,7 +41,7 @@ export const PAGES = [
   {
     id: "contact", file: "contact/index.html", path: "/contact/",
     title: (site) => `Contact | ${site.fullName}`,
-    description: (site) => `Call, email or visit ${site.fullName}. Phone, address and opening hours.`,
+    description: (site) => `Call or visit ${site.fullName}. Phone, address and opening hours.`,
   },
   {
     id: "careers", file: "careers/index.html", path: "/careers/",

@@ -1,5 +1,5 @@
 // Pure logic used by the pages and the build: money, hours, content validation, SEO.
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   APP_DIR, CONFIG_PATH, DOMAIN, nginxConfig, OLD_DOMAIN, REDIRECT_CONFIG_PATH, redirectConfig,
@@ -90,14 +90,41 @@ describe("the restaurant's confirmed details", () => {
     expect(JSON.stringify(site)).not.toMatch(/luznarestaurant/i);
   });
 
-  it("has the confirmed address, phone, email and map link", () => {
+  it("has the confirmed address, phone and map link", () => {
     expect(location.addressLine).toBe("315 El Cajon Blvd, El Cajon, CA, 92020");
     expect(location.cityLine).toBe("El Cajon, CA 92020");
     expect(location.country).toBe("US");
     expect(location.phone).toBe("+1 619-499-5779");
     expect(location.phoneHref).toBe("tel:+16194995779");
-    expect(location.email.toLowerCase()).toBe("fadi.auchi@gmail.com");
     expect(location.directionsUrl).toBe("https://maps.app.goo.gl/WTwNqRWv3dyaetAQ8");
+  });
+
+  // The address that job applications are reported to is the owner's own inbox. It is kept
+  // on the server, in the restaurant's row in the database, and is no part of the website:
+  // not in the content the pages are built from, and so not in a page, a link or the data
+  // given to search engines.
+  it("publishes no email address: the one applications are reported to stays on the server", () => {
+    expect(location.email).toBeNull();
+    const raw = readFileSync(new URL("../content/site.json", import.meta.url), "utf8");
+    expect(JSON.stringify(site) + raw).not.toMatch(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+    expect(JSON.stringify(restaurantJsonLd(site, {}))).not.toMatch(/email|@gmail/i);
+  });
+
+  // The dashboard and the server word an application's answers and stages from two lists
+  // that cannot share a file (one runs in the browser, one in the Edge Functions).
+  it("words job application answers the same in the dashboard as on the server", async () => {
+    const server = await import("../supabase/functions/_shared/public/application-fields.ts");
+    const browser = await import("../src/js/lib/application.js");
+    expect(browser.LABELS).toEqual(server.LABELS);
+    expect(browser.STATUSES).toEqual([...server.STATUSES]);
+    // Every choice the server accepts is one the form offers, and the other way round.
+    const form = readFileSync(new URL("../careers/index.html", import.meta.url), "utf8");
+    const offered = (name) => [...form.matchAll(new RegExp(`name="${name}"[^>]*>([\\s\\S]*?)</select>`, "g"))]
+      .flatMap((match) => [...match[1].matchAll(/<option value="([^"]+)"/g)].map((option) => option[1]));
+    expect(offered("employment_type")).toEqual([...server.EMPLOYMENT_TYPES]);
+    expect(offered("start_when")).toEqual([...server.START_WHEN]);
+    expect(offered("experience_level")).toEqual([...server.EXPERIENCE_LEVELS]);
+    expect([...form.matchAll(/name="availability" value="([^"]+)"/g)].map((match) => match[1])).toEqual([...server.AVAILABILITY]);
   });
 
   it("has the confirmed opening hours", () => {
@@ -149,7 +176,7 @@ describe("content gate", () => {
     const site = structuredClone(loadContent("sample").site);
     // Start from content with no images and no sample link, so only the change under test
     // can produce an error.
-    Object.assign(site, { logo: null, ogImage: null, gallery: [] });
+    Object.assign(site, { logo: null, ogImage: null, gallery: [], defaultDishPhotos: [] });
     site.hero.image = null;
     site.about.image = null;
     site.careers.image = null;
@@ -190,6 +217,11 @@ describe("content gate", () => {
     expect(errors.join("\n")).toMatch(/hero\.image: file "hero\.jpg" not found/);
   });
 
+  it("refuses a default dish photo that is not in the media folder", () => {
+    const { errors } = withChanges((site) => { site.defaultDishPhotos = ["missing.jpg"]; });
+    expect(errors.join("\n")).toMatch(/defaultDishPhotos\[0\]: file "missing\.jpg" not found/);
+  });
+
   it("still requires a listed location to be complete", () => {
     const { errors } = withChanges((site) => {
       site.locations[0].phone = "";
@@ -210,19 +242,32 @@ describe("content gate", () => {
     expect(sample.fullName).toBe(real.fullName);
     expect(sample.about.paragraphs).toEqual(real.about.paragraphs);
     expect(sample.careers.positions.length).toBe(real.careers.positions.length);
-    // The real location keeps its real address and hours; the sample only adds a photo.
+    // The real location keeps its real address and hours; the sample only changes its photo.
     expect(sample.locations).toHaveLength(real.locations.length);
     expect(sample.primaryLocation.street).toBe(real.primaryLocation.street);
     expect(sample.primaryLocation.phone).toBe(real.primaryLocation.phone);
     expect(sample.primaryLocation.hoursSummary).toEqual(real.primaryLocation.hoursSummary);
     expect(sample.primaryLocation.image).toBe("location.jpg");
-    expect(real.primaryLocation.image).toBeNull();
+    expect(real.primaryLocation.image).toBe("placeholder-location.jpg");
   });
 
-  it("keeps sample photos and sample links out of the real content", () => {
+  // Until the restaurant's own photos arrive, the real content shows placeholder photos.
+  // They are named placeholder-* so that none can be mistaken for a real photo, and each
+  // must exist in content/media. When a real photo replaces one, allow its name here.
+  it("names only placeholder photos in the real content, and no sample link", () => {
     const real = loadContent("production", {}).site;
-    expect([real.hero.image, real.about.image, real.ogImage, real.careers.image]).toEqual([null, null, null, null]);
-    expect(real.gallery).toEqual([]);
+    const photos = [
+      real.hero.image, real.about.image, ...real.locations.map((location) => location.image),
+      ...real.gallery.map((entry) => entry.image), ...real.defaultDishPhotos,
+    ];
+    expect(photos.length).toBeGreaterThan(8);
+    for (const name of photos) {
+      expect(name).toMatch(/^placeholder-[a-z0-9-]+\.jpg$/);
+      expect(existsSync(new URL(`../content/media/${name}`, import.meta.url)), name).toBe(true);
+    }
+    expect(real.gallery.every((entry) => entry.alt.length > 10)).toBe(true);
+    // The share image stays the one made from the logo, and the careers photo stays out.
+    expect([real.ogImage, real.careers.image]).toEqual([null, null]);
     expect(JSON.stringify(real)).not.toMatch(/example\.com|sample/i);
   });
 

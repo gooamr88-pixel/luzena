@@ -53,6 +53,13 @@ export function createDeps(): { deps: Deps; storagePublicBase: string } {
         const { error } = await client.storage.from(bucket).remove(paths);
         if (error) throw new Error(`Storage remove failed: ${error.message}`);
       },
+      async download(bucket, path) {
+        const { data, error } = await client.storage.from(bucket).download(path);
+        // A missing file and a failed read arrive here the same way, so the caller's message
+        // covers both.
+        if (error || !data) return null;
+        return new Uint8Array(await data.arrayBuffer());
+      },
     },
     auth: {
       // Verifies the JWT with Supabase Auth and returns the user it belongs to.

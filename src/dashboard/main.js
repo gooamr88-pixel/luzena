@@ -4,6 +4,7 @@ import { api, ApiFailure, explain } from "./api.js";
 import { state } from "./state.js";
 import { append, clear, h, icon, loadingBlock, stateBlock, toast } from "./ui.js";
 import { activityView } from "./views/activity.js";
+import { applicationDetailView, applicationsView } from "./views/applications.js";
 import { categoriesView } from "./views/categories.js";
 import { cloverView, completeCloverReturn } from "./views/clover.js";
 import { itemEditorView } from "./views/item-editor.js";
@@ -21,6 +22,7 @@ const NAV = [
   { href: "#/items", label: "Items", icon: "items", match: /^#\/items/ },
   { href: "#/categories", label: "Categories", icon: "categories", match: /^#\/categories/ },
   { href: "#/modifiers", label: "Modifiers", icon: "modifiers", match: /^#\/modifiers/ },
+  { href: "#/applications", label: "Applications", icon: "applications", match: /^#\/applications/, permission: "applications.read", count: true },
   { href: "#/clover", label: "Clover", icon: "clover", match: /^#\/clover/ },
   { href: "#/activity", label: "Activity", icon: "activity", match: /^#\/activity/, permission: "activity.read" },
 ];
@@ -32,6 +34,8 @@ const ROUTES = [
   { pattern: /^#\/items\/([A-Z0-9]{13})$/, view: (outlet, match) => itemEditorView(outlet, match[1], null) },
   { pattern: /^#\/categories$/, view: categoriesView },
   { pattern: /^#\/modifiers$/, view: modifiersView },
+  { pattern: /^#\/applications$/, view: applicationsView },
+  { pattern: /^#\/applications\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/, view: applicationDetailView },
   { pattern: /^#\/clover$/, view: cloverView },
   { pattern: /^#\/activity$/, view: activityView },
 ];
@@ -47,7 +51,28 @@ function navLinks(onNavigate) {
   return h("ul", { class: "space-y-1" }, NAV
     .filter((entry) => !entry.permission || state.me.permissions.includes(entry.permission))
     .map((entry) => h("li", {}, h("a", { href: entry.href, class: "d-nav-link", dataset: { nav: entry.href }, onClick: onNavigate },
-      icon(entry.icon), entry.label))));
+      icon(entry.icon), entry.label,
+      // How many job applications nobody has looked at yet. Filled in by showNewApplications.
+      entry.count && h("span", { class: "d-nav-count", dataset: { newApplications: "" }, hidden: true })))));
+}
+
+// Puts the number of new applications beside "Applications" in the sidebar and the drawer.
+// Given no number, it asks the server. A failure only leaves the number out.
+async function showNewApplications(count) {
+  if (!state.me?.permissions.includes("applications.read")) return;
+  let total = count;
+  if (typeof total !== "number") {
+    try {
+      total = (await api("GET", "/applications/summary")).new;
+    } catch {
+      return;
+    }
+  }
+  for (const node of document.querySelectorAll("[data-new-applications]")) {
+    clear(node);
+    node.hidden = !(total > 0);
+    if (total > 0) append(node, String(total), h("span", { class: "sr-only" }, total === 1 ? " new application" : " new applications"));
+  }
 }
 
 function markCurrentNav() {
@@ -60,12 +85,21 @@ function markCurrentNav() {
 }
 
 function renderShell() {
-  const drawer = h("dialog", { class: "d-drawer", "aria-label": "Navigation" },
-    h("div", { class: "flex h-full flex-col p-4" },
-      h("div", { class: "mb-4 flex items-center justify-between" },
-        h("p", { class: "font-semibold" }, state.me.restaurant.name),
+  // The site's logo when there is one; the restaurant's name otherwise. On the dark sidebar
+  // and drawer the logo is shown in white, as in the public site's header.
+  const logo = document.documentElement.dataset.logo;
+  const brand = (size) => (logo
+    ? h("img", { src: logo, alt: state.me.restaurant.name, class: `d-logo-light w-auto self-start ${size}` })
+    : h("p", { class: "truncate font-display text-2xl" }, state.me.restaurant.name));
+  const websiteLink = () => h("a", { href: "/", target: "_blank", rel: "noopener", class: "d-nav-link" }, icon("external"), "View website");
+
+  const drawer = h("dialog", { class: "d-drawer d-dark", "aria-label": "Navigation" },
+    h("div", { class: "d-sidebar flex h-full flex-col px-4 py-5" },
+      h("div", { class: "mb-6 flex items-center justify-between gap-3 pl-3" },
+        brand("h-10"),
         h("button", { type: "button", class: "d-icon-btn", "aria-label": "Close navigation", onClick: () => drawer.close() }, icon("close"))),
-      h("nav", { "aria-label": "Dashboard" }, navLinks(() => drawer.close()))));
+      h("nav", { "aria-label": "Dashboard" }, navLinks(() => drawer.close())),
+      h("div", { class: "mt-auto border-t border-line pt-4" }, websiteLink())));
 
   const signOut = async () => {
     if (state.leaveGuard && !(await state.leaveGuard())) return;
@@ -75,26 +109,25 @@ function renderShell() {
 
   // Focus moves here after each navigation so screen readers start at the new page. It is
   // a container, not a control, so it shows no focus ring.
-  outlet = h("main", { id: "main", class: "mx-auto w-full max-w-6xl px-4 py-6 outline-none sm:px-6 lg:px-8", tabindex: "-1" });
+  outlet = h("main", { id: "main", class: "mx-auto w-full max-w-6xl px-4 py-7 outline-none sm:px-6 sm:py-9 lg:px-8", tabindex: "-1" });
+  const email = state.me.user.email ?? "";
   clear(app);
-  append(app, 
-    h("a", { href: "#main", class: "sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded focus:bg-text focus:px-3 focus:py-2 focus:text-white" }, "Skip to content"),
+  append(app,
+    h("a", { href: "#main", class: "sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:bg-gold focus:px-3 focus:py-2 focus:font-semibold focus:text-night" }, "Skip to content"),
     h("div", { class: "flex min-h-dvh" },
-      h("aside", { class: "sticky top-0 hidden h-dvh w-60 shrink-0 flex-col border-r border-line bg-surface p-4 lg:flex" },
-        // The site's logo when there is one; the restaurant's name otherwise.
-        document.documentElement.dataset.logo
-          ? h("img", { src: document.documentElement.dataset.logo, alt: state.me.restaurant.name, class: "mx-3 mb-2 h-12 w-auto self-start" })
-          : h("p", { class: "truncate px-3 text-lg font-semibold" }, state.me.restaurant.name),
-        h("p", { class: "mb-5 px-3 text-[0.7rem] font-semibold tracking-widest text-muted uppercase" }, "Dashboard"),
+      h("aside", { class: "d-sidebar d-dark sticky top-0 hidden h-dvh w-60 shrink-0 flex-col px-3 py-6 lg:flex" },
+        h("div", { class: "px-3" }, brand("h-12")),
+        h("p", { class: "d-section-title mt-4 mb-6 px-3" }, "Dashboard"),
         h("nav", { "aria-label": "Dashboard" }, navLinks()),
-        h("div", { class: "mt-auto border-t border-line pt-3" },
-          h("a", { href: "/", target: "_blank", rel: "noopener", class: "d-nav-link" }, icon("external"), "View website"))),
+        h("div", { class: "mt-auto border-t border-line pt-4" }, websiteLink())),
       h("div", { class: "flex min-w-0 flex-1 flex-col" },
-        h("header", { class: "sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-line bg-surface px-4 sm:px-6" },
-          h("button", { type: "button", class: "d-icon-btn lg:hidden", "aria-label": "Open navigation", onClick: () => drawer.showModal() }, icon("menu")),
-          h("p", { class: "truncate font-semibold lg:hidden" }, state.me.restaurant.name),
+        h("header", { class: "d-topbar" },
+          h("button", { type: "button", class: "d-icon-btn -ml-2 lg:hidden", "aria-label": "Open navigation", onClick: () => drawer.showModal() }, icon("menu")),
+          h("p", { class: "truncate font-display text-[1.2rem] lg:hidden" }, state.me.restaurant.name),
           h("div", { class: "ml-auto flex items-center gap-3" },
-            h("span", { class: "hidden max-w-56 truncate text-sm text-muted sm:block", title: state.me.user.email ?? "" }, state.me.user.email ?? ""),
+            // The account that is signed in: its initial in a ring, then the address.
+            email && h("span", { class: "hidden size-8 shrink-0 items-center justify-center rounded-full border border-brand/35 text-[0.8rem] font-semibold text-brand uppercase sm:flex", "aria-hidden": "true" }, email[0]),
+            h("span", { class: "hidden max-w-56 truncate text-sm text-muted sm:block", title: email }, email),
             h("button", { type: "button", class: "d-btn d-btn-sm", onClick: signOut }, "Sign out"))),
         state.demo && h("p", { class: "border-b border-warn/30 bg-warn-bg px-4 py-2 text-center text-sm font-medium text-warn sm:px-6" },
           "Demo mode. Sample data only: not connected to Clover or a database, and nothing is saved."),
@@ -150,6 +183,7 @@ async function startSession() {
   if (recovering) return;
 
   renderShell();
+  showNewApplications();
 
   // Returning from Clover's authorisation page: ?code=...&merchant_id=...
   const returned = new URLSearchParams(location.search);
@@ -215,6 +249,7 @@ async function boot() {
   });
 
   window.addEventListener("hashchange", () => { if (state.me) route(); });
+  window.addEventListener("applications-changed", (event) => { if (state.me) showNewApplications(event.detail); });
   window.addEventListener("beforeunload", (event) => {
     if (state.leaveGuard) event.preventDefault();
   });

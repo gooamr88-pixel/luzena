@@ -38,10 +38,10 @@
 
         {{#if site.primaryLocation}}
         <aside class="panel self-start" aria-label="Restaurant details">
-          <h2 class="font-sans text-xs font-semibold tracking-[0.22em] text-olive uppercase">Find us</h2>
+          <h2 class="eyebrow font-sans">Find us</h2>
           <address class="mt-4 text-lg leading-relaxed text-ink not-italic">{{site.primaryLocation.street}}<br>{{site.primaryLocation.cityLine}}</address>
           <p class="mt-3"><a href="{{site.primaryLocation.phoneHref}}" class="text-link">{{site.primaryLocation.phone}}</a></p>
-          <h2 class="mt-8 font-sans text-xs font-semibold tracking-[0.22em] text-olive uppercase">Opening hours</h2>
+          <h2 class="mt-8 eyebrow font-sans">Opening hours</h2>
           <div class="mt-3">{{> hours site.primaryLocation}}</div>
         </aside>
         {{/if}}

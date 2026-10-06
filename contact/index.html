@@ -19,22 +19,22 @@
       <div class="container-x grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {{#each site.locations}}
         <div class="panel">
-          <h2 class="font-sans text-xs font-semibold tracking-[0.22em] text-olive uppercase">Call us</h2>
+          <h2 class="eyebrow font-sans">Call us</h2>
           <p class="mt-4 font-display text-3xl text-ink"><a href="{{phoneHref}}" class="hover:text-brand">{{phone}}</a></p>
           {{#if email}}
-          <h2 class="mt-8 font-sans text-xs font-semibold tracking-[0.22em] text-olive uppercase">Email</h2>
+          <h2 class="mt-8 eyebrow font-sans">Email</h2>
           <p class="mt-3"><a href="mailto:{{email}}" class="text-link break-all">{{email}}</a></p>
           {{/if}}
         </div>
 
         <div class="panel">
-          <h2 class="font-sans text-xs font-semibold tracking-[0.22em] text-olive uppercase">Find us</h2>
+          <h2 class="eyebrow font-sans">Find us</h2>
           <address class="mt-4 text-lg leading-relaxed text-ink not-italic">{{street}}<br>{{cityLine}}</address>
           <a href="{{directionsUrl}}" class="btn btn-outline mt-6" target="_blank" rel="noopener">Get directions<span class="sr-only"> (opens in a new tab)</span></a>
         </div>
 
         <div class="panel md:col-span-2 lg:col-span-1">
-          <h2 class="font-sans text-xs font-semibold tracking-[0.22em] text-olive uppercase">Opening hours</h2>
+          <h2 class="eyebrow font-sans">Opening hours</h2>
           <div class="mt-3">{{> hours}}</div>
         </div>
         {{/each}}
@@ -55,7 +55,7 @@
 
       {{#if site.socialLinks.length}}
       <div class="container-x mt-12">
-        <h2 class="font-sans text-xs font-semibold tracking-[0.22em] text-olive uppercase">Follow us</h2>
+        <h2 class="eyebrow font-sans">Follow us</h2>
         <ul class="mt-4 flex flex-wrap gap-3">
           {{#each site.socialLinks}}<li><a href="{{url}}" class="chip" target="_blank" rel="noopener">{{label}}<span class="sr-only"> (opens in a new tab)</span></a></li>{{/each}}
         </ul>

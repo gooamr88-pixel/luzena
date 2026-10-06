@@ -22,6 +22,7 @@ export function mediaNames(site) {
     site.hero?.image, site.about?.image, site.ogImage, site.logo, site.careers?.image,
     ...(site.locations ?? []).map((location) => location.image),
     ...(site.gallery ?? []).map((entry) => entry.image),
+    ...(Array.isArray(site.defaultDishPhotos) ? site.defaultDishPhotos : []),
   ].filter((name) => typeof name === "string" && name !== "");
 }
 
@@ -133,6 +134,14 @@ export function pictureHtml(manifest, name, options = {}) {
     ">",
     "</picture>",
   ].join("");
+}
+
+// The JPEG of a photo at the smallest built width that is at least `width`, or the largest
+// one there is. For the places that need a plain address rather than a <picture>.
+export function jpegNear(manifest, name, width) {
+  const entry = manifest[name];
+  if (!entry || entry.vector) return null;
+  return (entry.variants.find((variant) => variant.width >= width) ?? entry.variants[entry.variants.length - 1]).jpg;
 }
 
 export function largestJpeg(manifest, name) {

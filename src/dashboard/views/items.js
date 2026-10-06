@@ -34,7 +34,7 @@ export async function itemsView(outlet, _match, query) {
   let categories = [];
 
   const listRegion = h("div", { "aria-live": "polite" });
-  const bulkBar = h("div", { class: "d-card mb-3 flex flex-wrap items-center gap-2 border-accent p-3", hidden: true });
+  const bulkBar = h("div", { class: "d-card mb-3 flex flex-wrap items-center gap-2 border-gold bg-[#fbf5ea] p-3", hidden: true });
   const toolbar = h("div", { class: "d-card mb-4 p-3" });
 
   append(outlet, 
@@ -61,7 +61,7 @@ export async function itemsView(outlet, _match, query) {
   const categorySelect = select("Category", "category", categoryChoices());
 
   function drawToolbar() {
-    const search = h("input", { class: "d-input", type: "search", placeholder: "Search items or categories", "aria-label": "Search items", value: filters.search, maxlength: 100 });
+    const search = h("input", { class: "d-input col-span-2 lg:col-span-1", type: "search", placeholder: "Search items or categories", "aria-label": "Search items", value: filters.search, maxlength: 100 });
     let timer;
     search.addEventListener("input", () => {
       clearTimeout(timer);
@@ -72,13 +72,17 @@ export async function itemsView(outlet, _match, query) {
       }, 300);
     });
     clear(toolbar);
-    append(toolbar, h("div", { class: "grid gap-2 sm:grid-cols-2 lg:grid-cols-[2fr_repeat(5,1fr)]" },
+    const sortSelect = select("Sort", "sort", SORTS);
+    sortSelect.classList.add("col-span-2", "lg:col-span-1");
+    // Search and sort take a full row on phones and tablets, with the four filters two to a
+    // row between them; three to a row on a laptop; all six in one row on a wide screen.
+    append(toolbar, h("div", { class: "grid grid-cols-2 gap-2 lg:grid-cols-3 2xl:grid-cols-[1.8fr_repeat(5,1fr)]" },
       search,
       categorySelect,
       select("Availability", "availability", [["", "Any stock"], ["available", "In stock"], ["unavailable", "Out of stock"]]),
       select("Visibility", "visibility", [["", "Any visibility"], ["visible", "On website"], ["hidden", "Hidden"]]),
       select("Status", "status", [["active", "Active"], ["archived", "Archived"], ["removed", "Removed in Clover"]]),
-      select("Sort", "sort", SORTS)));
+      sortSelect));
   }
 
   function drawBulkBar() {
@@ -154,8 +158,8 @@ export async function itemsView(outlet, _match, query) {
       return box;
     },
     thumb: () => item.image_path
-      ? h("img", { src: imageUrl(item.image_path), alt: "", width: 40, height: 40, loading: "lazy", class: "size-10 rounded object-cover" })
-      : h("div", { class: "flex size-10 items-center justify-center rounded bg-canvas text-line-strong" }, icon("image")),
+      ? h("img", { src: imageUrl(item.image_path), alt: "", width: 40, height: 40, loading: "lazy", class: "size-10 rounded-md object-cover" })
+      : h("div", { class: "flex size-10 items-center justify-center rounded-md bg-sand text-line-strong" }, icon("image")),
     labels: () => [
       item.featured && badge("Featured", "info"),
       item.hidden && badge("Hidden in Clover", "warn"),
@@ -207,39 +211,43 @@ export async function itemsView(outlet, _match, query) {
       draw();
     });
 
-    const table = h("div", { class: "d-card hidden overflow-x-auto md:block" },
+    const table = h("div", { class: "d-card hidden overflow-x-auto xl:block" },
       h("table", { class: "d-table" },
         h("caption", { class: "sr-only" }, "Menu items"),
         h("thead", {}, h("tr", {},
           writable && h("th", { scope: "col", class: "w-10" }, selectAll),
           h("th", { scope: "col", class: "w-14" }, h("span", { class: "sr-only" }, "Photo")),
-          ["Item", "Category", "Price", "In stock", "On website", "Updated"].map((title) => h("th", { scope: "col" }, title)),
+          ["Item", "Category", "Price", "In stock", "On website"].map((title) => h("th", { scope: "col" }, title)),
+          // The first column to go when the table runs out of room.
+          h("th", { scope: "col", class: "hidden 2xl:table-cell" }, "Updated"),
           h("th", { scope: "col", class: "text-right" }, "Actions"))),
         h("tbody", {}, data.items.map((item) => {
           const c = controls(item);
           return h("tr", {},
             writable && h("td", {}, c.select()),
             h("td", {}, c.thumb()),
-            h("th", { scope: "row", class: "border-b border-line px-3 py-2.5 text-left font-medium" },
-              h("a", { href: `#/items/${item.id}`, class: "hover:underline" }, item.name),
+            h("th", { scope: "row", class: "text-left font-semibold" },
+              h("a", { href: `#/items/${item.id}`, class: "hover:text-brand hover:underline" }, item.name),
               h("div", { class: "mt-1 flex flex-wrap gap-1 empty:hidden" }, c.labels())),
             h("td", { class: "text-muted" }, c.categories()),
             h("td", { class: "whitespace-nowrap tabular-nums" }, c.price()),
             h("td", {}, c.available()),
             h("td", {}, c.visible()),
-            h("td", { class: "whitespace-nowrap text-muted" }, timeAgo(item.updated_at)),
+            h("td", { class: "hidden whitespace-nowrap text-muted 2xl:table-cell" }, timeAgo(item.updated_at)),
             h("td", {}, c.actions()));
         }))));
 
-    // Phones get cards, not a squeezed table: every control keeps a full-size touch target.
-    const cards = h("ul", { class: "space-y-3 md:hidden" }, data.items.map((item) => {
+    // Phones, tablets and small laptops get cards, not a squeezed table: every control keeps
+    // a full-size touch target and no name or action wraps. Two to a row from 768px.
+    const cards = h("ul", { class: "grid gap-3 md:grid-cols-2 xl:hidden" }, data.items.map((item) => {
       const c = controls(item);
-      return h("li", { class: "d-card p-4" },
-        h("div", { class: "flex items-start gap-3" },
+      // The top of the card grows, so the switches and buttons line up across a row of cards.
+      return h("li", { class: "d-card flex flex-col p-4" },
+        h("div", { class: "flex flex-1 items-start gap-3" },
           writable && h("div", { class: "pt-1" }, c.select()),
           c.thumb(),
           h("div", { class: "min-w-0 flex-1" },
-            h("a", { href: `#/items/${item.id}`, class: "font-semibold hover:underline" }, item.name),
+            h("a", { href: `#/items/${item.id}`, class: "font-semibold hover:text-brand hover:underline" }, item.name),
             h("p", { class: "text-sm text-muted" }, `${c.categories()}${c.price() ? `, ${c.price()}` : ""}`),
             h("div", { class: "mt-1.5 flex flex-wrap gap-1 empty:hidden" }, c.labels()))),
         h("div", { class: "mt-3 grid grid-cols-2 gap-3 border-t border-line pt-3 text-sm" },

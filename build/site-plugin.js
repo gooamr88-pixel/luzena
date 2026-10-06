@@ -4,7 +4,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, relative, resolve } from "node:path";
 import Handlebars from "handlebars";
 import { ROOT, loadContent } from "./content.js";
-import { buildMedia, cacheDir, largestJpeg, pictureHtml } from "./media.js";
+import { buildMedia, cacheDir, jpegNear, largestJpeg, pictureHtml } from "./media.js";
 import { PAGES, pageMeta } from "./pages.js";
 import { jsonLdScript, restaurantJsonLd, robotsTxt, sitemapXml } from "./seo.js";
 
@@ -45,9 +45,11 @@ export function sitePlugin({ profile, strict, supabaseUrl, demoDashboard = false
         loading: options.hash.loading, fetchpriority: options.hash.fetchpriority,
       })));
     engine.registerHelper("eq", (a, b) => a === b);
+    engine.registerHelper("or", (a, b) => a || b);
     engine.registerHelper("inc", (value) => Number(value) + 1);
     // URL of a vector file (the logo) for places that need a plain address, not a <picture>.
     engine.registerHelper("mediaUrl", (name) => manifest[name]?.url ?? "");
+    engine.registerHelper("photoUrl", (name, width) => jpegNear(manifest, name, width) ?? "");
     engine.registerHelper("first", (list, count) => (Array.isArray(list) ? list.slice(0, count) : []));
 
     const page = PAGES.find((entry) => entry.file === file);

@@ -89,6 +89,11 @@ export const launchBrowser = () => chromium.launch({ executablePath: findChromiu
 // error responses for sub-resources.
 export async function openPage(browser, url, { width = 1280, height = 900, allowRequestFailures = [] } = {}) {
   const context = await browser.newContext({ viewport: { width, height } });
+  // The map on the home and locations pages is Google's own page in a frame. The tests
+  // answer for it with an empty page, so they check this site's markup and layout and do not
+  // pass or fail with Google or with the network.
+  await context.route("https://www.google.com/**", (route) =>
+    route.fulfill({ status: 200, contentType: "text/html", body: '<!doctype html><html lang="en"><title>Map</title><body></body></html>' }));
   const page = await context.newPage();
   // A cold browser on a busy machine has been seen to take over a minute to load one page
   // and ten seconds to answer a click. The defaults (30 s) turned that into false failures.

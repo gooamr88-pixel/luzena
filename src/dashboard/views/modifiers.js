@@ -138,9 +138,9 @@ export async function modifiersView(outlet) {
     }
     append(region, h("div", { class: "grid items-start gap-4 lg:grid-cols-2" }, groups.map((group) =>
       h("section", { class: "d-card", "aria-labelledby": `group-${group.id}` },
-        h("div", { class: "flex flex-wrap items-start justify-between gap-3 border-b border-line p-4" },
+        h("div", { class: "flex flex-wrap items-start justify-between gap-3 border-b border-line p-4 sm:px-5" },
           h("div", {},
-            h("h2", { id: `group-${group.id}`, class: "text-base" }, group.name),
+            h("h2", { id: `group-${group.id}`, class: "d-title" }, group.name),
             h("p", { class: "mt-1 flex flex-wrap items-center gap-2 text-sm text-muted" },
               badge(ruleText(group), (group.min_required ?? 0) > 0 ? "info" : ""),
               `Used by ${group.item_count} ${group.item_count === 1 ? "item" : "items"}`)),
@@ -148,7 +148,7 @@ export async function modifiersView(outlet) {
         group.modifiers.length === 0
           ? h("p", { class: "p-4 text-sm text-muted" }, "No modifiers in this group yet.")
           : h("ul", { class: "divide-y divide-line" }, group.modifiers.map((modifier) =>
-              h("li", { class: "flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2.5" },
+              h("li", { class: "flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 sm:px-5" },
                 h("div", { class: "min-w-0 flex-1" },
                   h("p", { class: `truncate font-medium ${modifier.available ? "" : "text-muted line-through"}` }, modifier.name),
                   h("p", { class: "text-sm text-muted" }, modifier.price_cents > 0 ? `+${formatPrice(modifier.price_cents, currency(), state.locale)}` : "No extra charge")),
@@ -158,7 +158,7 @@ export async function modifiersView(outlet) {
                     onToggle: (next) => patchModifier(group, modifier, { available: next }).catch(toastFailure),
                   })),
                 writable && h("button", { type: "button", class: "d-btn d-btn-quiet d-btn-sm", onClick: () => editModifier(group, modifier) }, "Edit")))),
-        writable && h("div", { class: "border-t border-line p-3" },
+        writable && h("div", { class: "rounded-b-xl border-t border-line bg-canvas/60 p-3 sm:px-4" },
           h("button", { type: "button", class: "d-btn d-btn-quiet d-btn-sm", onClick: () => addModifier(group) }, icon("plus", 16), "Add modifier"))))));
   }
 
@@ -178,7 +178,7 @@ export async function modifiersView(outlet) {
       title: "Modifiers",
       actions: writable && h("button", { type: "button", class: "d-btn d-btn-primary", onClick: addGroup }, icon("plus", 16), "Add modifier group"),
     }),
-    h("p", { class: "mb-4 max-w-2xl text-sm text-muted" }, "Modifier groups and modifiers are stored in Clover. Assign a group to an item from the item's edit page. To take an option off the menu, switch it to unavailable."),
+    h("p", { class: "-mt-3 mb-6 max-w-2xl text-sm text-muted" }, "Modifier groups and modifiers are stored in Clover. Assign a group to an item from the item's edit page. To take an option off the menu, switch it to unavailable."),
     region,
   );
   await load();

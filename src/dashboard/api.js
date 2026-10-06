@@ -22,9 +22,10 @@ async function send(method, path, body, headers, token) {
   return fetch(`${state.apiBase}/dashboard-api${path}`, init);
 }
 
-export async function api(method, path, body, headers = {}) {
-  // Demo builds only (see demo.js). `state.demo` is never set in a production bundle.
-  if (state.demo) return state.demo(method, path, body);
+// Sends one request as the signed-in owner and returns the server's answer when it is a
+// success; anything else is thrown as an ApiFailure. A session that has just expired is
+// refreshed once and the request repeated.
+async function request(method, path, body, headers) {
   if (!navigator.onLine) {
     throw new ApiFailure(0, { code: "offline", message: "You are offline. Nothing was sent. Reconnect and try again.", retryable: true, clover_changed: false, local_changed: false });
   }
@@ -48,14 +49,37 @@ export async function api(method, path, body, headers = {}) {
       clover_changed: method === "GET" ? false : "unknown",
     });
   }
+  if (response.ok) return response;
 
   const payload = await response.json().catch(() => null);
   if (response.status === 401) {
     await state.supabase.auth.signOut();
     throw new ApiFailure(401, payload?.error ?? { code: "unauthenticated", message: "Your session has expired. Sign in again." });
   }
-  if (!response.ok) throw new ApiFailure(response.status, payload?.error);
-  return payload;
+  throw new ApiFailure(response.status, payload?.error);
+}
+
+export async function api(method, path, body, headers = {}) {
+  // Demo builds only (see demo.js). `state.demo` is never set in a production bundle.
+  if (state.demo) return state.demo(method, path, body);
+  const response = await request(method, path, body, headers);
+  return response.json().catch(() => null);
+}
+
+// Fetches a file that only a signed-in owner may have (an applicant's CV) and hands it to
+// the browser as a download. The file travels inside the authenticated request: it never
+// has an address of its own that could be copied, shared or guessed.
+export async function downloadFile(path, filename) {
+  const blob = state.demo ? await state.demo("GET", path) : await (await request("GET", path, undefined, {})).blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  // The browser has taken its copy by the next turn; the temporary address is then withdrawn.
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
 // One plain-language account of a failure: what failed, and what did or did not change.

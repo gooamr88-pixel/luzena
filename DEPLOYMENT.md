@@ -59,8 +59,9 @@ Three things follow from this and are worth keeping in mind:
 
 ## 1. Content
 
-1. `content/site.json` already holds the real name, address, phone, hours and text. Photos
-   are optional: when they arrive, put them in `content/media/` (see the README there).
+1. `content/site.json` already holds the real name, address, phone, hours and text. The
+   photos it names are placeholders (`content/media/placeholder-*.jpg`): when the real ones
+   arrive, put them in `content/media/` and replace each name (see the README there).
 2. Run `npm run check:content`. It must end with "All required content is present."
 
 `npm run build` runs the same check and stops if anything required is missing, or if the

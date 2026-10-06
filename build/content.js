@@ -122,6 +122,11 @@ export function validateContent(site, mediaDir, { profile = "production" } = {})
         if (!/^https:\/\//.test(location.mapsUrl)) errors.push(`${at}.mapsUrl must start with https://`);
         else if (production && isPlaceholderUrl(location.mapsUrl)) errors.push(`${at}.mapsUrl is a placeholder address`);
       }
+      // The map is Google's page in a frame, and the site's security policy allows frames
+      // from www.google.com only (deploy/headers.json). Any other address would be blocked.
+      if (filled(location.mapsEmbedUrl) && !location.mapsEmbedUrl.startsWith("https://www.google.com/maps")) {
+        errors.push(`${at}.mapsEmbedUrl must be a Google Maps embed address starting with https://www.google.com/maps`);
+      }
       if (!location.geo) warnings.push(`${at}.geo is missing (latitude/longitude help local search)`);
       if (filled(location.image)) image(location.image, `${at}.image`);
     });
@@ -157,6 +162,13 @@ export function validateContent(site, mediaDir, { profile = "production" } = {})
       image(entry.image, `gallery[${index}].image`);
       if (!filled(entry.alt)) errors.push(`gallery[${index}].alt is missing (needed for screen readers)`);
     });
+  }
+
+  // Shown on the home page for a menu category or a featured dish without a photo of its own.
+  if (site.defaultDishPhotos !== undefined && !Array.isArray(site.defaultDishPhotos)) {
+    errors.push("defaultDishPhotos must be a list of file names");
+  } else {
+    (site.defaultDishPhotos ?? []).forEach((name, index) => image(name, `defaultDishPhotos[${index}]`));
   }
 
   const positions = site.careers?.positions ?? [];
@@ -289,6 +301,7 @@ export function loadContent(profile, env = process.env) {
       legal: { privacyUrl, privacyIsExternal: privacyUrl !== null && privacyUrl.startsWith("https://"), privacy: { updated: site.legal?.privacy?.updated ?? null, sections: privacySections } },
       locations,
       primaryLocation: locations[0] ?? null,
+      defaultDishPhotos: Array.isArray(site.defaultDishPhotos) ? site.defaultDishPhotos.filter(filled) : [],
       hasGallery,
       orderUrl,
       // Until Clover ordering is configured, ORDER ONLINE leads to the on-site page.

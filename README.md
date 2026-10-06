@@ -11,8 +11,8 @@ before the spelling was confirmed.)
 > menu, online ordering and online job applications are switched off until Clover, the
 > ordering link and the privacy policy exist. It has **never run against Clover**. The code
 > is on GitHub in a public repository. The real name, logo, address, phone, hours,
-> About text and job list are in place. Photos are postponed on purpose: the site is
-> designed to publish without them. What stands between here and a live site is listed in
+> About text and job list are in place. The restaurant's own photos have not arrived: placeholder
+> stock photos stand in for them on the live site (`content/media/README.md`). What stands between here and a live site is listed in
 > `BLOCKERS.md`; the order to do it in is `DEPLOYMENT_CHECKLIST.md`.
 
 ## Try it now
@@ -87,7 +87,8 @@ in `ARCHITECTURE.md`.
 - **For the live menu and the dashboard:** a Clover sandbox run of
   `CLOVER_SANDBOX_TEST_PLAN.md` before any real merchant is connected.
 - **For ORDER ONLINE:** the restaurant's Clover Online Ordering link.
-- **For online job applications:** a privacy policy, a retention period, and a Resend
+- **For online job applications** (the form, the dashboard's Applications section and the
+  notification email are built and tested; see `ARCHITECTURE.md`): a privacy policy, a retention period, and a Resend
   account with the domain verified.
 - **From the client, when convenient:** photos, approval of the written text, full-time or
   part-time for each role.
@@ -112,6 +113,8 @@ in `ARCHITECTURE.md`.
 ## Licence and third-party material
 
 Fonts (Playfair Display, Open Sauce One) are under the SIL Open Font Licence. The photos in
-`content/sample-media/` are template stock images for layout review only. They are read
-only by sample builds and must not be published; see the notice in that folder. On the
+`content/sample-media/` are template stock images, read only by sample builds. Copies of
+eight of them, `content/media/placeholder-*.jpg`, are published on the live site as
+placeholders until the restaurant's own photos arrive; their licence for publication was
+never checked. See the notices in both folders. On the
 server they exist only inside the repository checkout, which Nginx never serves.

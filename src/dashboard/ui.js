@@ -6,10 +6,18 @@ export { append, clear, h };
 
 const ICONS = {
   overview: "M4 13h6V4H4zm0 7h6v-5H4zm10 0h6v-9h-6zm0-16v5h6V4z",
-  items: "M4 6h16M4 12h16M4 18h10",
+  // Fork and knife, and the leaf: the same drawings as the public site uses.
+  items: "M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2M7 2v20M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3zm0 0v7",
+  leaf: "M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10zM2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12",
+  alert: "M12 9v4M12 17h.01M10.3 3.9L2.5 17.5a2 2 0 0 0 1.7 3h15.6a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z",
   categories: "M4 5h7v6H4zm9 0h7v6h-7zM4 13h7v6H4zm9 0h7v6h-7z",
   modifiers: "M5 7h14M5 12h9M5 17h5M17 15v6M14 18h6",
   clover: "M4 12a8 8 0 0 1 14-5.3M20 12a8 8 0 0 1-14 5.3M18 3v4h-4M6 21v-4h4",
+  applications: "M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75",
+  download: "M12 3v12M7 10l5 5 5-5M5 21h14",
+  file: "M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5M9 13h6M9 17h6",
+  mail: "M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zM21 7l-9 6-9-6",
+  phone: "M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z",
   activity: "M4 12h4l3-7 4 14 3-7h2",
   menu: "M3 7h18M3 12h18M3 17h18",
   close: "M5 5l14 14M19 5L5 19",
@@ -28,7 +36,7 @@ export function icon(name, size = 18) {
   svg.setAttribute("height", size);
   svg.setAttribute("fill", "none");
   svg.setAttribute("stroke", "currentColor");
-  svg.setAttribute("stroke-width", name === "grip" ? "2.6" : "1.7");
+  svg.setAttribute("stroke-width", name === "grip" ? "2.6" : "1.6");
   svg.setAttribute("stroke-linecap", "round");
   svg.setAttribute("stroke-linejoin", "round");
   svg.setAttribute("aria-hidden", "true");
@@ -44,7 +52,7 @@ export const source = (where) => h("span", { class: "d-source", title: where ===
 export function toast(message, tone = "ok") {
   const node = h("div", {
     class: `pointer-events-auto max-w-md rounded-lg border px-4 py-3 text-sm shadow-lg ${
-      tone === "bad" ? "border-bad/30 bg-bad-bg text-bad" : tone === "warn" ? "border-warn/30 bg-warn-bg text-warn" : "border-line bg-text text-white"}`,
+      tone === "bad" ? "border-bad/30 bg-bad-bg text-bad" : tone === "warn" ? "border-warn/30 bg-warn-bg text-warn" : "border-night bg-night text-white"}`,
     role: tone === "ok" ? "status" : "alert",
   }, message);
   document.getElementById("toasts").append(node);
@@ -56,9 +64,10 @@ export const toastFailure = (failure) => toast(explain(failure), "bad");
 // Loading, empty and error states share one shape so every view handles all three.
 export function stateBlock({ title, body, action, tone = "" }) {
   return h("div", { class: "d-card px-6 py-12 text-center" },
-    h("h2", { class: `text-base ${tone === "bad" ? "text-bad" : ""}` }, title),
+    h("div", { class: `d-state-icon ${tone === "bad" ? "border-bad/35 text-bad" : ""}`, "aria-hidden": "true" }, icon(tone === "bad" ? "alert" : "leaf", 22)),
+    h("h2", { class: `d-title ${tone === "bad" ? "text-bad" : ""}` }, title),
     body && h("p", { class: "mx-auto mt-2 max-w-md text-sm text-muted" }, body),
-    action && h("div", { class: "mt-5 flex justify-center gap-2" }, action),
+    action && h("div", { class: "mt-6 flex flex-wrap justify-center gap-2" }, action),
   );
 }
 
@@ -76,14 +85,14 @@ export const errorBlock = (failure, retry) =>
   });
 
 export function pageHeader({ crumbs = [], title, actions }) {
-  return h("header", { class: "mb-6" },
-    crumbs.length > 0 && h("nav", { "aria-label": "Breadcrumb", class: "mb-1.5 text-[0.82rem] text-muted" },
+  return h("header", { class: "mb-7" },
+    crumbs.length > 0 && h("nav", { "aria-label": "Breadcrumb", class: "mb-2 text-[0.82rem] text-muted" },
       h("ol", { class: "flex flex-wrap items-center gap-1.5" }, crumbs.map((crumb, index) => [
         index > 0 && h("li", { "aria-hidden": "true" }, "/"),
-        h("li", {}, crumb.href ? h("a", { href: crumb.href, class: "hover:text-text hover:underline" }, crumb.label) : crumb.label),
+        h("li", {}, crumb.href ? h("a", { href: crumb.href, class: "font-medium text-brand hover:text-brand-dark hover:underline" }, crumb.label) : crumb.label),
       ]))),
-    h("div", { class: "flex flex-wrap items-center justify-between gap-3" },
-      h("h1", { class: "text-2xl" }, title),
+    h("div", { class: "flex flex-wrap items-center justify-between gap-x-4 gap-y-3" },
+      h("h1", { class: "min-w-0" }, title),
       actions && h("div", { class: "flex flex-wrap items-center gap-2" }, actions)),
   );
 }
@@ -128,7 +137,7 @@ export function confirmDialog({ title, body, confirmLabel = "Confirm", danger = 
     }, confirmLabel);
     const dialog = openDialog(
       h("div", { class: "p-6" },
-        h("h2", { class: "text-lg" }, title),
+        h("h2", { class: "d-title text-lg" }, title),
         h("div", { class: "mt-2 space-y-2 text-sm text-muted" }, [].concat(body).map((line) => h("p", {}, line))),
         h("div", { class: "mt-6 flex justify-end gap-2" }, cancel, confirm)),
       { onClose: () => resolve(answer) },
@@ -155,7 +164,7 @@ export function formDialog({ title, intro, fields, submitLabel = "Save", onSubmi
       field.hint && h("p", { class: "d-hint" }, field.hint));
   });
   const form = h("form", { class: "p-6", novalidate: false },
-    h("h2", { class: "text-lg" }, title),
+    h("h2", { class: "d-title text-lg" }, title),
     intro && h("p", { class: "mt-1 text-sm text-muted" }, intro),
     h("div", { class: "mt-5 space-y-4" }, inputs, errorBox),
     h("div", { class: "mt-6 flex justify-end gap-2" },

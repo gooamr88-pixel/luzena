@@ -1,4 +1,7 @@
-/* Owner dashboard. A separate, light, dense theme: this is a work tool, not the brand site. */
+/* Owner dashboard. The public site's own design language (same fonts, same palette, same
+   buttons, cards and corners; see main.css and docs/DESIGN_SYSTEM.md) set denser, because
+   this is a tool people work in all day. Status colours (green, amber, red, blue) are the
+   one thing it adds: they carry meaning here and are never used for decoration. */
 @import "tailwindcss";
 @import "@fontsource/open-sauce-one/400.css";
 @import "@fontsource/open-sauce-one/500.css";
@@ -10,14 +13,25 @@
   --font-sans: "Open Sauce One", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-display: "Playfair Display Variable", "Playfair Display", Georgia, serif;
 
+  /* Surfaces and text: the public site's paper, sand, ink and muted. */
   --color-surface: #ffffff;
-  --color-canvas: #f6f5f2;
-  --color-line: #e4e1da;
-  --color-line-strong: #cfcbc1;
-  --color-text: #1c1a17;
-  --color-muted: #6a655c;
-  --color-accent: #1c1a17;
-  --color-focus: #606c38;
+  --color-canvas: #f6f4f0;
+  --color-sand: #efebe3;
+  --color-line: #e6dfd3;
+  --color-line-strong: #d0c6b6;
+  --color-text: #2b211e;
+  --color-muted: #6e645c;
+
+  /* Accent, as on the public site: gold is a fill (primary buttons, the current page in the
+     sidebar), brand is the same hue as readable text on light (5.8 on white, 5.3 on canvas),
+     night is the sidebar and the sign-in screen. */
+  --color-night: #18120f;
+  --color-forest: #1c2a22;
+  --color-gold: #c9a063;
+  --color-gold-light: #dbb87e;
+  --color-brand: #835f20;
+  --color-brand-dark: #6b4d18;
+  --color-focus: #835f20;
 
   --color-ok: #17663a;
   --color-ok-bg: #e5f4ea;
@@ -28,15 +42,17 @@
   --color-info: #1f4f8f;
   --color-info-bg: #e6eefa;
 
-  /* The public site's palette (same values as main.css), used only inside the "website
-     preview" panel so the preview looks exactly like the public menu. */
+  /* The rest of the public site's palette (same values as main.css), used only inside the
+     "website preview" panel so the preview looks exactly like the public menu. */
   --color-paper: #f6f4f0;
   --color-ink: #2b211e;
   --color-body: #4b403b;
-  --color-brand: #bc4749;
   --color-olive: #606c38;
   --color-olive-dark: #4d572c;
   --color-danger: #9b1c1c;
+
+  --shadow-card: 0 1px 2px rgb(43 33 30 / 0.05), 0 8px 24px -12px rgb(43 33 30 / 0.18);
+  --shadow-lift: 0 2px 4px rgb(43 33 30 / 0.06), 0 18px 36px -16px rgb(43 33 30 / 0.28);
 }
 
 @layer base {
@@ -49,8 +65,20 @@
     outline-offset: 2px;
   }
 
-  h1, h2, h3 {
+  /* Page titles are set in the display serif, like every heading on the public site.
+     Smaller headings stay in the sans-serif, which reads better at working sizes. */
+  h1 {
+    @apply font-display text-[1.9rem] leading-tight font-normal tracking-[-0.005em] text-text sm:text-[2.2rem];
+    text-wrap: balance;
+  }
+
+  h2, h3 {
     @apply font-semibold text-text;
+  }
+
+  ::selection {
+    background: var(--color-gold);
+    color: var(--color-night);
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -62,32 +90,68 @@
 }
 
 @layer components {
-  .d-btn {
-    @apply inline-flex min-h-10 cursor-pointer items-center justify-center gap-2 rounded-md border border-line-strong bg-surface px-3.5 text-sm font-semibold whitespace-nowrap text-text transition-colors hover:bg-canvas disabled:cursor-not-allowed disabled:opacity-55;
+  /* DARK SCOPE: the sidebar, the phone drawer and the sign-in screen. Text, lines and the
+     focus ring are re-pointed, so the same components read correctly on night.
+     On night: text 18.6, muted 8.4, brand (gold) 7.7. */
+  .d-dark {
+    --color-text: #ffffff;
+    --color-muted: #b8ada1;
+    --color-line: rgb(255 255 255 / 0.12);
+    --color-line-strong: rgb(255 255 255 / 0.28);
+    --color-brand: #c9a063;
+    --color-brand-dark: #dbb87e;
+    --color-focus: #c9a063;
+    color: var(--color-text);
   }
 
+  /* Buttons. Same shapes as the public site, 40px tall instead of 48px. */
+  .d-btn {
+    @apply inline-flex min-h-10 cursor-pointer items-center justify-center gap-2 rounded-md border border-line-strong bg-surface px-4 text-sm font-semibold whitespace-nowrap text-text transition-colors hover:border-brand hover:text-brand disabled:cursor-not-allowed disabled:opacity-55 disabled:hover:border-line-strong disabled:hover:text-text;
+  }
+
+  /* Night text on gold: 7.7. */
   .d-btn-primary {
-    @apply border-accent bg-accent text-white hover:bg-black;
+    @apply border-gold bg-gold text-night hover:border-gold-light hover:bg-gold-light hover:text-night disabled:hover:border-gold disabled:hover:bg-gold disabled:hover:text-night;
   }
 
   .d-btn-danger {
-    @apply border-bad bg-bad text-white hover:bg-[#8c1f16];
+    @apply border-bad bg-bad text-white hover:border-[#8c1f16] hover:bg-[#8c1f16] hover:text-white;
   }
 
   .d-btn-quiet {
-    @apply border-transparent bg-transparent hover:bg-black/5;
+    @apply border-transparent bg-transparent hover:border-transparent hover:bg-sand hover:text-text disabled:hover:border-transparent disabled:hover:bg-transparent;
   }
 
   .d-btn-sm {
-    @apply min-h-9 px-2.5 text-[0.82rem];
+    @apply min-h-9 px-3 text-[0.82rem];
   }
 
   .d-icon-btn {
-    @apply inline-flex size-10 cursor-pointer items-center justify-center rounded-md border border-transparent text-muted transition-colors hover:bg-black/5 hover:text-text disabled:cursor-not-allowed disabled:opacity-40;
+    @apply inline-flex size-10 cursor-pointer items-center justify-center rounded-md border border-transparent text-muted transition-colors hover:bg-sand hover:text-text disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent;
   }
 
+  .d-dark .d-icon-btn {
+    @apply hover:bg-white/10;
+  }
+
+  /* Cards: the public site's card. */
   .d-card {
-    @apply rounded-lg border border-line bg-surface;
+    @apply rounded-xl border border-line bg-surface shadow-card;
+  }
+
+  /* A card that is itself a link (the overview's figures). */
+  a.d-card {
+    @apply transition-[box-shadow,border-color] duration-200 hover:border-gold hover:shadow-lift;
+  }
+
+  /* The heading of a card or a dialog. */
+  .d-title {
+    @apply text-[1.05rem] leading-snug font-semibold text-text;
+  }
+
+  /* Small capital label, set like the public site's eyebrow. */
+  .d-section-title {
+    @apply text-[0.7rem] font-semibold tracking-[0.16em] text-brand uppercase;
   }
 
   .d-label {
@@ -95,11 +159,22 @@
   }
 
   .d-input {
-    @apply block min-h-10 w-full rounded-md border border-line-strong bg-surface px-3 py-2 text-[0.94rem] text-text placeholder:text-muted/80 hover:border-muted focus:border-focus disabled:bg-canvas disabled:text-muted;
+    @apply block min-h-10 w-full rounded-md border border-line-strong bg-surface px-3 py-2 text-[0.94rem] text-text transition-colors placeholder:text-muted/80 hover:border-muted focus:border-brand disabled:bg-canvas disabled:text-muted disabled:hover:border-line-strong;
+  }
+
+  /* A list of choices sits several to a row, so it is set a size smaller to keep its
+     longest choice in view. */
+  select.d-input {
+    @apply cursor-pointer pr-7 pl-2.5 text-sm;
   }
 
   .d-input[aria-invalid="true"] {
     @apply border-bad;
+  }
+
+  /* Checkboxes take the accent, so a ticked box is gold-brown rather than browser blue. */
+  input[type="checkbox"] {
+    accent-color: var(--color-brand);
   }
 
   .d-hint {
@@ -111,21 +186,64 @@
   }
 
   .d-badge {
-    @apply inline-flex items-center gap-1 rounded-full border border-line bg-canvas px-2 py-0.5 text-[0.72rem] font-semibold whitespace-nowrap text-muted;
+    @apply inline-flex items-center gap-1 rounded-full border border-line bg-canvas px-2.5 py-0.5 text-[0.72rem] font-semibold whitespace-nowrap text-muted;
   }
 
   .d-badge-ok { @apply border-ok/25 bg-ok-bg text-ok; }
   .d-badge-warn { @apply border-warn/25 bg-warn-bg text-warn; }
   .d-badge-bad { @apply border-bad/25 bg-bad-bg text-bad; }
   .d-badge-info { @apply border-info/25 bg-info-bg text-info; }
+  /* Not a status colour: the accent, for a stage that is going well but is not finished. */
+  .d-badge-accent { @apply border-gold/60 bg-[#fbf5ea] text-brand-dark; }
+
+  /* A row of filter buttons with a count in each. It scrolls sideways on a phone. */
+  .d-pills {
+    @apply -mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0;
+    scrollbar-width: none;
+  }
+
+  .d-pill {
+    @apply inline-flex min-h-10 shrink-0 cursor-pointer items-center gap-2 rounded-full border border-line-strong bg-surface px-4 text-sm font-medium whitespace-nowrap text-text transition-colors hover:border-brand hover:text-brand;
+  }
+
+  .d-pill-count {
+    @apply rounded-full bg-sand px-2 py-px text-[0.72rem] font-semibold text-muted tabular-nums;
+  }
+
+  .d-pill[aria-pressed="true"] {
+    @apply border-night bg-night text-white hover:border-night hover:text-white;
+  }
+
+  .d-pill[aria-pressed="true"] .d-pill-count {
+    @apply bg-white/15 text-white;
+  }
+
+  /* What happened to something, one entry under another, joined by a line. */
+  .d-timeline {
+    @apply relative space-y-5 text-sm;
+  }
+
+  .d-timeline > li {
+    @apply relative pl-6;
+  }
+
+  .d-timeline > li::before {
+    content: "";
+    @apply absolute top-1.5 left-0 size-2.5 rounded-full border-2 border-gold bg-surface;
+  }
+
+  .d-timeline > li:not(:last-child)::after {
+    content: "";
+    @apply absolute top-5 -bottom-5 left-[0.28rem] w-px bg-line;
+  }
 
   /* Says where a field is stored, right next to its label. */
   .d-source {
-    @apply rounded border border-line px-1.5 py-px text-[0.66rem] font-semibold tracking-wide text-muted uppercase;
+    @apply rounded-sm border border-line bg-canvas px-1.5 py-px text-[0.64rem] font-semibold tracking-[0.08em] text-muted uppercase;
   }
 
   .d-alert {
-    @apply rounded-md border px-4 py-3 text-sm;
+    @apply rounded-lg border px-4 py-3 text-sm;
   }
 
   .d-alert-ok { @apply border-ok/30 bg-ok-bg text-ok; }
@@ -138,15 +256,37 @@
   }
 
   .d-table thead th {
-    @apply border-b border-line bg-canvas px-3 py-2.5 text-[0.74rem] font-semibold tracking-wide whitespace-nowrap text-muted uppercase;
+    @apply border-b border-line bg-canvas px-3 py-3 text-[0.68rem] font-semibold tracking-[0.12em] whitespace-nowrap text-muted uppercase first:pl-4 last:pr-4;
   }
 
-  .d-table td {
-    @apply border-b border-line px-3 py-2.5 align-middle;
+  .d-table td,
+  .d-table tbody th {
+    @apply border-b border-line px-3 py-3 align-middle first:pl-4 last:pr-4;
+  }
+
+  .d-table tbody tr:last-child > * {
+    @apply border-b-0;
+  }
+
+  .d-table tbody tr {
+    @apply transition-colors;
   }
 
   .d-table tbody tr:hover {
     @apply bg-canvas/70;
+  }
+
+  /* A row of definitions: term on the left, value on the right. */
+  .d-facts > div {
+    @apply flex flex-wrap justify-between gap-x-6 gap-y-1 border-b border-line py-3 first:pt-0 last:border-b-0 last:pb-0;
+  }
+
+  .d-facts dt {
+    @apply text-muted;
+  }
+
+  .d-facts dd {
+    @apply text-right font-medium;
   }
 
   .d-switch {
@@ -166,41 +306,89 @@
     transform: translateX(1.25rem);
   }
 
-  .d-nav-link {
-    @apply flex min-h-10 items-center gap-3 rounded-md px-3 text-sm font-medium text-muted transition-colors hover:bg-black/5 hover:text-text;
+  /* Sidebar. Night, with the logo in white, as in the public site's header. */
+  .d-sidebar {
+    @apply bg-night;
+    background-image: radial-gradient(28rem 18rem at 100% 0%, rgb(201 160 99 / 0.16), transparent 70%);
   }
 
+  /* The logo file is drawn in red and green for a light ground; on night it is one white shape. */
+  .d-logo-light {
+    filter: brightness(0) invert(1);
+  }
+
+  .d-nav-link {
+    @apply relative flex min-h-11 items-center gap-3 rounded-md px-3 text-sm font-medium text-muted transition-colors hover:bg-white/8 hover:text-text;
+  }
+
+  .d-nav-link svg {
+    @apply shrink-0;
+  }
+
+  /* The current page: brighter, with a gold bar and a gold icon. */
   .d-nav-link[aria-current="page"] {
-    @apply bg-accent text-white hover:bg-accent hover:text-white;
+    @apply bg-white/10 text-text;
+  }
+
+  .d-nav-link[aria-current="page"]::before {
+    content: "";
+    @apply absolute inset-y-2 left-0 w-0.5 rounded-full bg-gold;
+  }
+
+  .d-nav-link[aria-current="page"] svg {
+    @apply text-gold;
+  }
+
+  /* A number beside a sidebar link: how many things there are waiting. */
+  .d-nav-count {
+    @apply ml-auto rounded-full bg-gold px-2 py-px text-[0.72rem] font-bold text-night tabular-nums;
+  }
+
+  /* The bar across the top of every page. */
+  .d-topbar {
+    @apply sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-line bg-surface/90 px-4 backdrop-blur-md sm:px-6 lg:px-8;
+  }
+
+  /* The sign-in screen: the public site's dark hero, with the form on a card. */
+  .d-auth {
+    @apply relative isolate flex min-h-dvh flex-col items-center justify-center overflow-hidden bg-night px-4 py-10;
+    background-image:
+      radial-gradient(60rem 30rem at 85% -10%, rgb(201 160 99 / 0.22), transparent 65%),
+      radial-gradient(40rem 26rem at 0% 110%, rgb(42 61 49 / 0.55), transparent 70%);
+  }
+
+  .d-leaf {
+    background-color: var(--color-gold);
+    mask: url("/leaf.svg") center / contain no-repeat;
+  }
+
+  /* Empty, error and "not found" states: an icon in a ring over a short message. */
+  .d-state-icon {
+    @apply mx-auto mb-4 flex size-12 items-center justify-center rounded-full border border-brand/35 text-brand;
   }
 
   .d-dialog {
-    @apply m-auto w-[calc(100%-2rem)] max-w-lg rounded-xl border border-line bg-surface p-0 text-text shadow-2xl;
+    @apply m-auto w-[calc(100%-2rem)] max-w-lg rounded-2xl border border-line bg-surface p-0 text-text shadow-2xl;
   }
 
   .d-dialog::backdrop {
-    background: rgb(28 26 23 / 0.5);
+    background: rgb(24 18 15 / 0.6);
   }
 
   .d-drawer {
-    @apply m-0 h-dvh max-h-none w-72 max-w-[85vw] border-r border-line bg-surface p-0 text-text;
+    @apply m-0 h-dvh max-h-none w-72 max-w-[85vw] border-0 bg-night p-0;
   }
 
   .d-drawer::backdrop {
-    background: rgb(28 26 23 / 0.5);
+    background: rgb(24 18 15 / 0.6);
   }
 
   .d-skeleton {
     @apply animate-pulse rounded bg-line;
   }
 
-  .d-section-title {
-    @apply text-[0.74rem] font-semibold tracking-wide text-muted uppercase;
-  }
-
   /* Website preview: the public menu's own classes, on the public site's own surface.
-     Keep these rules identical to the ones in main.css. #6e645c is the public site's
-     "muted", which is not the dashboard's. */
+     Keep these rules identical to the ones in main.css. */
   .preview-surface {
     @apply rounded-lg border border-line bg-paper px-5 py-1 font-sans text-body;
   }
@@ -211,6 +399,6 @@
   .menu-item-price { @apply font-display text-[1.25rem] font-medium whitespace-nowrap text-brand; }
   .menu-item-unavailable .menu-item-name, .menu-item-unavailable .menu-item-price { @apply text-[#6e645c]; }
   .menu-item-unavailable img { @apply opacity-60; }
-  .tag { @apply inline-flex items-center border border-olive/35 px-2 py-0.5 text-[0.66rem] font-semibold tracking-[0.08em] text-olive-dark uppercase; }
+  .tag { @apply inline-flex items-center rounded-sm border border-olive/35 px-2 py-0.5 text-[0.66rem] font-semibold tracking-[0.08em] text-olive-dark uppercase; }
   .tag-muted { @apply border-danger/40 text-danger; }
 }

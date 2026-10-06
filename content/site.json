@@ -1,5 +1,5 @@
 {
-  "_readme": "PRODUCTION content. Every null or empty value is something the client has not supplied yet. `npm run check:content` lists what is missing; `npm run build` refuses to build until the required fields are filled. Do not put invented facts here. The hero and About text was written from the restaurant's own Instagram description and is awaiting the owner's approval. Address, phone, email, hours, breakfast times, Maps link and domain were supplied by the client on 2026-10-05. Photos are postponed: leave the image fields null until real photos are in content/media/. See docs/CONFIGURATION.md for ordering.url, careers.applications and legal.",
+  "_readme": "PRODUCTION content. Every null or empty value is something the client has not supplied yet. `npm run check:content` lists what is missing; `npm run build` refuses to build until the required fields are filled. Do not put invented facts here. The About text was written from the restaurant's own Instagram description. The hero text (eyebrow, headline, text) was taken from the home page design supplied on 2026-10-06. Both are awaiting the owner's approval. `about.values[].icon` names a drawing in src/partials/icon.html (leaf, utensils, cup, heart, users). Address, phone, hours, breakfast times, Maps link and domain were supplied by the client on 2026-10-05. NO EMAIL ADDRESS goes in this file: everything here is published. `locations[].email` stays null. The inbox that job applications are reported to is kept on the server, in the restaurant's row in the database (supabase/provision-restaurant.sql). PLACEHOLDER PHOTOS: the restaurant's own photos have not arrived, and on 2026-10-06 the instruction was to show placeholders on the live site until they do. Every file named placeholder-* in content/media/ is a stock photo from the design template, not a photo of this restaurant or its food, and its licence for publication was never checked (content/media/README.md). Replace each one with a real photo as it arrives. `defaultDishPhotos` are shown on the home page for a menu category or a featured dish that has no photo of its own; empty the list to switch that off. See docs/CONFIGURATION.md for ordering.url, careers.applications and legal.",
 
   "siteUrl": "https://luzenarestaurant.com",
   "restaurantSlug": "luzena",
@@ -15,11 +15,11 @@
   "ogImage": null,
 
   "hero": {
-    "eyebrow": "Restaurant & Cafe",
-    "headline": "Mediterranean flavors meet Western comfort food",
-    "text": "Fresh dishes, made to order, in El Cajon. Breakfast every day from 8 AM.",
-    "image": null,
-    "imageAlt": null
+    "eyebrow": "Good food · Great coffee · Better company",
+    "headline": "A Place for Every Moment",
+    "text": "Delicious food, specialty coffee and a cozy atmosphere in the heart of El Cajon. Join us for breakfast, lunch, dinner or just a great cup of coffee.",
+    "image": "placeholder-hero.jpg",
+    "imageAlt": "A bowl of noodles on a dark table"
   },
 
   "about": {
@@ -30,12 +30,12 @@
       "We are a restaurant and a cafe under one roof. Join us for a full meal with family and friends, or simply drop in for a coffee."
     ],
     "values": [
-      { "title": "Fresh, made to order", "text": "Every dish is prepared when it is ordered, from fresh ingredients." },
-      { "title": "Mediterranean meets Western", "text": "The flavors of the Mediterranean alongside the comfort food you already know." },
-      { "title": "Restaurant and cafe", "text": "A place for a full meal, and a place for a coffee." }
+      { "icon": "leaf", "title": "Fresh, made to order", "text": "Every dish is prepared when it is ordered, from fresh ingredients." },
+      { "icon": "utensils", "title": "Mediterranean meets Western", "text": "The flavors of the Mediterranean alongside the comfort food you already know." },
+      { "icon": "cup", "title": "Restaurant and cafe", "text": "A place for a full meal, and a place for a coffee." }
     ],
-    "image": null,
-    "imageAlt": null
+    "image": "placeholder-story.jpg",
+    "imageAlt": "A busy dining room lit by pendant lamps"
   },
 
   "ordering": {
@@ -53,12 +53,12 @@
       "country": "US",
       "timezone": "America/Los_Angeles",
       "phone": "+1 619-499-5779",
-      "email": "fadi.auchi@gmail.com",
+      "email": null,
       "mapsUrl": "https://maps.app.goo.gl/WTwNqRWv3dyaetAQ8",
-      "mapsEmbedUrl": null,
+      "mapsEmbedUrl": "https://www.google.com/maps?q=Luzena%20Restaurant%20%26%20Cafe%2C%20315%20El%20Cajon%20Blvd%2C%20El%20Cajon%2C%20CA%2092020&output=embed",
       "geo": null,
-      "image": null,
-      "imageAlt": null,
+      "image": "placeholder-location.jpg",
+      "imageAlt": "Grilled vegetables on a wooden board, on a dark table",
       "hours": [
         { "days": ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday"], "opens": "08:00", "closes": "00:00" },
         { "days": ["Friday", "Saturday"], "opens": "08:00", "closes": "02:00" }
@@ -83,7 +83,18 @@
     "tiktok": null
   },
 
-  "gallery": [],
+  "gallery": [
+    { "image": "placeholder-gallery-1.jpg", "alt": "Grilled rolls on a slate plate" },
+    { "image": "placeholder-gallery-2.jpg", "alt": "Seafood pasta in a dark bowl" },
+    { "image": "placeholder-gallery-3.jpg", "alt": "A table set with drinks and a grill platter" },
+    { "image": "placeholder-gallery-4.jpg", "alt": "Stuffed flatbread wraps on a dark plate" },
+    { "image": "placeholder-gallery-5.jpg", "alt": "Grilled chicken with herbs and a tomato dip" }
+  ],
+
+  "defaultDishPhotos": [
+    "placeholder-gallery-1.jpg", "placeholder-gallery-2.jpg", "placeholder-gallery-5.jpg",
+    "placeholder-hero.jpg", "placeholder-gallery-4.jpg", "placeholder-gallery-3.jpg"
+  ],
 
   "careers": {
     "applications": {

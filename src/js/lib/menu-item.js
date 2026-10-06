@@ -10,7 +10,7 @@ export function menuItemElement(item, { currency, locale, showOptions = true } =
   return h("li", { class: `menu-item${item.available === false ? " menu-item-unavailable" : ""}` },
     item.image_url && h("img", {
       src: item.image_url, alt: "", width: 88, height: 88, loading: "lazy", decoding: "async",
-      class: "size-[5.5rem] shrink-0 object-cover",
+      class: "size-[5.5rem] shrink-0 rounded-lg object-cover",
     }),
     h("div", { class: "min-w-0 flex-1" },
       h("div", { class: "flex items-baseline" },

@@ -59,7 +59,29 @@ deployed, and the Nginx configuration has never been loaded by an Nginx.
 The browser tests need a Chromium. They use one already installed by Playwright under
 `%LOCALAPPDATA%\ms-playwright`, or the executable named in `CHROME_PATH`.
 
-## Last full run: 2026-10-05
+## Latest run: 2026-10-06, after the redesign and the job application system
+
+`npm run verify`, on one Windows machine, nothing deployed:
+
+| Check | Result |
+|---|---|
+| Lint, types, production content | Clean; 0 required items missing |
+| Unit, SQL, API (`npm test`) | **240 passed**, 0 failed, 7 files |
+| Deno (`npm run check:deno`) | 4 functions type-check; all smoke checks pass |
+| Real browser (`npm run test:browser`) | **214 passed**, 0 failed, 3 files |
+
+New since the run below: `tests/applications.test.js` (a job application from the form's
+request through the database to the dashboard API, the notification email and the CV
+download, with access by role and by restaurant, the filters, and retention); the
+application tests in `tests/public.test.js` rewritten for "store first, then notify"; browser
+tests for the new form, for the dashboard's Applications screens, for the map, and a scan of
+every built file for an email address. The per-file counts in the tables further down are
+from 2026-10-05 and are lower than today's.
+
+Not run today: `verify:database`, `verify:functions`, `verify:site` (they need the deployed
+projects, and the new migration is not applied to either), and the Clover sandbox tests.
+
+## Last full run before that: 2026-10-05
 
 | Check | Command | Result |
 |---|---|---|
@@ -90,6 +112,7 @@ migrations on PGlite, which is Postgres compiled to WebAssembly.
 | `tests/sql.test.js` | 33 | The migrations and SQL functions directly, on a database that starts with Supabase's real default privileges: privileges on tables, sequences and functions, RLS, tenant isolation, listing filters and sorting, the public menu's visibility rules, sync preserving website data, locks, rate limiting, idempotency, OAuth state. |
 | `tests/dashboard.test.js` | 51 | The dashboard API end to end: the real router and handlers, real SQL, and a fake Clover. Authentication, roles, validation, write-through, conflicts, partial saves, lost responses, idempotent creates, bulk actions, categories, modifiers, photos, token refresh, OAuth, audit. |
 | `tests/public.test.js` | 28 | Public menu (including Clover being down, and its rate limit), Clover webhook, job application (both switches, the missing retention period, validation, file checks, bot traps, email failure, rate limit), deletion of applications past the retention period. |
+| `tests/applications.test.js` | new | Job applications end to end on the real handlers and SQL: a form request is stored, listed by the dashboard API at once and reported by email with a link to it; every answer is shown and nothing a browser has no use for; the CV is streamed only to a signed-in owner or manager and the download recorded; stage changes with who, when and their note; no session, a forged one, staff, and another restaurant's owner all refused; the tables and functions closed to the public roles; search, stage, position and date filters, paging; deletion with the CV and the history at the end of the retention period. |
 | `tests/units.test.js` | 31 | Clover client retry rules, token parsing, normalisation of Clover data, encryption, log redaction, configuration, file sniffing, request validation. |
 | `tests/frontend.test.js` | 39 | Money parsing and formatting, opening hours, the content gate (what blocks a build and what does not), the confirmed address, phone, hours and domain, the ordering-link rules, the application switch, the sample overlay, job departments, sitemap, robots, structured data. |
 
@@ -115,8 +138,8 @@ production Nginx configuration is generated from the same file, and a unit test 
 
 | File | Tests | Build | What it exercises |
 |---|---|---|---|
-| `tests/browser/public.spec.js` | 132 | **Production** build: real content, no sample data, no backend | Every public page: no script error, failed request or policy violation; one `h1`, no skipped heading level, title, language, skip link; WCAG 2.2 AA scan; no sideways scroll at 360, 390, 430, 768, 1024, 1280 and 1440 px. Canonical addresses on the confirmed domain, share image, sitemap, robots, structured data. No broken internal link. Phone, email, map and Instagram links. Address, hours and breakfast on the page and in the footer. ORDER ONLINE stays on-site while no Clover link exists. The menu's "unavailable" state. Careers with applications off: 18 roles, no form, no upload field. Skip link, focus ring, phone navigation dialog, tap-target sizes. **Only the logo, the icon and the generated share image are in the build: no photograph.** |
-| `tests/browser/sample.spec.js` | 19 | Sample build | What needs data to exist: the rendered menu (prices, out-of-stock, market price, options, category chips), featured items, photo hero, gallery viewer with keyboard, and the application form: labels, validation, file-type refusal, a successful send (request intercepted and inspected), server validation errors, network failure, server failure. |
+| `tests/browser/public.spec.js` | 132 | **Production** build: real content, no sample data, no backend | Every public page: no script error, failed request or policy violation; one `h1`, no skipped heading level, title, language, skip link; WCAG 2.2 AA scan; no sideways scroll at 360, 390, 430, 768, 1024, 1280 and 1440 px. Canonical addresses on the confirmed domain, share image, sitemap, robots, structured data. No broken internal link. Phone, email, map and Instagram links. Address, hours and breakfast on the page and in the footer. ORDER ONLINE stays on-site while no Clover link exists. The menu's "unavailable" state. Careers with applications off: 18 roles, no form, no upload field. Skip link, focus ring, phone navigation dialog, tap-target sizes. A Google map of the address on the home and Locations pages, beside the details on a laptop and below them on a phone (the tests answer for Google with an empty page, so they do not depend on it). **The only image files in the build are the logo, the icon, the leaf, the generated share image and the placeholder photos named in the content file.** |
+| `tests/browser/sample.spec.js` | 19 | Sample build | What needs data to exist: the rendered menu (prices, out-of-stock, market price, options, category chips), the home page's category tiles and featured dishes, photo hero, gallery viewer with keyboard, and the application form: labels, validation, file-type refusal, a successful send (request intercepted and inspected), server validation errors, network failure, server failure. |
 | `tests/browser/dashboard.spec.js` | 43 | Sample build, dashboard in **demo mode** | Sign-out and sign-in, password reset, overview, item list (search, filters, sorting, stock and visibility switches, archive with confirmation, bulk actions), item editor (source labels, live preview, unsaved-changes guard, save, validation, create, duplicate, missing item), categories (reorder, undo, add, rename, hide, archive), modifiers, Clover page, activity log, WCAG 2.2 AA scan of every screen, phone layout, no sideways scroll at the same seven widths. |
 
 **What the dashboard browser tests do and do not prove.** Demo mode replaces Supabase Auth

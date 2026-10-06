@@ -103,12 +103,34 @@ describe("menu page with a menu", () => {
 });
 
 describe("home page with a menu and photos", () => {
-  it("shows the featured items, the photo hero and passes the accessibility scan", async () => {
+  it("shows the categories, the featured dishes, the photo hero and passes the accessibility scan", async () => {
     const { page, context, problems } = await openPage(browser, `${site.url}/`);
-    await page.waitForSelector("[data-featured]:not([hidden]) .menu-item");
-    expect(await page.locator("[data-featured-list] .menu-item").count()).toBe(6);
-    // Featured items never show the long options list.
+    await page.waitForSelector("[data-featured]:not([hidden]) .dish-card");
+    // Six dishes are marked as featured; the home page shows one row of four.
+    expect(await page.locator("[data-featured-list] .dish-card").count()).toBe(4);
+    const first = page.locator("[data-featured-list] .dish-card").first();
+    expect(await first.innerText()).toContain("Roasted Tomato Soup");
+    expect(await first.innerText()).toContain("$9.00");
+    expect(await first.locator("a").getAttribute("href")).toBe("/menu/#menu-SAMPLECAT0001");
+    // Featured dishes never show the long options list.
     expect(await page.locator("[data-featured-list] details").count()).toBe(0);
+    // One tile per category, each leading to that category on the menu page.
+    expect(await page.locator("[data-categories]:not([hidden]) .category-tile").count()).toBe(4);
+    expect(await page.locator(".category-tile").nth(2).innerText()).toMatch(/Desserts\s+2 items/);
+    // No sample dish has a photo of its own, so every tile and card shows a default photo.
+    // They load lazily, so ask for each one before judging it.
+    const failed = await page.evaluate(async () => {
+      const broken = [];
+      await Promise.all([...document.querySelectorAll(".category-tile img, .dish-card img")].map(async (image) => {
+        image.loading = "eager";
+        await image.decode().catch(() => broken.push(image.getAttribute("src")));
+      }));
+      return broken;
+    });
+    expect(failed).toEqual([]);
+    expect(await page.locator(".category-tile img").count()).toBe(4);
+    expect(await page.locator(".dish-card img").count()).toBe(4);
+    expect(await page.locator(".category-tile img").first().getAttribute("src")).toBe("/media/gallery-1-480.jpg");
     const hero = await page.locator("main section").first().evaluate((section) => ({
       hasPhoto: section.querySelector("picture img") !== null,
       headingColour: getComputedStyle(section.querySelector("h1")).color,
@@ -185,7 +207,14 @@ describe("job application form (applications switched on)", () => {
     await page.selectOption("#position", "Barista");
     await page.fill("#email", "sam@example.test");
     await page.fill("#phone", "+1 619 555 0100");
-    await page.fill("#message", "I have two years behind an espresso machine.");
+    await page.selectOption("#employment_type", "part_time");
+    await page.selectOption("#start_when", "two_weeks");
+    await page.check('input[name="availability"][value="weekday_days"]');
+    await page.check('input[name="availability"][value="weekend_days"]');
+    await page.selectOption("#experience_level", "1_2");
+    await page.fill("#experience", "Two years behind an espresso machine at a busy cafe.");
+    await page.selectOption("#work_authorized", "yes");
+    await page.fill("#message", "I live nearby and would like to help open the cafe side.");
     await page.check("#consent");
   };
 
@@ -210,6 +239,15 @@ describe("job application form (applications switched on)", () => {
     expect(await page.locator("#position-error").innerText()).toMatch(/Choose the position/);
     expect(await page.locator("#email-error").innerText()).toMatch(/valid email/);
     expect(await page.locator("#consent-error").innerText()).toMatch(/confirm/);
+    expect(await page.locator("#employment_type-error").innerText()).toMatch(/full-time, part-time or either/);
+    expect(await page.locator("#start_when-error").innerText()).toMatch(/when you could start/);
+    expect(await page.locator("#experience_level-error").innerText()).toMatch(/how much experience/);
+    expect(await page.locator("#work_authorized-error").innerText()).toMatch(/authorized to work/);
+    // A group of boxes is one question: one message, and every box marked.
+    expect(await page.locator("#availability-error").innerText()).toBe("Choose at least one time you could work.");
+    expect(await page.locator('input[name="availability"][aria-invalid="true"]').count()).toBe(5);
+    // The optional questions raise nothing.
+    for (const name of ["experience", "cv", "message"]) expect(await page.locator(`#${name}-error`).isHidden(), name).toBe(true);
     expect(await page.locator("#full_name").getAttribute("aria-invalid")).toBe("true");
     expect(await page.locator("#full_name").getAttribute("aria-describedby")).toBe("full_name-error");
     expect(await page.evaluate(() => document.activeElement.id)).toBe("full_name");
@@ -218,6 +256,9 @@ describe("job application form (applications switched on)", () => {
     // An error clears as soon as the field is corrected.
     await page.fill("#full_name", "Sam Rivera");
     expect(await page.locator("#full_name-error").isHidden()).toBe(true);
+    await page.check('input[name="availability"][value="late_nights"]');
+    expect(await page.locator("#availability-error").isHidden()).toBe(true);
+    expect(await page.locator('input[name="availability"][aria-invalid="true"]').count()).toBe(0);
     await context.close();
   });
 
@@ -260,6 +301,58 @@ describe("job application form (applications switched on)", () => {
     expect(body).toContain("Barista");
     expect(body).toContain('filename="cv.pdf"');
     expect(body).toContain('name="started_at"');
+    // Every answer travels, both availability boxes included, with an id for this visit.
+    for (const name of ["full_name", "email", "phone", "employment_type", "start_when", "experience_level", "experience", "work_authorized", "message", "consent"]) {
+      expect(body, name).toContain(`name="${name}"`);
+    }
+    expect(body.match(/name="availability"/g)).toHaveLength(2);
+    expect(body).toMatch(/name="submission_id"\r\n\r\n[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/);
+    // Nothing about where the application is reported: the form does not know.
+    expect(body).not.toMatch(/@gmail|recipient|notify/i);
+    expect(problems).toEqual([]);
+    await context.close();
+  });
+
+  it("shows that it is sending, and sends once however often the button is pressed", async () => {
+    let release;
+    const held = new Promise((resolve) => { release = resolve; });
+    const { page, context, requests } = await open(async (route) => {
+      await held;
+      await route.fulfill({ status: 200, json: { ok: true } });
+    });
+    await fill(page);
+    const button = page.locator("[data-apply-submit]");
+    await button.click();
+    await page.waitForFunction(() => document.querySelector("[data-apply-submit]").disabled);
+    expect(await button.innerText()).toMatch(/sending/i);
+    expect(await page.locator("[data-apply-form]").getAttribute("aria-busy")).toBe("true");
+    // Pressing Enter in a field while the first send is on its way must not send a second.
+    await page.locator("#full_name").press("Enter");
+    release();
+    await page.waitForSelector("[data-apply-success]:not([hidden])");
+    expect(requests).toHaveLength(1);
+    await context.close();
+  });
+
+  it("works from start to finish on a phone", async () => {
+    const opened = await openPage(browser, `${site.url}/careers/`, { width: 390, height: 844, allowRequestFailures: [/e2e-project\.supabase\.co/] });
+    const { page, context, problems } = opened;
+    let sent = 0;
+    await page.route(API, async (route) => {
+      sent += 1;
+      await route.fulfill({ status: 200, json: { ok: true } });
+    });
+    await fill(page);
+    // Every control is as wide as the form and tall enough for a thumb.
+    const boxes = await page.evaluate(() =>
+      [...document.querySelectorAll("[data-apply-form] .field-input, [data-apply-form] .choice, [data-apply-submit]")]
+        .map((node) => node.getBoundingClientRect()).map((box) => ({ height: Math.round(box.height), right: Math.round(box.right) })));
+    expect(boxes.every((box) => box.height >= 44 && box.right <= 390)).toBe(true);
+    expect(await hasHorizontalOverflow(page)).toBe(false);
+    await page.click("[data-apply-submit]");
+    await page.waitForSelector("[data-apply-success]:not([hidden])");
+    expect(sent).toBe(1);
+    expect(await hasHorizontalOverflow(page)).toBe(false);
     expect(problems).toEqual([]);
     await context.close();
   });

@@ -10,7 +10,7 @@ a real browser under the production security headers. Nothing has talked to Clov
 **One part has been verified on a real Supabase project.** On 2026-10-05 the migrations were
 applied to the TEST/STAGING project (`cgxhifkeoesvsycewwfs`) and the database controls were
 checked there with `npm run verify:database`, by query and by acting as each role: row
-level security on all 16 tables, no policies, no privilege for `anon` or `authenticated` on
+level security on all 17 tables, no policies, no privilege for `anon` or `authenticated` on
 any table, sequence or function, new objects closed by default, `cvs` bucket private, no
 storage policies, and the backend's role able to do its work (30 checks). The functions are
 not deployed there yet, so the API-level controls have not been checked on real
@@ -32,7 +32,7 @@ but only the owner should have an account. Switch off "Allow new users to sign u
 
 | Area | Verdict | Evidence |
 |---|---|---|
-| Row level security | Enabled on all 16 tables, no policies, every privilege on tables, sequences and functions revoked from `anon` and `authenticated`, and new objects closed by default | `sql.test.js` "access control at the database"; `npm run verify:database` on the test project 2026-10-05 |
+| Row level security | Enabled on all 17 tables, no policies, every privilege on tables, sequences and functions revoked from `anon` and `authenticated`, and new objects closed by default | `sql.test.js` "access control at the database"; `npm run verify:database` on the test project 2026-10-05 |
 | Tenant isolation | Enforced at the API, in every SQL function, and by privileges | `sql.test.js` "tenant isolation"; `dashboard.test.js` "never serves one restaurant's items to another restaurant's owner" |
 | Authentication | Supabase Auth JWT verified on every dashboard request; no custom password code | `dashboard.test.js` "rejects a request with no session", "rejects an invalid session token"; Deno smoke "refuses a forged token" |
 | Authorisation | Role checked on the server per route; staff cannot write | `dashboard.test.js` "enforces roles on the server" |
@@ -153,6 +153,13 @@ before any Clover call. Unknown fields in a request body are rejected, so
   rejected.
 - Stored in a **private** bucket under a server-generated path
   (`<restaurant>/<uuid>.<ext>`). The original name is sanitised and kept only as a label.
+- **Never given an address.** There is no public URL and no signed URL. A signed-in owner or
+  manager asks the dashboard API for the file; the API checks the application belongs to
+  their restaurant, reads the file with the service role and streams it back in that same
+  authenticated response, always as a download (`Content-Disposition: attachment`,
+  `no-store`, `nosniff`). The storage path is never sent to a browser. Each download is
+  written to the application's history and to the audit log, with who took it.
+- Not attached to the notification email, which only says whether one was uploaded.
 - Deleted with the application when the retention period passes.
 
 **Item photos** (`dashboard-api`): signed-in users with `menu.write` only; 1 MB; type sniffed
@@ -161,15 +168,16 @@ hash. The dashboard re-encodes photos in the browser first, which also strips EX
 data, but the server does not rely on that.
 
 **Not covered:** no antivirus scan. The active-content check does not see inside compressed
-PDF streams. The recruiter receives the CV as an email attachment and should treat it like
-any file from a stranger.
+PDF streams. Whoever downloads a CV from the dashboard should treat it like any file from a
+stranger.
 
 ## 7. Rate limits
 
 | Surface | Limit |
 |---|---|
 | Public menu | 120 per minute per address |
-| Job applications | 5 per hour per address, plus a honeypot field, a minimum fill time and an origin check |
+| Job applications | 5 per hour per connection and 3 per day per email address (both counted as salted hashes), plus a honeypot field, a minimum fill time and an origin check. The form's own id for each visit makes a repeated send one application. |
+| CV downloads | 60 per 5 minutes per user |
 | Dashboard reads | 600 per 5 minutes per user |
 | Dashboard writes | 240 per 5 minutes per user |
 | Creates | 120 per 5 minutes |
@@ -243,23 +251,49 @@ applicant details beyond an application id.
 
 ## 10. Personal data
 
-Job applications hold a name, email, phone, message and optionally a CV.
+Job applications hold a name, email, phone, the position, the applicant's answers
+(full-time or part-time, availability, start, experience, whether they are authorized to
+work in the United States), their own words about their experience and themselves, and
+optionally a CV.
 
 - **Off by default.** Nothing is collected until the operator switches it on in two places
   and sets a retention period (`docs/CONFIGURATION.md` section 5).
+- **Who can read them.** A signed-in owner or manager of that restaurant, through the
+  dashboard API, and nobody else: not staff accounts, not another restaurant's owner (to
+  whom the application does not exist), not the public. The two tables have row level
+  security with no policies and no privilege for `anon` or `authenticated`.
+  `tests/applications.test.js` "who may read an application" checks each of these.
+- **What the browser is given.** The list carries names, positions and stages only. Contact
+  details and free text are read one application at a time. The dashboard keeps nothing in
+  browser storage.
+- **History.** Every application records when it arrived, whether the notification went
+  out, each change of stage with who made it and their note, and each CV download. The
+  audit log records that a stage changed or a CV was taken, with the application's id and
+  no name: the activity page shows what was done without showing whose application it was.
 - **Retention.** `JOB_APPLICATION_RETENTION_DAYS` has no default. Once set, applications
   older than that are deleted with their CV files: files first, then rows, so a failed file
   deletion leaves the row to be retried rather than an orphaned CV.
 - **Consent.** The form asks for agreement to store the details and be contacted, and links
   to the privacy policy.
-- **Where they go.** One email to the restaurant's recruitment address, with the CV
-  attached. That address is never sent to the browser.
+- **Where they go.** Into the database first. Then one email to the restaurant's
+  recruitment address saying that an application has arrived: a summary (name, position,
+  contact details, the answers that are choices) and a link to the application in the
+  dashboard, which asks for a sign-in. The CV and the applicant's own words are not in the
+  email. If the email cannot be sent the application is kept all the same and marked, so
+  the dashboard shows that the notification did not go out.
+- **The recruitment address** is the `recruitment_email` column of the restaurant's row.
+  It is read by the server when the email is sent and is in no page, script or data file of
+  the website (`tests/browser/public.spec.js` scans every built file for it). It was shown
+  in the footer and on the Contact and Locations pages until 2026-10-06, when it was
+  removed from `content/site.json`.
 
 Still needed from the client (`BLOCKERS.md` B-3, B-4): the privacy policy, and the number of
 days.
 
-No analytics or third-party scripts are loaded, so this code sets no cookies and needs no
-cookie banner as it stands. Following the Maps or Instagram links leaves the site.
+No analytics or third-party scripts are loaded by this code, and it sets no cookies. The
+Google map on the home and Locations pages is Google's own page in a frame: it loads when a
+visitor scrolls near it, and what Google stores then is Google's. Following the Maps or
+Instagram links leaves the site.
 
 ## 11. Reporting a problem
 

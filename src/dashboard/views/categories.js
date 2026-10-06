@@ -130,7 +130,7 @@ export async function categoriesView(outlet) {
     let dragged = null;
     const row = (id, index) => {
       const category = byId.get(id);
-      const node = h("li", { class: "d-card flex flex-wrap items-center gap-x-3 gap-y-2 p-3", draggable: writable ? "true" : null, dataset: { id } },
+      const node = h("li", { class: "d-card flex flex-wrap items-center gap-x-3 gap-y-2 p-3 sm:px-4", draggable: writable ? "true" : null, dataset: { id } },
         writable && h("span", { class: "hidden cursor-grab text-line-strong sm:block", "aria-hidden": "true", title: "Drag to reorder" }, icon("grip")),
         writable && h("div", { class: "flex" },
           h("button", { type: "button", class: "d-icon-btn", disabled: index === 0, "aria-label": `Move ${category.name} up`, dataset: { move: `${id}:up` }, onClick: () => move(index, -1) }, icon("up")),
@@ -138,7 +138,7 @@ export async function categoriesView(outlet) {
         h("div", { class: "min-w-0 flex-1" },
           h("p", { class: "truncate font-semibold" }, category.name),
           h("p", { class: "flex flex-wrap items-center gap-2 text-sm text-muted" },
-            h("a", { href: `#/items?category=${id}`, class: "hover:underline" }, `${category.item_count} ${category.item_count === 1 ? "item" : "items"}`),
+            h("a", { href: `#/items?category=${id}`, class: "hover:text-brand hover:underline" }, `${category.item_count} ${category.item_count === 1 ? "item" : "items"}`),
             category.archived && badge("Archived"),
             category.web_hidden && !category.archived && badge("Hidden on website", "warn"))),
         h("label", { class: "flex items-center gap-2 text-sm" }, h("span", { class: "text-muted" }, "On website"),
@@ -195,7 +195,7 @@ export async function categoriesView(outlet) {
       title: "Categories",
       actions: writable && h("button", { type: "button", class: "d-btn d-btn-primary", onClick: add }, icon("plus", 16), "Add category"),
     }),
-    h("p", { class: "mb-4 max-w-2xl text-sm text-muted" }, "Categories and their order come from Clover. The website lists them in this order. Drag a row, or use the arrows, then save."),
+    h("p", { class: "-mt-3 mb-6 max-w-2xl text-sm text-muted" }, "Categories and their order come from Clover. The website lists them in this order. Drag a row, or use the arrows, then save."),
     orderBar, region,
   );
   await load();

@@ -190,7 +190,7 @@ with only the relevant keys present.
 | Method and path | Purpose |
 |---|---|
 | `GET /public-menu?restaurant=<slug>` | The menu customers may see. 200 with `{version, currency, synced_at, categories[]}`; 503 "Menu temporarily unavailable" before the first sync or on failure; 429 above 120 requests a minute from one address. Cacheable for 60 s. |
-| `POST /job-application` | `multipart/form-data`: `restaurant`, `full_name`, `email`, `phone`, `position`, `message`, `consent`, optional `cv`, plus the bot-trap fields. 200, 422 with `fields`, 429, 502/503. Answers 503 `applications_closed` unless both `JOB_APPLICATIONS_ENABLED=true` and `JOB_APPLICATION_RETENTION_DAYS` are set. |
+| `POST /job-application` | `multipart/form-data`: `restaurant`, `submission_id`, `full_name`, `email`, `phone`, `position`, `employment_type`, `availability` (one or more), `start_when`, `experience_level`, `work_authorized`, `consent`, optional `experience`, `message` and `cv`, plus the bot-trap fields. 200, 422 with `fields`, 429, 503. Answers 503 `applications_closed` unless both `JOB_APPLICATIONS_ENABLED=true` and `JOB_APPLICATION_RETENTION_DAYS` are set. |
 | `POST /clover-webhook` | Clover's notifications. Authenticated by `X-Clover-Auth`. |
 
 ### Job applications: two switches and a retention period
@@ -209,6 +209,36 @@ Applications older than the retention period are deleted by `purgeExpiredApplica
 never leaves a file without its record. It runs after an application is accepted and when an
 owner opens the dashboard overview. There is no scheduler; `DEPLOYMENT_CHECKLIST.md` says how
 to add one if the privacy policy needs a guaranteed day.
+
+### Job applications: the path one takes
+
+```
+Applicant -> form on /careers/ -> POST /job-application -> database (+ CV in the private bucket)
+                                          |  answers the applicant here: "received"
+                                          v  then, after the answer
+                                    email to the restaurant's recruitment inbox,
+                                    with a link to /dashboard/#/applications/<id>
+
+Owner -> dashboard (signed in) -> /dashboard-api/applications... -> database, private bucket
+```
+
+- **The database is the record.** `job_application_submit` stores the application and its
+  first history entry in one call. The applicant is answered as soon as that succeeds. A
+  failed email changes nothing for the applicant: the application is marked
+  `email_status = failed` and the dashboard says so on it.
+- **One application per send.** The form makes a `submission_id` once per page load. The
+  same id arriving again, from a second press or a retry, is answered as received and
+  stores nothing. A unique index on `(restaurant_id, submission_id)` decides a race.
+- **The recruitment address** is `restaurants.recruitment_email`. The handler reads it when
+  it sends the email. It is in no content file, page or script.
+- **The dashboard** lists applications (name, position, stage, date; no contact details),
+  shows one in full with its history, changes its stage with an optional note, and
+  downloads the CV. Owners and managers only (`applications.read`, `applications.manage`).
+- **The CV has no address.** `GET /applications/{id}/cv` reads it from the private bucket
+  with the service role and streams it in the authenticated response, as a download.
+- **History.** `job_application_events` gets a row when an application arrives, when its
+  notification is sent or fails, when its stage changes (with who, and their note), when a
+  note is added, and when its CV is downloaded. Rows go when the application is deleted.
 
 ### The ORDER ONLINE link
 
@@ -239,13 +269,18 @@ production build refuses a value that is not `https://` or that looks like a pla
 | `GET /clover` | menu.read | Connection status. Never contains token material. |
 | `POST /clover/connect`, `/clover/complete`, `/clover/disconnect` | clover.manage | OAuth start, finish, disconnect |
 | `POST /clover/sync` | menu.write | Manual sync |
+| `GET /applications` | applications.read | Job applications, newest first. `search, status, position, from, to` (instants; `to` is exclusive), `limit, offset`. Returns `total`, the page, `counts` by stage and the `positions` applied for. |
+| `GET /applications/summary` | applications.read | `{new, total}`: the number beside "Applications" in the sidebar |
+| `GET /applications/{uuid}` | applications.read | One application in full, with its history |
+| `PATCH /applications/{uuid}` | applications.manage | `{status, note?}`. Stages: `new, reviewing, shortlisted, interview, hired, rejected`. |
+| `GET /applications/{uuid}/cv` | applications.read | The CV's bytes, as a download. Recorded in the history and the audit log. |
 | `GET /activity?before=<id>` | activity.read | Audit log, 30 per page |
 
 Per-user rate limits apply to every route (see `dashboard/router.ts`).
 
 ## 6. Data model
 
-Defined in `supabase/migrations/`. Sixteen tables:
+Defined in `supabase/migrations/`. Seventeen tables:
 
 | Table | Holds |
 |---|---|
@@ -257,7 +292,8 @@ Defined in `supabase/migrations/`. Sixteen tables:
 | `sync_runs` | History of sync attempts |
 | `audit_logs` | Who did what, with outcome |
 | `idempotency_keys` | Outcomes of create requests |
-| `job_applications` | Applications (private) |
+| `job_applications` | Applications (private): the applicant's answers, the CV's place in the private bucket, the stage, whether the notification went out |
+| `job_application_events` | What happened to each application, in order (private) |
 | `rate_limits`, `integration_logs` | Operational |
 
 Deliberately not created: tables for restaurant info, locations, gallery, job positions.

@@ -46,6 +46,94 @@ export function installDemo(state) {
   log("CLOVER_CONNECTED", "clover_connection", connection.merchant_id, null);
   log("SYNC_COMPLETED", "sync", null, { items: items.length }, "success", "SYNCED");
 
+  // Job applications. Invented people at an address that cannot exist, so the screens can
+  // be reviewed with no real applicant's details anywhere near a demo.
+  let eventId = 0;
+  const event = (kind, minutesAgo, extra = {}) => ({
+    id: ++eventId, kind, from_status: null, to_status: null, note: null, actor_email: null, created_at: stamp(minutesAgo), ...extra,
+  });
+  const person = (number, fullName, position, minutesAgo, answers, events = []) => ({
+    id: `00000000-0000-4000-8000-${String(number).padStart(12, "0")}`,
+    full_name: fullName, email: `${fullName.toLowerCase().replace(/[^a-z]+/g, ".")}@example.test`,
+    phone: `+1 619 555 01${String(10 + number)}`, position, status: "new", status_changed_at: null, email_status: "sent",
+    employment_type: "full_time", availability: ["weekday_evenings", "weekend_evenings"], start_when: "two_weeks",
+    experience_level: "1_2", experience: null, work_authorized: true, message: null, cv: null,
+    created_at: stamp(minutesAgo),
+    events: [event("submitted", minutesAgo, { to_status: "new" }), event("email_sent", minutesAgo), ...events],
+    ...answers,
+  });
+  const applications = [
+    person(1, "Maya Thompson", "Barista", 35, {
+      experience_level: "3_5", employment_type: "part_time", availability: ["weekday_days", "weekend_days"], start_when: "immediately",
+      experience: "Three years behind the bar at a neighbourhood cafe: espresso, pour-over, opening and closing.\nTrained two new baristas.",
+      message: "I live ten minutes away and would love to help open the cafe side.",
+      cv: { name: "Maya-Thompson-CV.pdf", mime: "application/pdf", size: 184_320 },
+    }),
+    person(2, "Daniel Ortiz", "Line Cook", 190, {
+      experience_level: "over_5", availability: ["weekday_evenings", "weekend_evenings", "late_nights"],
+      experience: "Six years on grill and saute in two busy kitchens.",
+      cv: { name: "Daniel-Ortiz-Resume.pdf", mime: "application/pdf", size: 96_200 },
+    }),
+    person(3, "Priya Nair", "Waiter / Waitress", 60 * 26, {
+      status: "reviewing", status_changed_at: stamp(60 * 20), employment_type: "either", experience_level: "1_2",
+      message: "Available most evenings. Happy to start with a trial shift.",
+    }, [event("status_changed", 60 * 20, { from_status: "new", to_status: "reviewing", actor_email: "owner@example.com" })]),
+    person(4, "Omar Haddad", "Head Chef", 60 * 50, {
+      status: "interview", status_changed_at: stamp(60 * 30), experience_level: "over_5", start_when: "one_month",
+      experience: "Twelve years in Mediterranean kitchens, the last four as sous chef.",
+      cv: { name: "Omar-Haddad-CV.docx", mime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", size: 48_100 },
+    }, [
+      event("status_changed", 60 * 44, { from_status: "new", to_status: "shortlisted", actor_email: "owner@example.com" }),
+      event("cv_downloaded", 60 * 43, { actor_email: "owner@example.com" }),
+      event("status_changed", 60 * 30, { from_status: "shortlisted", to_status: "interview", actor_email: "owner@example.com", note: "Interview on Thursday at 3 PM." }),
+    ]),
+    person(5, "Lena Fischer", "Host / Hostess", 60 * 24 * 6, {
+      status: "hired", status_changed_at: stamp(60 * 24 * 2), employment_type: "part_time", experience_level: "under_1",
+    }, [
+      event("status_changed", 60 * 24 * 5, { from_status: "new", to_status: "interview", actor_email: "owner@example.com" }),
+      event("status_changed", 60 * 24 * 2, { from_status: "interview", to_status: "hired", actor_email: "owner@example.com", note: "Starts on the 15th." }),
+    ]),
+    person(6, "Chris Wallace", "Dishwasher / Kitchen Steward", 60 * 24 * 9, {
+      status: "rejected", status_changed_at: stamp(60 * 24 * 7), experience_level: "none", work_authorized: false, email_status: "failed",
+    }, [event("status_changed", 60 * 24 * 7, { from_status: "new", to_status: "rejected", actor_email: "owner@example.com" })]),
+  ];
+  // The second event of the last applicant is the email that did not go out.
+  applications[5].events[1].kind = "email_failed";
+
+  const findApplication = (id) => {
+    const application = applications.find((entry) => entry.id === id);
+    if (!application) throw new ApiFailure(404, { code: "not_found", message: "This application does not exist." });
+    return application;
+  };
+  const applicationDetail = (application) => ({
+    ...application,
+    other_applications: applications.filter((entry) => entry.email === application.email && entry.id !== application.id).length,
+  });
+  function listApplications(query) {
+    const search = (query.get("search") ?? "").toLowerCase();
+    const from = query.get("from");
+    const to = query.get("to");
+    const matching = applications
+      .filter((entry) => !query.get("status") || entry.status === query.get("status"))
+      .filter((entry) => !query.get("position") || entry.position === query.get("position"))
+      .filter((entry) => (!from || entry.created_at >= from) && (!to || entry.created_at < to))
+      .filter((entry) => !search || [entry.full_name, entry.email, entry.position, entry.phone].some((text) => text.toLowerCase().includes(search)))
+      .sort((a, b) => b.created_at.localeCompare(a.created_at));
+    const offset = Number(query.get("offset") ?? 0);
+    const limit = Number(query.get("limit") ?? 25);
+    const counts = {};
+    for (const entry of applications) counts[entry.status] = (counts[entry.status] ?? 0) + 1;
+    return {
+      total: matching.length, limit, offset, counts,
+      positions: [...new Set(applications.map((entry) => entry.position))].sort(),
+      applications: matching.slice(offset, offset + limit).map((entry) => ({
+        id: entry.id, full_name: entry.full_name, position: entry.position, status: entry.status,
+        employment_type: entry.employment_type, experience_level: entry.experience_level,
+        has_cv: entry.cv !== null, email_status: entry.email_status, created_at: entry.created_at,
+      })),
+    };
+  }
+
   const view = (item) => ({
     ...item,
     on_website: !item.hidden && !item.web_hidden && !item.archived && !item.removed_from_clover,
@@ -108,7 +196,7 @@ export function installDemo(state) {
       return {
         user: { email: "owner@example.com" },
         restaurant: { id: "demo", name: document.documentElement.dataset.restaurantName || "Restaurant", slug: "demo", currency: sample.currency },
-        role: "owner", permissions: ["menu.read", "menu.write", "clover.manage", "activity.read"], dietary_tags: DIETARY,
+        role: "owner", permissions: ["menu.read", "menu.write", "clover.manage", "activity.read", "applications.read", "applications.manage"], dietary_tags: DIETARY,
       };
     }
     if (path === "/overview") {
@@ -223,6 +311,36 @@ export function installDemo(state) {
     if (path.startsWith("/clover/")) {
       throw new ApiFailure(503, { code: "demo", message: "Connecting and disconnecting Clover is not available in demo mode." });
     }
+    if (path === "/applications") return listApplications(query);
+    if (path === "/applications/summary") {
+      return { new: applications.filter((entry) => entry.status === "new").length, total: applications.length };
+    }
+    if ((match = path.match(/^\/applications\/([0-9a-f-]{36})\/cv$/))) {
+      const application = findApplication(match[1]);
+      if (!application.cv) throw new ApiFailure(404, { code: "not_found", message: "This application has no CV." });
+      application.events.push(event("cv_downloaded", 0, { actor_email: "owner@example.com" }));
+      log("APPLICATION_CV_DOWNLOADED", "application", application.id, null);
+      // A one-page stand-in, so the download can be tried. It is not anyone's CV.
+      return new Blob(["%PDF-1.4\n% Demo file. Not a real CV.\n"], { type: "application/pdf" });
+    }
+    if ((match = path.match(/^\/applications\/([0-9a-f-]{36})$/))) {
+      const application = findApplication(match[1]);
+      if (method === "GET") return { application: applicationDetail(application) };
+      const note = body.note?.trim() || null;
+      const changed = body.status !== application.status;
+      if (changed) {
+        application.events.push(event("status_changed", 0, { from_status: application.status, to_status: body.status, note, actor_email: "owner@example.com" }));
+        log("APPLICATION_STATUS_CHANGED", "application", application.id, { status: body.status });
+        Object.assign(application, { status: body.status, status_changed_at: stamp() });
+      } else if (note) {
+        application.events.push(event("note", 0, { note, actor_email: "owner@example.com" }));
+      }
+      return {
+        result: "saved", application: applicationDetail(application),
+        message: changed ? "Demo: status changed in this browser tab only." : note ? "Demo: note added." : "Nothing changed.",
+      };
+    }
+
     if (path === "/activity") return { entries: query.get("before") ? [] : activity.slice(0, 30) };
 
     throw new ApiFailure(404, { code: "not_found", message: "Not found." });

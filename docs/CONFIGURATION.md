@@ -44,7 +44,9 @@ Not secret. Edited in the repository; a change is published by redeploying.
 | `ordering.url` | The restaurant's Clover Online Ordering page | **Not set.** See section 4. |
 | `careers.applications.enabled` | Whether the site publishes the application form | **`false`.** See section 5. |
 | `legal.privacyPolicyUrl` or `legal.privacy.sections` | The privacy policy: a link, or text for the built-in `/privacy/` page | **Not set** |
-| `hero.image`, `about.image`, `ogImage`, `gallery[]`, `locations[].image`, `careers.image` | Photos | **Not set, on purpose.** See section 6. |
+| `hero.image`, `about.image`, `gallery[]`, `locations[].image`, `defaultDishPhotos[]` | Photos | **Placeholders** (`placeholder-*.jpg`), until real photos arrive. See section 6. |
+| `ogImage`, `careers.image` | Photos | **Not set.** See section 6. |
+| `locations[].mapsEmbedUrl` | The Google map on the home and Locations pages | Set: a Google Maps embed address built from the restaurant's name and street address. It must start with `https://www.google.com/maps`, the only frame the security policy allows. Set it to `null` to remove the map. |
 | `social.*` | Social links | Instagram set |
 
 `npm run check:content` lists everything unset and says what the site does without it.
@@ -117,40 +119,55 @@ Once set, applications older than that many days are deleted together with their
 The clean-up runs after each accepted application and whenever an owner opens the dashboard
 overview. The number must match what the privacy policy tells applicants.
 
-Where applications are sent: the `recruitment_email` column of the restaurant's row in the
+Where applications go: into the database, where the owner reads them in the dashboard under
+**Applications**. An email then tells the restaurant one has arrived, with a link to it.
+
+Who that email goes to: the `recruitment_email` column of the restaurant's row in the
 `restaurants` table (set by `supabase/provision-restaurant.sql`). It is in the database, not
-in an environment variable, because the backend serves more than one restaurant. It is never
-sent to the browser.
+in an environment variable, because the backend serves more than one restaurant, and it is
+never sent to the browser. It is not in `content/site.json` either: `locations[].email` is
+`null`, so no email address appears anywhere on the website. To change the recipient, change
+that column; nothing is rebuilt.
+
+The email needs `RESEND_API_KEY` and `EMAIL_FROM` (section 7). Without them applications are
+still received and shown in the dashboard; each is marked as not notified.
 
 To open applications, in this order:
 
-1. Publish the privacy policy (`legal.privacyPolicyUrl`, or text in `legal.privacy.sections`).
-2. Set `JOB_APPLICATION_RETENTION_DAYS` to the confirmed number.
-3. Set `JOB_APPLICATIONS_ENABLED=true`.
-4. Set `careers.applications.enabled` to `true` and redeploy the site.
-5. Send one test application and confirm it arrives.
+1. Apply the migrations (`20261006000700_job_application_workflow.sql` adds the answers, the
+   stages and the history) and deploy the `job-application` and `dashboard-api` functions.
+2. Publish the privacy policy (`legal.privacyPolicyUrl`, or text in `legal.privacy.sections`).
+   It should say what the form collects: contact details, availability, experience, whether
+   the applicant is authorized to work in the United States, and an optional CV.
+3. Set `JOB_APPLICATION_RETENTION_DAYS` to the confirmed number.
+4. Set `JOB_APPLICATIONS_ENABLED=true`.
+5. Set `careers.applications.enabled` to `true` and redeploy the site.
+6. Send one test application. Confirm it appears in the dashboard under Applications, that
+   the email arrives, and that its link opens the application after signing in.
 
 ## 6. Photos
 
-Real photos are postponed. The site is built to work without them:
+The restaurant's own photos have not arrived. Since 2026-10-06, by instruction, the live site
+shows **placeholder photos** in their place rather than the photo-less layouts:
 
-| Slot | Without a photo |
-|---|---|
-| Home hero | Text-only hero in the logo's colours |
-| About | The logo on a panel |
-| Link previews | An image generated from the logo (`og-default.png`) |
-| Gallery | Page hidden from navigation and search |
-| Location, careers | The slot is simply left out |
+| Slot | Shows now | Without any photo (if the placeholder is removed and not replaced) |
+|---|---|---|
+| Home hero | `placeholder-hero.jpg` | The same dark hero with a warm glow and the logo's leaf |
+| Home "our story", About | `placeholder-story.jpg` | Home: the "what to expect" points on a forest green panel. About: the logo, in white, on a forest green panel. |
+| Gallery page, home photo strip | `placeholder-gallery-1` to `-5` | Page hidden from navigation and search; strip left out |
+| Home categories and popular dishes | The dish's own photo from the dashboard, else one of `defaultDishPhotos` | Green tiles and text-only cards |
+| Location | The Google map. `placeholder-location.jpg` is set but only shows if the map is removed. | The opening hours, day by day |
+| Link previews | An image generated from the logo (`og-default.png`) | The same |
+| Careers | Left out | Left out |
 
-To add photos later: put the files in `content/media/`, name them in `site.json`, give each
-an `imageAlt`, redeploy. No template changes. `content/media/README.md` lists the slots and
-recommended sizes.
+The placeholders are stock photos from the design template: **not this restaurant, and their
+licence for publication was never checked.** `content/media/README.md` lists them and says
+how to replace each one. To replace a photo: put the real file in `content/media/`, name it
+in `site.json`, write its alt text, delete the placeholder, redeploy. No template changes.
 
-Development-only stock photos live in `content/sample-media/`. Three things keep them out of
-production: only the sample profile reads that folder; the production build reads
-`content/media/` and nothing else; and on the server the repository is never the web root:
-Nginx serves only the built release, and `npm run verify:site` fails if a repository file
-can be fetched from the site.
+The sample profile (`npm run dev`) still reads its own copies from `content/sample-media/`.
+On the server the repository is never the web root: Nginx serves only the built release, and
+`npm run verify:site` fails if a repository file can be fetched from the site.
 
 Menu item photos are different: the owner uploads those in the dashboard, and they are
 stored in Supabase Storage.

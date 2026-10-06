@@ -468,19 +468,31 @@ and `npm run verify:site` passes with `EXPECT_ORDERING_URL` set to that address.
 
 ## 11. Job applications (only after B-3 and B-4 in BLOCKERS.md)
 
+- [ ] Migration `20261006000700_job_application_workflow.sql` applied (TEST first, then
+      PRODUCTION): `supabase db push`, then `npm run verify:database` (17 tables).
+- [ ] Functions redeployed: `job-application` and `dashboard-api` both changed.
 - [ ] Privacy policy published: `legal.privacyPolicyUrl` or `legal.privacy.sections` in
-      `content/site.json`.
+      `content/site.json`. It covers what the form now asks: contact details, availability,
+      experience, authorization to work in the United States, an optional CV.
 - [ ] `JOB_APPLICATION_RETENTION_DAYS` = the confirmed number. It matches the policy.
 - [ ] `JOB_APPLICATIONS_ENABLED=true`; `supabase secrets set`.
 - [ ] `careers.applications.enabled: true` in `content/site.json`; commit; redeploy.
+- [ ] For the notification email: `RESEND_API_KEY` and `EMAIL_FROM` set (B-7). Without them
+      applications still arrive in the dashboard, each marked as not notified.
 
 **Check:**
 
-- [ ] Send one application with a PDF. The page confirms it; the email arrives at
-      `fadi.auchi@gmail.com` with the CV attached and Reply-To set to the applicant.
+- [ ] Send one application with a PDF. The page confirms it.
+- [ ] Sign in to the dashboard: the application is under **Applications**, with a "1" beside
+      the link in the sidebar. Open it: every answer is there. Download the CV: it is the
+      file that was sent. Change the status with a note: both appear in its history.
+- [ ] The email arrives at the recruitment address (the `recruitment_email` of the
+      restaurant's row), subject "New Job Application — name — position", Reply-To set to
+      the applicant, **no attachment**. Its button opens that application after signing in.
 - [ ] Try a `.exe` renamed to `.pdf`: refused.
 - [ ] In Supabase, `job_applications` has the row with `email_status = sent`; the `cvs`
       bucket is **private** (opening the file's public URL fails).
+- [ ] View the source of the home, Contact, Locations and Careers pages: no email address.
 
 Optional, if deletion must happen on a fixed schedule: enable `pg_cron` and `pg_net`, store
 a long random token as a database setting and as a function secret, add a small Edge

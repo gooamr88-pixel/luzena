@@ -51,6 +51,9 @@ function render(menu) {
   });
   root.setAttribute("aria-busy", "false");
   trackCurrentCategory(categories);
+  // A link from the home page names a category (/menu/#menu-ID). The category did not exist
+  // when the page opened, so the browser could not go to it; go there now.
+  if (location.hash.startsWith("#menu-")) document.getElementById(decodeURIComponent(location.hash.slice(1)))?.scrollIntoView();
 }
 
 // Marks the chip of the category being read, and keeps that chip in view.

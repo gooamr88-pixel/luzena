@@ -47,6 +47,7 @@ export async function createHarness(envOverrides = {}) {
     files: {
       upload: async (bucket, path, bytes, contentType) => { stored.set(`${bucket}/${path}`, { bytes, contentType }); },
       remove: async (bucket, paths) => { for (const path of paths) stored.delete(`${bucket}/${path}`); },
+      download: async (bucket, path) => stored.get(`${bucket}/${path}`)?.bytes ?? null,
     },
     auth: { getUser: async (jwt) => users.get(jwt) ?? null },
     email: {
@@ -91,6 +92,10 @@ export async function createHarness(envOverrides = {}) {
       init.headers["idempotency-key"] = `test-key-${String(keyCounter).padStart(6, "0")}`;
     }
     const response = await handleDashboard(new Request(`https://fn.test/functions/v1/dashboard-api${path}`, init), deps);
+    // A file (a CV) comes back as bytes; everything else is JSON.
+    if (!(response.headers.get("content-type") ?? "").includes("application/json")) {
+      return { status: response.status, body: null, bytes: new Uint8Array(await response.arrayBuffer()), headers: response.headers };
+    }
     const text = await response.text();
     return { status: response.status, body: text ? JSON.parse(text) : null, headers: response.headers };
   };

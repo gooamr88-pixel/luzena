@@ -34,6 +34,8 @@
     { "image": "gallery-6.jpg", "alt": "Sample photo 6" }
   ],
 
+  "defaultDishPhotos": ["gallery-1.jpg", "gallery-2.jpg", "gallery-6.jpg", "hero.jpg", "gallery-4.jpg", "gallery-3.jpg"],
+
   "legal": {
     "privacy": {
       "updated": "Sample",

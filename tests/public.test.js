@@ -152,39 +152,70 @@ describe("Clover webhook", () => {
 
 describe("job application", () => {
   const pdf = new TextEncoder().encode("%PDF-1.7\n1 0 obj\n<< /Type /Catalog >>\nendobj\n");
+  // Every application comes from its own email address unless a test says otherwise, so
+  // the per-address limit only shows up in the test that is about it.
+  let applicant = 0;
   const valid = () => ({
-    restaurant: "alpha", full_name: "Sam Rivera", email: "Sam@Example.test", phone: "+1 555 010 0199",
-    position: "Chefs & Cooks", message: "I have five years of line experience.", consent: "yes",
+    restaurant: "alpha", full_name: "Sam Rivera", email: `sam${++applicant}@example.test`, phone: "+1 555 010 0199",
+    position: "Chefs & Cooks", employment_type: "full_time", availability: ["weekday_evenings", "weekend_days"],
+    start_when: "two_weeks", experience_level: "3_5", experience: "Five years on the line at two restaurants.",
+    work_authorized: "yes", message: "I would like to join the kitchen.", consent: "yes",
     started_at: String(Date.now() - 20_000), company_website: "",
   });
-  const submit = (fieldValues, file, headers = { origin: ORIGIN, "x-forwarded-for": "203.0.113.9" }) => {
+  let address = 0;
+  const from = () => ({ origin: ORIGIN, "x-forwarded-for": `198.51.100.${++address}` });
+  const submit = (fieldValues, file, headers = from()) => {
     const form = new FormData();
-    for (const [key, value] of Object.entries(fieldValues)) form.append(key, value);
+    for (const [key, value] of Object.entries(fieldValues)) {
+      for (const entry of [].concat(value)) form.append(key, entry);
+    }
     if (file) form.append("cv", file);
     return handleJobApplication(new Request("https://fn.test/job-application", { method: "POST", headers, body: form }), h.deps).then(read);
   };
   const count = async () => (await h.pg.query("select count(*)::int as n from public.job_applications")).rows[0].n;
+  const latest = async () => (await h.pg.query("select * from public.job_applications order by created_at desc, id desc limit 1")).rows[0];
+  const events = async (id) => (await h.pg.query("select kind from public.job_application_events where application_id = $1 order by id", [id])).rows.map((row) => row.kind);
 
-  it("stores the application, keeps the CV private, and emails the recruiter", async () => {
-    const response = await submit(valid(), new File([pdf], "../../My CV (final).pdf", { type: "application/pdf" }));
+  it("stores the application first, keeps the CV private, then notifies the recruiter", async () => {
+    const response = await submit({ ...valid(), email: "Sam@Example.test" }, new File([pdf], "../../My CV (final).pdf", { type: "application/pdf" }));
     expect(response.status).toBe(200);
+    // The applicant is answered once the application is stored; the email follows on its own.
+    expect(await count()).toBe(1);
 
-    const { rows } = await h.pg.query("select * from public.job_applications");
-    expect(rows[0]).toMatchObject({ full_name: "Sam Rivera", email: "sam@example.test", email_status: "sent", cv_original_name: "My-CV-final.pdf" });
-    expect(rows[0].cv_path).toMatch(new RegExp(`^${alpha}/[0-9a-f-]{36}\\.pdf$`));
-    expect(rows[0].ip_hash).not.toContain("203.0.113.9");
-    expect(h.stored.has(`cvs/${rows[0].cv_path}`)).toBe(true);
+    const row = await latest();
+    expect(row).toMatchObject({
+      full_name: "Sam Rivera", email: "sam@example.test", position: "Chefs & Cooks", status: "new",
+      employment_type: "full_time", availability: ["weekday_evenings", "weekend_days"], start_when: "two_weeks",
+      experience_level: "3_5", experience: "Five years on the line at two restaurants.", work_authorized: true,
+      message: "I would like to join the kitchen.", cv_original_name: "My-CV-final.pdf",
+    });
+    expect(row.cv_path).toMatch(new RegExp(`^${alpha}/[0-9a-f-]{36}\\.pdf$`));
+    expect(row.ip_hash).not.toContain("198.51.100");
+    expect(h.stored.has(`cvs/${row.cv_path}`)).toBe(true);
 
+    await h.settle();
     expect(h.sent).toHaveLength(1);
-    expect(h.sent[0]).toMatchObject({ to: "jobs@example.test", replyTo: "sam@example.test" });
-    expect(h.sent[0].subject).toBe("Job application: Chefs & Cooks - Sam Rivera");
-    expect(h.sent[0].attachment.filename).toBe("My-CV-final.pdf");
+    const email = h.sent[0];
+    expect(email).toMatchObject({ to: "jobs@example.test", replyTo: "sam@example.test" });
+    expect(email.subject).toBe("New Job Application — Sam Rivera — Chefs & Cooks");
+    // A summary and a link to the dashboard. The CV and the applicant's own words stay
+    // behind the sign-in.
+    expect(email.attachment).toBeUndefined();
+    expect(email.text).toContain(`${ORIGIN}/dashboard/#/applications/${row.id}`);
+    expect(email.text).toContain("Weekday evenings, Weekend days");
+    expect(email.text).not.toContain("I would like to join the kitchen.");
+    expect(email.text).not.toContain("Five years on the line");
+    expect(email.html).toContain(`href="${ORIGIN}/dashboard/#/applications/${row.id}"`);
+    expect((await latest()).email_status).toBe("sent");
+    expect(await events(row.id)).toEqual(["submitted", "email_sent"]);
+    // The inbox address never reaches the applicant.
     expect(JSON.stringify(response.body)).not.toContain("jobs@example.test");
   });
 
-  it("accepts an application without a CV", async () => {
-    const response = await submit(valid(), null, { origin: ORIGIN, "x-forwarded-for": "203.0.113.10" });
+  it("accepts an application without a CV, experience notes or an introduction", async () => {
+    const response = await submit({ ...valid(), experience: "", message: "" });
     expect(response.status).toBe(200);
+    expect(await latest()).toMatchObject({ cv_path: null, experience: null, message: null });
   });
 
   it("rejects submissions from other origins", async () => {
@@ -192,54 +223,101 @@ describe("job application", () => {
     expect((await submit(valid(), null, {})).status).toBe(403);
   });
 
-  it("returns field errors for invalid input and stores nothing", async () => {
+  it("returns a message for every field that is wrong, and stores nothing", async () => {
     const before = await count();
-    const response = await submit({ ...valid(), email: "not-an-email", phone: "abc", full_name: "x", consent: "" }, null,
-      { origin: ORIGIN, "x-forwarded-for": "203.0.113.11" });
+    const response = await submit({
+      ...valid(), email: "not-an-email", phone: "abc", full_name: "x", consent: "",
+      employment_type: "", availability: ["mondays"], start_when: "whenever", experience_level: "", work_authorized: "",
+    });
     expect(response.status).toBe(422);
-    expect(Object.keys(response.body.error.fields).sort()).toEqual(["consent", "email", "full_name", "phone"]);
+    expect(Object.keys(response.body.error.fields).sort()).toEqual([
+      "availability", "consent", "email", "employment_type", "experience_level", "full_name", "phone", "start_when", "work_authorized",
+    ]);
+    expect(response.body.error.fields.availability).toBe("Choose at least one time you could work.");
+    expect(response.body.error.fields.work_authorized).toMatch(/authorized to work/);
+    expect((await submit({ ...valid(), availability: [] })).body.error.fields.availability).toBeDefined();
+    expect((await submit({ ...valid(), message: "x".repeat(2001) })).body.error.fields.message).toMatch(/at most 2000/);
     expect(await count()).toBe(before);
   });
 
   it("rejects an executable renamed to .pdf, a wrong extension, and a macro document", async () => {
-    const headers = (n) => ({ origin: ORIGIN, "x-forwarded-for": `203.0.113.${n}` });
     const exe = new File([new Uint8Array([0x4d, 0x5a, 0x90, 0x00, 0x03])], "cv.pdf", { type: "application/pdf" });
-    expect((await submit(valid(), exe, headers(20))).body.error.fields.cv).toMatch(/PDF, DOC or DOCX/);
+    expect((await submit(valid(), exe)).body.error.fields.cv).toMatch(/PDF, DOC or DOCX/);
 
     const renamed = new File([pdf], "cv.docx", { type: "application/pdf" });
-    expect((await submit(valid(), renamed, headers(21))).status).toBe(422);
+    expect((await submit(valid(), renamed)).status).toBe(422);
 
     const script = new File([new TextEncoder().encode("%PDF-1.7\n<< /S /JavaScript /JS (app.alert(1)) >>")], "cv.pdf");
-    expect((await submit(valid(), script, headers(22))).body.error.fields.cv).toMatch(/scripts or macros/);
+    expect((await submit(valid(), script)).body.error.fields.cv).toMatch(/scripts or macros/);
 
     const html = new File([new TextEncoder().encode("<script>alert(1)</script>")], "cv.pdf");
-    expect((await submit(valid(), html, headers(23))).status).toBe(422);
+    expect((await submit(valid(), html)).status).toBe(422);
   });
 
   it("silently drops bots: filled honeypot or an instant submit", async () => {
+    await h.settle();
     const before = await count();
     const sentBefore = h.sent.length;
-    const honeypot = await submit({ ...valid(), company_website: "http://spam.example" }, null, { origin: ORIGIN, "x-forwarded-for": "203.0.113.30" });
-    const instant = await submit({ ...valid(), started_at: String(Date.now()) }, null, { origin: ORIGIN, "x-forwarded-for": "203.0.113.31" });
+    const honeypot = await submit({ ...valid(), company_website: "http://spam.example" });
+    const instant = await submit({ ...valid(), started_at: String(Date.now()) });
     expect(honeypot.status).toBe(200);
     expect(instant.status).toBe(200);
+    await h.settle();
     expect(await count()).toBe(before);
     expect(h.sent.length).toBe(sentBefore);
   });
 
-  it("strips line breaks from fields that reach the email subject", async () => {
-    await submit({ ...valid(), full_name: "Eve\r\nBcc: victim@example.test" }, null, { origin: ORIGIN, "x-forwarded-for": "203.0.113.40" });
-    expect(h.sent.at(-1).subject).not.toMatch(/[\r\n]/);
+  it("keeps markup and line breaks in what the applicant typed out of the email", async () => {
+    await submit({ ...valid(), full_name: "Eve\r\nBcc: victim@example.test", position: "<img src=x onerror=alert(1)>" });
+    await h.settle();
+    const email = h.sent.at(-1);
+    expect(email.subject).not.toMatch(/[\r\n]/);
+    expect(email.html).not.toContain("<img");
+    expect(email.html).toContain("&lt;img src=x onerror=alert(1)&gt;");
   });
 
-  it("tells the applicant to retry when the email cannot be sent, and records the failure", async () => {
+  it("counts one submission once, however many times it is sent", async () => {
+    await h.settle();
+    const before = await count();
+    const sentBefore = h.sent.length;
+    const storedBefore = h.stored.size;
+    const application = { ...valid(), submission_id: "0b6f6a51-6f0c-4d6c-9d7e-2f3b8a1c4e55" };
+    const cvFile = () => new File([pdf], "cv.pdf", { type: "application/pdf" });
+
+    expect((await submit(application, cvFile())).status).toBe(200);
+    // The same form sent again: a second press of the button, or a retry after a lost answer.
+    expect((await submit(application, cvFile())).status).toBe(200);
+    expect((await submit(application, cvFile())).status).toBe(200);
+    await h.settle();
+
+    expect(await count()).toBe(before + 1);
+    expect(h.sent.length).toBe(sentBefore + 1);
+    expect(h.stored.size).toBe(storedBefore + 1);
+    expect((await submit({ ...valid(), submission_id: "not-a-uuid" })).status).toBe(400);
+  });
+
+  it("still receives the application when the email cannot be sent, and records that it was not", async () => {
     h.state.emailFails = true;
-    const response = await submit(valid(), null, { origin: ORIGIN, "x-forwarded-for": "203.0.113.50" });
+    const response = await submit(valid());
+    await h.settle();
     h.state.emailFails = false;
-    expect(response.status).toBe(502);
-    expect(response.body.error.message).not.toMatch(/provider|resend|stack/i);
-    const { rows } = await h.pg.query("select email_status from public.job_applications order by created_at desc limit 1");
-    expect(rows[0].email_status).toBe("failed");
+    // The application is in the database and the dashboard. The applicant has nothing to retry.
+    expect(response.status).toBe(200);
+    const row = await latest();
+    expect(row.email_status).toBe("failed");
+    expect(await events(row.id)).toEqual(["submitted", "email_failed"]);
+    expect(h.logs.some((entry) => entry.event === "job_application_email_failed")).toBe(true);
+  });
+
+  it("still receives the application when no email provider or inbox is set up", async () => {
+    const sender = h.deps.email;
+    h.deps.email = null;
+    const response = await submit(valid());
+    await h.settle();
+    h.deps.email = sender;
+    expect(response.status).toBe(200);
+    expect((await latest()).email_status).toBe("failed");
+    expect(h.logs.some((entry) => entry.event === "job_application_email_not_configured")).toBe(true);
   });
 
   it("limits how many applications one connection can send", async () => {
@@ -247,6 +325,16 @@ describe("job application", () => {
     const statuses = [];
     for (let i = 0; i < 6; i++) statuses.push((await submit(valid(), null, headers)).status);
     expect(statuses).toEqual([200, 200, 200, 200, 200, 429]);
+  });
+
+  it("limits how many applications one email address can send in a day", async () => {
+    const statuses = [];
+    for (let i = 0; i < 4; i++) statuses.push((await submit({ ...valid(), email: "Keen@Example.test" })).status);
+    expect(statuses).toEqual([200, 200, 200, 429]);
+    // The address is counted as a hash, never stored as a key.
+    const { rows } = await h.pg.query("select key from public.rate_limits where key like 'apply-email:%'");
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows.every((row) => !row.key.includes("keen"))).toBe(true);
   });
 
   describe("the operator's switch", () => {
@@ -275,7 +363,7 @@ describe("job application", () => {
       const storedBefore = h.stored.size;
       const sentBefore = h.sent.length;
       const response = await withSettings({ enabled: false, retentionDays: 180 }, () =>
-        submit(valid(), new File([pdf], "cv.pdf"), { origin: ORIGIN, "x-forwarded-for": "203.0.113.60" }));
+        submit(valid(), new File([pdf], "cv.pdf")));
       expect(response.status).toBe(503);
       expect(response.body.error.code).toBe("applications_closed");
       expect(await count()).toBe(before);
@@ -286,7 +374,7 @@ describe("job application", () => {
     it("refuses applications when switched on without a retention period", async () => {
       const before = await count();
       const response = await withSettings({ enabled: true, retentionDays: null }, () =>
-        submit(valid(), null, { origin: ORIGIN, "x-forwarded-for": "203.0.113.61" }));
+        submit(valid()));
       expect(response.status).toBe(503);
       expect(response.body.error.code).toBe("applications_closed");
       expect(await count()).toBe(before);
@@ -348,7 +436,7 @@ describe("job application", () => {
 
     it("runs after a new application is accepted", async () => {
       const old = await addApplication("Swept On Submit", 300, null);
-      const response = await submit(valid(), null, { origin: ORIGIN, "x-forwarded-for": "203.0.113.70" });
+      const response = await submit(valid());
       expect(response.status).toBe(200);
       await h.settle();
       expect(await exists(old)).toBe(false);

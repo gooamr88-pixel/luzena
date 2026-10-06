@@ -31,7 +31,7 @@ The site has two halves that can go live separately.
 | **Information site**: name, address, hours, About, the list of roles, "ordering opens soon" | B-5, B-6 only |
 | + Live menu and owner dashboard | + B-1 |
 | + ORDER ONLINE going to Clover | + B-2 |
-| + Online job applications | + B-3, B-4, B-7 |
+| + Online job applications | + B-3, B-4, the new migration and both functions deployed. B-7 only for the notification email: without it applications still arrive in the dashboard. |
 
 ---
 
@@ -225,24 +225,27 @@ which is what Clover recommends for an integration that serves one merchant
   refusals were exercised locally; its build and switch steps, and the Nginx file, were
   not. Expect to fix small things on first contact, as with the functions on TEST.
 
-### B-7. Resend verified domain — BLOCKING for job applications · INFRASTRUCTURE
+### B-7. Resend verified domain — NEEDED for the notification email · INFRASTRUCTURE
 
 - **Needed:** a Resend account, `luzenarestaurant.com` verified there (three DNS records),
   an API key.
-- **Until then:** applications cannot be emailed, and the backend answers "could not send"
-  rather than pretending.
+- **Until then:** applications are still received, stored and shown in the dashboard under
+  Applications; only the email that says "a new one has arrived" is not sent. Each such
+  application is marked, and the dashboard says on it that the notification did not go out.
+  (Until 2026-10-06 the email was the only record, so this blocked applications entirely.)
 
 ---
 
 ## NON-BLOCKING
 
-### N-1. Real photos — NON-BLOCKING · CLIENT INPUT (postponed on purpose)
+### N-1. Real photos — NON-BLOCKING · CLIENT INPUT (placeholders are live in their place)
 
-Not a blocker. The site is designed to work without them: text-only hero, logo panel on
-About, a share image generated from the logo, Gallery hidden. To add them later: files into
-`content/media/`, names into `content/site.json`, redeploy. The stock photos used during
-development are in `content/sample-media/`, are read only by sample builds, and on the
-server exist only inside the repository checkout, which Nginx never serves.
+Not a blocker, but now more pressing. Since 2026-10-06, by instruction, the site shows
+placeholder photos until the real ones arrive: the hero, "our story", the gallery, and the
+home page's category tiles and dish cards. They are stock photos from the design template.
+They do not show this restaurant or its food, and whether they may be published was never
+checked (`content/media/README.md`). Each real photo replaces one: file into
+`content/media/`, name into `content/site.json`, redeploy.
 
 ### N-2. Approval of the written text — NON-BLOCKING · CLIENT INPUT
 

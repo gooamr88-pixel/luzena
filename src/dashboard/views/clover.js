@@ -153,8 +153,8 @@ export async function cloverView(outlet) {
       });
     });
 
-    return h("div", { class: "d-card mt-5 p-5" },
-      h("h2", { class: "text-base" }, reconnecting ? "Enter a new Clover API token" : "Connect with a Clover API token"),
+    return h("div", { class: "d-card mt-5 p-5 sm:p-6" },
+      h("h2", { class: "d-title" }, reconnecting ? "Enter a new Clover API token" : "Connect with a Clover API token"),
       h("p", { class: "mt-2 text-sm text-muted" },
         "For a restaurant connecting its own Clover account. The token is created by the account owner in Clover and can be deleted there at any time, which disconnects this website."),
       form);
@@ -162,8 +162,7 @@ export async function cloverView(outlet) {
 
   function draw({ connection, configured, token_connect: tokenConnect }) {
     const manage = can("clover.manage");
-    const row = (term, value) => h("div", { class: "flex flex-wrap justify-between gap-x-6 gap-y-1 border-b border-line py-3 last:border-b-0" },
-      h("dt", { class: "text-muted" }, term), h("dd", { class: "text-right font-medium" }, value));
+    const row = (term, value) => h("div", {}, h("dt", {}, term), h("dd", {}, value));
     const when = (value) => (value ? `${formatDateTime(value, state.locale)} (${timeAgo(value)})` : "Never");
     const button = (label, style, handler) => {
       const node = h("button", { type: "button", class: `d-btn ${style}` }, label);
@@ -178,10 +177,10 @@ export async function cloverView(outlet) {
       connection.status === "needs_reauth" && h("div", { class: "d-alert d-alert-bad mb-5" },
         "Clover no longer accepts the stored authorisation. Reconnect to resume syncing and editing. The website keeps showing the last synced menu."),
 
-      h("div", { class: "d-card p-5" },
+      h("div", { class: "d-card p-5 sm:p-6" },
         h("div", { class: "flex flex-wrap items-center justify-between gap-3" },
-          h("h2", { class: "text-base" }, "Connection"), connectionBadge(connection)),
-        h("dl", { class: "mt-3 text-sm" },
+          h("h2", { class: "d-title" }, "Connection"), connectionBadge(connection)),
+        h("dl", { class: "d-facts mt-4 text-sm" },
           row("Status", !connection.connected ? "Not connected" : connection.status === "active" ? "Active" : "Needs reconnecting"),
           row("Merchant", connection.connected ? (connection.merchant_name ? `${connection.merchant_name} (${connection.merchant_id})` : connection.merchant_id) : "None"),
           row("Environment", connection.connected ? ENVIRONMENTS[connection.environment] ?? connection.environment : "None"),
@@ -200,9 +199,9 @@ export async function cloverView(outlet) {
       manage && tokenConnect && (!connection.connected || connection.status === "needs_reauth")
         && tokenForm(connection.connected),
 
-      h("div", { class: "d-card mt-5 p-5 text-sm" },
-        h("h2", { class: "text-base" }, "How Clover and this dashboard work together"),
-        h("ul", { class: "mt-3 list-disc space-y-2 pl-5 text-muted" },
+      h("div", { class: "d-card mt-5 p-5 text-sm sm:p-6" },
+        h("h2", { class: "d-title" }, "How Clover and this dashboard work together"),
+        h("ul", { class: "mt-3 list-disc space-y-2 pl-5 text-muted marker:text-gold" },
           h("li", {}, h("strong", { class: "text-text" }, "Stored in Clover: "), "item names, prices, availability, categories and their order, modifier groups and modifiers. Saving these here writes to Clover immediately, so the register and online ordering change too."),
           h("li", {}, h("strong", { class: "text-text" }, "Stored by this website: "), "descriptions, photos, featured items, dietary labels, whether something is shown on the website, and archiving. Clover has no fields for these, so they never reach Clover."),
           h("li", {}, h("strong", { class: "text-text" }, "Nothing is published automatically: "), "an item imported from Clover stays hidden from the website until you show it in Items. Hiding or archiving an item here never changes or deletes it in Clover."),

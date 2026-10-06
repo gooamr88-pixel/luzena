@@ -12,7 +12,7 @@
         <p class="eyebrow">Careers</p>
         <h1 class="h-display mt-3">Join our team</h1>
         {{#if site.careers.intro}}<p class="lead mt-5 max-w-2xl">{{site.careers.intro}}</p>{{/if}}
-        {{#if site.careers.applicationsOpen}}<a href="#apply" class="btn btn-primary mt-8">Apply now</a>{{else}}<a href="#positions-title" class="btn btn-primary mt-8">See open positions</a>{{/if}}
+        {{#if site.careers.applicationsOpen}}<a href="#apply" class="btn btn-primary mt-8">Apply now{{> icon name="arrow-right"}}</a>{{else}}<a href="#positions-title" class="btn btn-primary mt-8">See open positions</a>{{/if}}
       </div>
     </div>
 
@@ -43,7 +43,7 @@
               <details class="position group border-b border-ink/15" id="role-{{slug}}">
                 <summary class="flex min-h-14 cursor-pointer list-none items-center justify-between gap-4 py-3 [&::-webkit-details-marker]:hidden">
                   <span class="font-display text-[1.35rem] leading-snug text-ink group-open:text-brand">{{title}}</span>
-                  <svg class="shrink-0 text-olive transition-transform duration-200 group-open:rotate-180" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+                  <svg class="shrink-0 text-brand transition-transform duration-200 group-open:rotate-180" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
                 </summary>
                 <div class="pb-7">
                   {{#if type}}<p class="mb-4 flex flex-wrap gap-2"><span class="tag">{{type}}</span>{{#if location}}<span class="tag">{{location}}</span>{{/if}}</p>{{/if}}
@@ -65,7 +65,7 @@
           {{/each}}
         </div>
 
-        {{#if site.careers.applicationsOpen}}<p class="mt-12 max-w-2xl text-sm text-muted">Do not see your role? Apply anyway and tell us what you do in the message.</p>{{/if}}
+        {{#if site.careers.applicationsOpen}}<p class="mt-12 max-w-2xl text-sm text-muted">Do not see your role? Apply anyway: choose "Other" and tell us what you do.</p>{{/if}}
       </div>
     </section>
 
@@ -86,70 +86,164 @@
       </div>
     </section>
     {{else}}
+    <!-- The application form. It posts to the job-application function, which stores the
+         application privately; the restaurant reads it in the dashboard. Nothing here says
+         where notifications go: that address is kept on the server. -->
     <section id="apply" class="section border-t border-ink/10 bg-sand" aria-labelledby="apply-title">
-      <div class="container-x grid gap-12 lg:grid-cols-[1fr_1.4fr] lg:gap-16">
-        <div>
+      <div class="container-x grid gap-10 lg:grid-cols-[1fr_1.6fr] lg:gap-14">
+        <div class="lg:sticky lg:top-32 lg:self-start">
           <p class="eyebrow">Apply</p>
           <h2 id="apply-title" class="h-section mt-3">Send your application</h2>
-          <p class="mt-5">It takes a few minutes. Your details go only to the people who hire for {{site.fullName}}.</p>
+          <p class="mt-5">It takes about five minutes. Your details go only to the people who hire for {{site.fullName}}.</p>
+          <ol class="mt-8 space-y-5">
+            <li class="flex gap-4"><span class="feature-icon shrink-0 font-display text-xl" aria-hidden="true">1</span><p class="pt-2.5"><span class="font-semibold text-ink">Fill in the form.</span> A resume helps, but it is not required.</p></li>
+            <li class="flex gap-4"><span class="feature-icon shrink-0 font-display text-xl" aria-hidden="true">2</span><p class="pt-2.5"><span class="font-semibold text-ink">We read every application.</span></p></li>
+            <li class="flex gap-4"><span class="feature-icon shrink-0 font-display text-xl" aria-hidden="true">3</span><p class="pt-2.5"><span class="font-semibold text-ink">If there is a match,</span> we call or email you to arrange a conversation.</p></li>
+          </ol>
           {{#if site.careers.image}}
-          <div class="mt-8 hidden aspect-[4/3] overflow-hidden bg-sand-deep lg:block">{{picture site.careers.image alt=site.careers.imageAlt sizes="28rem" class="size-full object-cover"}}</div>
+          <div class="media mt-8 hidden aspect-[4/3] lg:block">{{picture site.careers.image alt=site.careers.imageAlt sizes="28rem" class="size-full object-cover"}}</div>
           {{/if}}
         </div>
 
         <div>
-          <div data-apply-success hidden tabindex="-1" class="alert alert-success" role="status">
-            <p class="font-semibold">Thank you. Your application has been received.</p>
-            <p class="mt-1">We read every application and will contact you if there is a match.</p>
+          <div data-apply-success hidden tabindex="-1" class="panel text-center outline-none" role="status">
+            <span class="feature-icon mx-auto size-14 border-success/40 text-success" aria-hidden="true"><svg class="size-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>
+            <h3 class="mt-5 text-2xl">Thank you. Your application has been received.</h3>
+            <p class="mx-auto mt-3 max-w-md">We read every application and will contact you if there is a match. There is nothing more you need to do.</p>
+            <a href="/" class="btn btn-outline mt-7">Back to the home page</a>
           </div>
 
-          <form data-apply-form novalidate class="space-y-6" enctype="multipart/form-data">
+          <form data-apply-form novalidate class="panel space-y-9" enctype="multipart/form-data">
             <div data-apply-error hidden tabindex="-1" class="alert alert-error" role="alert"></div>
+            <p class="text-sm text-muted">Every question needs an answer unless it is marked optional.</p>
 
-            <div class="grid gap-6 sm:grid-cols-2">
-              <div>
-                <label class="field-label" for="full_name">Full name</label>
-                <input class="field-input" id="full_name" name="full_name" type="text" autocomplete="name" required minlength="2" maxlength="100">
-                <p class="field-error" id="full_name-error" hidden></p>
+            <fieldset>
+              <legend class="eyebrow">About you</legend>
+              <div class="mt-5 grid gap-5 sm:grid-cols-2">
+                <div class="sm:col-span-2">
+                  <label class="field-label" for="full_name">Full name</label>
+                  <input class="field-input" id="full_name" name="full_name" type="text" autocomplete="name" required minlength="2" maxlength="100">
+                  <p class="field-error" id="full_name-error" hidden></p>
+                </div>
+                <div>
+                  <label class="field-label" for="email">Email</label>
+                  <input class="field-input" id="email" name="email" type="email" autocomplete="email" inputmode="email" required maxlength="254">
+                  <p class="field-error" id="email-error" hidden></p>
+                </div>
+                <div>
+                  <label class="field-label" for="phone">Phone</label>
+                  <input class="field-input" id="phone" name="phone" type="tel" autocomplete="tel" inputmode="tel" required maxlength="25">
+                  <p class="field-error" id="phone-error" hidden></p>
+                </div>
               </div>
-              <div>
-                <label class="field-label" for="position">Position</label>
-                <select class="field-input" id="position" name="position" required>
-                  <option value="">Choose a position</option>
-                  {{#each site.careers.departments}}
-                  <optgroup label="{{name}}">
-                    {{#each positions}}<option value="{{title}}">{{title}}</option>{{/each}}
-                  </optgroup>
-                  {{/each}}
-                  <option value="Other">Other (tell us in the message)</option>
-                </select>
-                <p class="field-error" id="position-error" hidden></p>
-              </div>
-              <div>
-                <label class="field-label" for="email">Email</label>
-                <input class="field-input" id="email" name="email" type="email" autocomplete="email" inputmode="email" required maxlength="254">
-                <p class="field-error" id="email-error" hidden></p>
-              </div>
-              <div>
-                <label class="field-label" for="phone">Phone</label>
-                <input class="field-input" id="phone" name="phone" type="tel" autocomplete="tel" inputmode="tel" required maxlength="25">
-                <p class="field-error" id="phone-error" hidden></p>
-              </div>
-            </div>
+            </fieldset>
 
-            <div>
-              <label class="field-label" for="cv">Resume / CV <span class="font-normal tracking-normal text-muted normal-case">(optional)</span></label>
-              <input class="field-input file:mr-4 file:border-0 file:bg-sand-deep file:px-4 file:py-2 file:text-sm file:font-semibold file:text-ink" id="cv" name="cv" type="file"
-                accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" aria-describedby="cv-hint">
-              <p class="field-hint" id="cv-hint">PDF, DOC or DOCX, up to 5 MB.</p>
-              <p class="field-error" id="cv-error" hidden></p>
-            </div>
+            <fieldset>
+              <legend class="eyebrow">The role</legend>
+              <div class="mt-5 grid gap-5 sm:grid-cols-2">
+                <div class="sm:col-span-2">
+                  <label class="field-label" for="position">Position</label>
+                  <select class="field-input" id="position" name="position" required>
+                    <option value="">Choose a position</option>
+                    {{#each site.careers.departments}}
+                    <optgroup label="{{name}}">
+                      {{#each positions}}<option value="{{title}}">{{title}}</option>{{/each}}
+                    </optgroup>
+                    {{/each}}
+                    <option value="Other">Other (tell us in your introduction)</option>
+                  </select>
+                  <p class="field-error" id="position-error" hidden></p>
+                </div>
+                <div>
+                  <label class="field-label" for="employment_type">Full-time or part-time</label>
+                  <select class="field-input" id="employment_type" name="employment_type" required>
+                    <option value="">Choose one</option>
+                    <option value="full_time">Full-time</option>
+                    <option value="part_time">Part-time</option>
+                    <option value="either">Either</option>
+                  </select>
+                  <p class="field-error" id="employment_type-error" hidden></p>
+                </div>
+                <div>
+                  <label class="field-label" for="start_when">When could you start?</label>
+                  <select class="field-input" id="start_when" name="start_when" required>
+                    <option value="">Choose one</option>
+                    <option value="immediately">Immediately</option>
+                    <option value="two_weeks">Within two weeks</option>
+                    <option value="one_month">Within a month</option>
+                    <option value="later">Later than a month</option>
+                  </select>
+                  <p class="field-error" id="start_when-error" hidden></p>
+                </div>
+              </div>
 
-            <div>
-              <label class="field-label" for="message">Cover message <span class="font-normal tracking-normal text-muted normal-case">(optional)</span></label>
-              <textarea class="field-input" id="message" name="message" rows="5" maxlength="3000"></textarea>
-              <p class="field-error" id="message-error" hidden></p>
-            </div>
+              <!-- A group of boxes with one question above them. The question, the hint and
+                   the error are read with the group. -->
+              <fieldset class="mt-5" aria-describedby="availability-hint availability-error">
+                <legend class="field-label">When could you work?</legend>
+                <p class="field-hint mt-0" id="availability-hint">Choose every time that suits you.</p>
+                <div class="mt-3 grid gap-2 sm:grid-cols-2">
+                  <label class="choice"><input type="checkbox" name="availability" value="weekday_days"><span>Weekday days</span></label>
+                  <label class="choice"><input type="checkbox" name="availability" value="weekday_evenings"><span>Weekday evenings</span></label>
+                  <label class="choice"><input type="checkbox" name="availability" value="weekend_days"><span>Weekend days</span></label>
+                  <label class="choice"><input type="checkbox" name="availability" value="weekend_evenings"><span>Weekend evenings</span></label>
+                  <label class="choice"><input type="checkbox" name="availability" value="late_nights"><span>Late nights</span></label>
+                </div>
+                <p class="field-error" id="availability-error" hidden></p>
+              </fieldset>
+            </fieldset>
+
+            <fieldset>
+              <legend class="eyebrow">Your experience</legend>
+              <div class="mt-5 space-y-5">
+                <div>
+                  <label class="field-label" for="experience_level">Experience in restaurants or cafes</label>
+                  <select class="field-input" id="experience_level" name="experience_level" required>
+                    <option value="">Choose one</option>
+                    <option value="none">No experience yet</option>
+                    <option value="under_1">Less than 1 year</option>
+                    <option value="1_2">1 to 2 years</option>
+                    <option value="3_5">3 to 5 years</option>
+                    <option value="over_5">More than 5 years</option>
+                  </select>
+                  <p class="field-error" id="experience_level-error" hidden></p>
+                </div>
+                <div>
+                  <label class="field-label" for="experience">Relevant experience <span class="font-normal text-muted">(optional)</span></label>
+                  <textarea class="field-input" id="experience" name="experience" rows="4" maxlength="2000" aria-describedby="experience-hint"></textarea>
+                  <p class="field-hint" id="experience-hint">Where you have worked and what you did there. Leave it empty if this would be your first job in a restaurant.</p>
+                  <p class="field-error" id="experience-error" hidden></p>
+                </div>
+                <div>
+                  <label class="field-label" for="cv">Resume / CV <span class="font-normal text-muted">(optional)</span></label>
+                  <input class="field-input file:mr-4 file:cursor-pointer file:rounded file:border-0 file:bg-sand-deep file:px-4 file:py-2 file:text-sm file:font-semibold file:text-ink" id="cv" name="cv" type="file"
+                    accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" aria-describedby="cv-hint">
+                  <p class="field-hint" id="cv-hint">PDF, DOC or DOCX, up to 5 MB.</p>
+                  <p class="field-error" id="cv-error" hidden></p>
+                </div>
+              </div>
+            </fieldset>
+
+            <fieldset>
+              <legend class="eyebrow">A little more</legend>
+              <div class="mt-5 space-y-5">
+                <div>
+                  <label class="field-label" for="work_authorized">Are you legally authorized to work in the United States?</label>
+                  <select class="field-input sm:max-w-xs" id="work_authorized" name="work_authorized" required>
+                    <option value="">Choose an answer</option>
+                    <option value="yes">Yes</option>
+                    <option value="no">No</option>
+                  </select>
+                  <p class="field-error" id="work_authorized-error" hidden></p>
+                </div>
+                <div>
+                  <label class="field-label" for="message">Introduce yourself <span class="font-normal text-muted">(optional)</span></label>
+                  <textarea class="field-input" id="message" name="message" rows="5" maxlength="2000" aria-describedby="message-hint"></textarea>
+                  <p class="field-hint" id="message-hint">A few lines about you and why you would like to join us.</p>
+                  <p class="field-error" id="message-error" hidden></p>
+                </div>
+              </div>
+            </fieldset>
 
             <!-- Left empty by people. Hidden from assistive technology and from the tab order. -->
             <div class="absolute -left-[9999px]" aria-hidden="true">
@@ -157,15 +251,15 @@
               <input id="company_website" name="company_website" type="text" tabindex="-1" autocomplete="off">
             </div>
 
-            <div>
+            <div class="border-t border-ink/10 pt-7">
               <label class="flex items-start gap-3 text-sm">
-                <input class="mt-1 size-5 shrink-0 accent-brand" id="consent" name="consent" type="checkbox" value="yes" required>
+                <input class="mt-0.5 size-5 shrink-0 accent-brand" id="consent" name="consent" type="checkbox" value="yes" required>
                 <span>I agree that {{site.fullName}} may store these details and contact me about this application. Read our <a href="{{site.legal.privacyUrl}}" class="text-link" target="_blank" rel="noopener">privacy policy<span class="sr-only"> (opens in a new tab)</span></a>.</span>
               </label>
               <p class="field-error" id="consent-error" hidden></p>
-            </div>
 
-            <button type="submit" class="btn btn-primary w-full sm:w-auto" data-apply-submit>Send application</button>
+              <button type="submit" class="btn btn-primary mt-7 w-full sm:w-auto" data-apply-submit>Send application</button>
+            </div>
           </form>
         </div>
       </div>

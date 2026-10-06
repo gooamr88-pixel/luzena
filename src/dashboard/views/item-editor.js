@@ -300,8 +300,8 @@ export async function itemEditorView(outlet, itemId, duplicateFrom) {
 
     append(photoRegion, h("div", { class: "flex flex-wrap items-center gap-4" },
       item.image_path
-        ? h("img", { src: imageUrl(item.image_path), alt: "Current photo", width: 96, height: 96, class: "size-24 rounded-md object-cover" })
-        : h("div", { class: "flex size-24 items-center justify-center rounded-md border border-dashed border-line-strong text-sm text-muted" }, "No photo"),
+        ? h("img", { src: imageUrl(item.image_path), alt: "Current photo", width: 96, height: 96, class: "size-24 rounded-lg object-cover" })
+        : h("div", { class: "flex size-24 items-center justify-center rounded-lg border border-dashed border-line-strong bg-canvas text-sm text-muted" }, "No photo"),
       h("div", { class: "space-y-2" },
         h("div", { class: "flex flex-wrap gap-2" }, input, choose, remove),
         h("p", { class: "d-hint" }, "JPEG, PNG or WebP. Photos are resized automatically before upload."))),
@@ -319,7 +319,7 @@ export async function itemEditorView(outlet, itemId, duplicateFrom) {
   }
 
   const section = (title, ...children) =>
-    h("section", { class: "d-card p-5" }, h("h2", { class: "mb-4 text-base" }, title), h("div", { class: "space-y-5" }, children));
+    h("section", { class: "d-card p-5 sm:p-6" }, h("h2", { class: "d-title mb-4" }, title), h("div", { class: "space-y-5" }, children));
   const fieldBlock = (id, label, where, input, ...extra) =>
     h("div", {}, h("label", { class: "d-label", for: id }, label, source(where)), input, extra);
 
@@ -347,10 +347,10 @@ export async function itemEditorView(outlet, itemId, duplicateFrom) {
       section("Photo", h("div", {}, h("p", { class: "d-label" }, "Item photo", source("Website")), photoRegion)),
       section("Modifiers", h("div", {}, h("p", { class: "d-label" }, "Modifier groups offered with this item", source("Clover")),
         checklist("modifier_group_ids", groups, "grp", readOnly),
-        h("p", { class: "d-hint" }, h("a", { href: "#/modifiers", class: "underline" }, "Manage modifier groups")))),
+        h("p", { class: "d-hint" }, h("a", { href: "#/modifiers", class: "font-medium text-brand underline hover:text-brand-dark" }, "Manage modifier groups")))),
       section("Website presentation",
         checkbox("featured", h("span", { class: "flex flex-wrap items-center gap-2 font-semibold" }, "Feature on the home page", source("Website")), draft.featured,
-          (on) => { draft.featured = on; }, { disabled: !writable, hint: "Up to six featured items are shown on the home page." }),
+          (on) => { draft.featured = on; }, { disabled: !writable, hint: "The first four featured items are shown on the home page." }),
         h("fieldset", {}, h("legend", { class: "d-label" }, "Dietary labels", source("Website")),
           h("div", { class: "grid gap-2 sm:grid-cols-2" }, dietaryTags.map((tag) =>
             checkbox(`diet-${tag}`, dietaryLabel(tag), draft.dietary.includes(tag), (on) => {
@@ -361,12 +361,12 @@ export async function itemEditorView(outlet, itemId, duplicateFrom) {
           (on) => { draft.hidden = on; }, { disabled: readOnly, hint: "Hides the item from the Clover register as well as from the website. Use \"Show on the website\" above to hide it from the website only." }),
         meta)),
 
-    h("aside", { class: "space-y-4 lg:sticky lg:top-20" },
+    h("aside", { class: "space-y-4 lg:sticky lg:top-24" },
       h("div", { class: "d-card p-4" },
         h("h2", { class: "d-section-title mb-3" }, "Website preview"),
         preview,
         h("p", { class: "d-hint" }, "This is how the item appears on the public menu. The preview includes unsaved changes; customers see them only after you save.")),
-      h("div", { class: "fixed inset-x-0 bottom-0 z-30 space-y-2 border-t border-line bg-surface p-3 shadow-[0_-4px_16px_rgb(0_0_0/0.08)] lg:static lg:space-y-3 lg:rounded-lg lg:border lg:p-4 lg:shadow-none" },
+      h("div", { class: "fixed inset-x-0 bottom-0 z-30 space-y-2 border-t border-line bg-surface p-3 shadow-[0_-4px_16px_rgb(0_0_0/0.08)] lg:static lg:space-y-3 lg:rounded-xl lg:border lg:p-4 lg:shadow-card" },
         dirtyNote,
         h("div", { class: "flex flex-wrap gap-2" }, saveButton, h("a", { href: "#/items", class: "d-btn" }, isNew ? "Cancel" : "Back to items")))),
   );

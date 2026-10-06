@@ -4,13 +4,16 @@ import { sha256Hex } from "../crypto.ts";
 import { ApiError, json } from "../http.ts";
 import type { Deps, Membership, Role, Session } from "../types.ts";
 
-export type Permission = "menu.read" | "menu.write" | "clover.manage" | "activity.read";
+export type Permission =
+  | "menu.read" | "menu.write" | "clover.manage" | "activity.read"
+  | "applications.read" | "applications.manage";
 
 // Server-side role model. Only "owner" is assigned today; the other roles exist so adding
-// staff later is a data change, not a code change.
+// staff later is a data change, not a code change. Job applications are personal data:
+// the people who hire (owners and managers) may read them, staff may not.
 const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
-  owner: ["menu.read", "menu.write", "clover.manage", "activity.read"],
-  manager: ["menu.read", "menu.write", "activity.read"],
+  owner: ["menu.read", "menu.write", "clover.manage", "activity.read", "applications.read", "applications.manage"],
+  manager: ["menu.read", "menu.write", "activity.read", "applications.read", "applications.manage"],
   staff: ["menu.read"],
 };
 

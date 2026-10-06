@@ -22,6 +22,7 @@ export function createResendSender(apiKey: string, from: string, fetchFn: typeof
           reply_to: message.replyTo,
           subject: message.subject,
           text: message.text,
+          html: message.html,
           attachments: message.attachment
             ? [{ filename: message.attachment.filename, content: toBase64(message.attachment.bytes) }]
             : undefined,

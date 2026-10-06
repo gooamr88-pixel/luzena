@@ -8,6 +8,8 @@ export interface Db {
 export interface FileStore {
   upload(bucket: string, path: string, bytes: Uint8Array, contentType: string): Promise<void>;
   remove(bucket: string, paths: string[]): Promise<void>;
+  // The file's bytes, or null when there is no such file.
+  download(bucket: string, path: string): Promise<Uint8Array | null>;
 }
 
 export interface AuthUser {
@@ -24,6 +26,8 @@ export interface EmailMessage {
   replyTo?: string;
   subject: string;
   text: string;
+  // The same message laid out for mail programs that show HTML. `text` is always sent too.
+  html?: string;
   attachment?: { filename: string; contentType: string; bytes: Uint8Array };
 }
 

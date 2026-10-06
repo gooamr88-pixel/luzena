@@ -1,6 +1,6 @@
 // The public website as it will be deployed: the production build (real content, no
 // sample data), served with the production security headers, in a real browser.
-import { readdirSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
@@ -106,7 +106,7 @@ describe("search engine metadata", () => {
   };
 
   it("gives every indexable page a canonical URL on the confirmed domain", async () => {
-    for (const path of ["/", "/menu/", "/about/", "/locations/", "/contact/", "/careers/", "/order/"]) {
+    for (const path of ["/", "/menu/", "/about/", "/locations/", "/gallery/", "/contact/", "/careers/", "/order/"]) {
       const data = await meta(path);
       expect(data.canonical, path).toBe(`https://luzenarestaurant.com${path}`);
       expect(data.ogUrl, path).toBe(`https://luzenarestaurant.com${path}`);
@@ -119,7 +119,7 @@ describe("search engine metadata", () => {
   });
 
   it("keeps empty and private pages out of search", async () => {
-    for (const path of ["/gallery/", "/privacy/", "/dashboard/"]) {
+    for (const path of ["/privacy/", "/dashboard/"]) {
       expect((await meta(path)).robots, path).toMatch(/noindex/);
     }
   });
@@ -133,8 +133,8 @@ describe("search engine metadata", () => {
       expect(response.headers.get("content-type"), path).toContain(type);
     }
     const sitemap = await (await fetch(`${site.url}/sitemap.xml`)).text();
-    expect(sitemap.match(/<loc>/g)).toHaveLength(7);
-    expect(sitemap).not.toMatch(/dashboard|privacy|gallery|luznarestaurant/);
+    expect(sitemap.match(/<loc>/g)).toHaveLength(8);
+    expect(sitemap).not.toMatch(/dashboard|privacy|luznarestaurant/);
     const robots = await (await fetch(`${site.url}/robots.txt`)).text();
     expect(robots).toContain("Sitemap: https://luzenarestaurant.com/sitemap.xml");
     expect(robots).toContain("Disallow: /dashboard/");
@@ -189,17 +189,46 @@ describe("links and contact details", () => {
     expect(seen.size).toBeGreaterThan(6);
   });
 
-  it("makes the phone number, email, map and Instagram work as links", async () => {
+  it("makes the phone number, map and Instagram work as links", async () => {
     const { page, context } = await openPage(browser, `${site.url}/contact/`);
     const hrefs = await page.evaluate(() => [...document.querySelectorAll("main a[href], footer a[href]")].map((a) => a.href));
     expect(hrefs).toContain("tel:+16194995779");
-    expect(hrefs).toContain("mailto:fadi.auchi@gmail.com");
     expect(hrefs).toContain("https://maps.app.goo.gl/WTwNqRWv3dyaetAQ8");
     expect(hrefs).toContain("https://www.instagram.com/luzenarestaurant/");
     // Links that leave the site open safely in a new tab.
     const unsafe = await page.evaluate(() => [...document.querySelectorAll('a[target="_blank"]')].filter((a) => !a.rel.includes("noopener")).length);
     expect(unsafe).toBe(0);
     await context.close();
+  });
+
+  // Job applications are reported to the owner's inbox. That address is the server's
+  // business: it must not be in anything a visitor's browser is sent, on any page, in any
+  // script, stylesheet or data file, in either build.
+  it("publishes no email address anywhere: not on a page, not in a link, not in any file sent to a browser", async () => {
+    for (const { path } of PAGES.filter((entry) => !entry.status)) {
+      const { page, context } = await openPage(browser, `${site.url}${path}`);
+      const found = await page.evaluate(() => ({
+        mailto: [...document.querySelectorAll('a[href^="mailto:" i]')].map((a) => a.getAttribute("href")),
+        text: document.documentElement.outerHTML.match(/[A-Z0-9._%+-]+@[A-Z0-9-]+\.[A-Z]{2,}/gi) ?? [],
+      }));
+      expect(found.mailto, path).toEqual([]);
+      expect(found.text, path).toEqual([]);
+      await context.close();
+    }
+
+    const leaks = [];
+    const walk = (dir) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const file = join(dir, entry.name);
+        if (entry.isDirectory()) walk(file);
+        else if (/\.(html|js|css|json|xml|txt|svg|map)$/i.test(entry.name) && /fadi\.?auchi|@gmail\.com/i.test(readFileSync(file, "utf8"))) {
+          leaks.push(relative(ROOT, file).replaceAll("\\", "/"));
+        }
+      }
+    };
+    walk(BUILD);
+    walk(join(ROOT, ".cache", "e2e", "demo"));
+    expect(leaks).toEqual([]);
   });
 
   it("shows the address, every day's hours and breakfast on the locations page", async () => {
@@ -214,6 +243,38 @@ describe("links and contact details", () => {
     expect(text).toContain("Breakfast: Every day, 8 AM – 12 PM");
     expect(await page.locator("main .hours-row").count()).toBe(7);
     await context.close();
+  });
+
+  it("shows a Google map of the address on the home page and the locations page", async () => {
+    for (const path of ["/", "/locations/"]) {
+      const { page, context } = await openPage(browser, `${site.url}${path}`);
+      const map = page.locator("main iframe");
+      expect(await map.count(), path).toBe(1);
+      expect(decodeURIComponent(await map.getAttribute("src")), path).toMatch(/^https:\/\/www\.google\.com\/maps\?q=Luzena Restaurant & Cafe, 315 El Cajon Blvd, El Cajon, CA 92020&output=embed$/);
+      expect(await map.getAttribute("title"), path).toContain("315 El Cajon Blvd");
+      // Below the first screen it must not load, and so not contact Google, until it is near.
+      expect(await map.getAttribute("loading"), path).toBe("lazy");
+      await context.close();
+    }
+  });
+
+  it("puts the map beside the visit details on a laptop and below them on a phone", async () => {
+    const boxes = async (width) => {
+      const { page, context } = await openPage(browser, `${site.url}/`, { width, height: 900 });
+      const visit = page.locator('section[aria-labelledby="visit-title"]');
+      const found = { map: await visit.locator("iframe").boundingBox(), call: await visit.locator('a.btn[href^="tel:"]').boundingBox() };
+      await context.close();
+      return found;
+    };
+    const laptop = await boxes(1280);
+    expect(laptop.map.x).toBeGreaterThan(laptop.call.x + laptop.call.width);
+    expect(laptop.map.y).toBeLessThan(laptop.call.y);
+    expect(laptop.map.height).toBeGreaterThan(300);
+    const phone = await boxes(390);
+    expect(phone.map.y).toBeGreaterThan(phone.call.y + phone.call.height);
+    expect(phone.map.x).toBeGreaterThanOrEqual(16);
+    expect(phone.map.x + phone.map.width).toBeLessThanOrEqual(390 - 16);
+    expect(phone.map.height).toBeGreaterThan(200);
   });
 
   it("shows the address and hours in the footer of every page", async () => {
@@ -355,10 +416,12 @@ describe("keyboard and phone navigation", () => {
 });
 
 describe("images in the production build", () => {
-  // Photos are postponed on purpose. Until the restaurant supplies its own, the only image
-  // files allowed out of the door are the logo, the icon and the share image made from the
-  // logo. A stock photo from content/sample-media appearing here fails this test.
-  it("ships the logo, the icon and the generated share image, and no photograph", () => {
+  // Until the restaurant supplies its own photos, the live site shows the placeholder
+  // photos named in content/site.json (content/media/placeholder-*). Nothing else may ship:
+  // every image file is the logo, the icon, the logo's leaf, the share image made from the
+  // logo, or one size of one of those placeholders. Any other photo fails this test. When
+  // real photos replace the placeholders, widen the pattern below to their names.
+  it("ships the brand files and the placeholder photos, and no other image", () => {
     const images = [];
     const walk = (dir) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -367,10 +430,14 @@ describe("images in the production build", () => {
       }
     };
     walk(BUILD);
-    expect(images.sort()).toEqual(["favicon.svg", "media/logo.svg", "media/og-default.png"]);
+    const brand = ["favicon.svg", "leaf.svg", "media/logo.svg", "media/og-default.png"];
+    const placeholder = /^media\/placeholder-(hero|story|location|gallery-[1-5])-\d+\.(avif|webp|jpg)$/;
+    expect(images.filter((file) => !brand.includes(file) && !placeholder.test(file))).toEqual([]);
+    expect(brand.filter((file) => !images.includes(file))).toEqual([]);
+    expect(images.filter((file) => placeholder.test(file)).length).toBeGreaterThan(8);
   });
 
-  it("puts no photo placeholder or broken image on any page", async () => {
+  it("puts no broken image on any page, and describes every content photo", async () => {
     for (const { path } of PAGES.filter((entry) => !entry.status)) {
       const { page, context } = await openPage(browser, `${site.url}${path}`);
       // Images below the fold load lazily, so ask for each one before judging it.
@@ -383,8 +450,11 @@ describe("images in the production build", () => {
         return failed;
       });
       expect(broken, path).toEqual([]);
-      const sources = await page.evaluate(() => [...document.images].map((image) => new URL(image.src).pathname));
-      expect(sources.every((source) => source === "/media/logo.svg"), `${path}: ${sources.join(", ")}`).toBe(true);
+      // Dish photos from the menu sit beside the dish's name and are rightly left without
+      // alternative text; the photos the content file names must each be described.
+      const unnamed = await page.evaluate(() =>
+        [...document.querySelectorAll("main picture img")].filter((image) => !image.alt).map((image) => new URL(image.src).pathname));
+      expect(unnamed, path).toEqual([]);
       await context.close();
     }
   });

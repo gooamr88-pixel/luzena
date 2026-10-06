@@ -8,13 +8,20 @@ const logoUrl = document.documentElement.dataset.logo || "";
 
 function shell(app, title, intro, form) {
   clear(app);
-  append(app, h("main", { class: "flex min-h-dvh items-center justify-center p-4" },
-    h("div", { class: "d-card w-full max-w-sm p-6 sm:p-8" },
-      logoUrl && h("img", { src: logoUrl, alt: restaurantName, class: "mb-6 h-14 w-auto" }),
-      h("p", { class: "text-[0.7rem] font-semibold tracking-widest text-muted uppercase" }, logoUrl ? "Owner dashboard" : `${restaurantName} dashboard`),
-      h("h1", { class: "mt-1 text-2xl" }, title),
-      intro && h("p", { class: "mt-2 text-sm text-muted" }, intro),
-      form)));
+  // The public site's dark hero: the logo in white over the glow and the leaf, with the
+  // form on a card beneath it.
+  append(app, h("main", { class: "d-auth" },
+    h("div", { class: "d-leaf absolute top-1/2 -right-28 -z-10 size-[26rem] -translate-y-1/2 opacity-[0.07] sm:right-[6%] sm:size-[32rem]", "aria-hidden": "true" }),
+    h("div", { class: "w-full max-w-sm" },
+      h("div", { class: "d-dark mb-7 text-center" },
+        logoUrl
+          ? h("img", { src: logoUrl, alt: restaurantName, class: "d-logo-light mx-auto h-16 w-auto" })
+          : h("p", { class: "font-display text-3xl" }, restaurantName),
+        h("p", { class: "d-section-title mt-4" }, "Owner dashboard")),
+      h("div", { class: "d-card p-6 sm:p-8" },
+        h("h1", { class: "text-[1.75rem] sm:text-[1.75rem]" }, title),
+        intro && h("p", { class: "mt-2 text-sm text-muted" }, intro),
+        form))));
 }
 
 function field(id, label, attributes) {

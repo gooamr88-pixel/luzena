@@ -10,6 +10,7 @@ const LABELS = {
   MODIFIER_GROUP_CREATED: "Modifier group created", MODIFIER_GROUP_UPDATED: "Modifier group updated",
   MODIFIER_CREATED: "Modifier created", MODIFIER_UPDATED: "Modifier updated",
   SYNC_STARTED: "Sync started", SYNC_COMPLETED: "Sync completed", SYNC_FAILED: "Sync failed",
+  APPLICATION_STATUS_CHANGED: "Job application status changed", APPLICATION_CV_DOWNLOADED: "Job application CV downloaded",
   CLOVER_CONNECTED: "Clover connected", CLOVER_DISCONNECTED: "Clover disconnected", CLOVER_CONNECT_FAILED: "Clover connection failed",
 };
 
@@ -49,7 +50,10 @@ export async function activityView(outlet) {
             h("td", { class: "font-medium" }, actionLabel(entry.action)),
             h("td", { class: "text-muted" }, entry.entity_type === "item" && entry.entity_id
               ? h("a", { href: `#/items/${entry.entity_id}`, class: "hover:underline" }, entry.new_values?.clover?.name ?? entry.entity_id)
-              : entry.entity_id ?? ""),
+              // The log names no applicant. The link opens the application for those allowed to read it.
+              : entry.entity_type === "application" && entry.entity_id
+                ? h("a", { href: `#/applications/${entry.entity_id}`, class: "hover:underline" }, "Open application")
+                : entry.entity_id ?? ""),
             h("td", {}, resultBadge(entry.result)),
             h("td", { class: "text-muted" }, entry.sync_status ?? "")))))),
       hasMore && h("div", { class: "mt-4 text-center" }, more));
