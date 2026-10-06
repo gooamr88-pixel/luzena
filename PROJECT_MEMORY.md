@@ -589,7 +589,31 @@ applications (policy, retention, email).
      and shows "Menu temporarily unavailable"; the home page loads clean; the dashboard
      shows its sign-in form and answers a wrong password with its generic refusal. Not
      done: anything signed in.
-   - PRODUCTION was not touched.
+   - PRODUCTION was not touched during any of the above.
+   **PRODUCTION backend deployed, 2026-10-06, on the client's words "Proceed to PRODUCTION
+   now".** This set aside the client's own earlier order (TEST fully verified first): at
+   that moment TEST's Auth settings were still unapplied, so **no signed-in request had
+   ever been made against a real backend**, on either project. The client had been told
+   so twice. Everything that needs no sign-in had passed on TEST. On
+   `xqzpuqjrlrxyitjubkqk` only:
+   - Before anything: `verify:public-access` 15 of 15 (the client had already switched
+     sign-ups off; the email provider is on; a wrong-password sign-in answers "Invalid
+     login credentials"). The database held 0 restaurants, 0 users, 0 applications.
+   - The four functions deployed (`verify_jwt` false on each). Secrets from
+     `.env.production`: `ALLOWED_ORIGINS`, `MENU_SYNC_TTL_SECONDS`, `TOKEN_ENCRYPTION_KEY`,
+     `IP_HASH_SALT`, and nothing else: no `CLOVER_*`, no `RESEND_*`, no `JOB_*`.
+   - The owner `fadi.auchi@gmail.com` created (no password, no email sent) and the
+     restaurant `luzena` provisioned and linked.
+   - `verify:functions` 15 of 15 with `https://luzenarestaurant.com` as the origin;
+     `verify:public-access` 15 of 15 again. Security advisor: the same 16 notes and the
+     `search_path` warning as on TEST, plus the leaked-password warning; no error.
+   - `config push` was NOT run on PRODUCTION and must not be run from here. Its Auth is
+     as the client set it in the dashboard. Still to set there, by the client: minimum
+     password length 12, Site URL and redirect `https://luzenarestaurant.com/dashboard/`.
+   - **Next:** the client runs checklist sections 5 to 7 on the VPS (the site's build file
+     needs PRODUCTION's publishable key, which the client has been given), then
+     `npm run verify:site` from here, then the owner's first sign-in ("Forgot your
+     password?"), which will be the first signed-in use of the real backend: watch it.
 2a. (Superseded by the note above; kept for the order.) As soon as the CLI can reach TEST, TEST project (`cgxhifkeoesvsycewwfs`) first, in
    this order: deploy the four functions; set secrets from `.env.test`; Auth settings; a
    test owner; `provision-restaurant.sql`; `npm run verify:functions` with the signed-in

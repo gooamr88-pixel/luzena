@@ -114,6 +114,18 @@ documentation and tested against a stand-in.
 - **Found on TEST, fixed:** `supabase/config.toml` would have switched the email provider
   off, which locks every user out, the owner included. Corrected before it could reach
   PRODUCTION.
+- **PRODUCTION backend deployed and checked (2026-10-06, on your instruction).** The four
+  functions, the secrets (no Clover and no job-application value among them), the owner
+  and the restaurant are on the production project; `npm run verify:functions` passes 15
+  of 15 and `npm run verify:public-access` 15 of 15.
+- **Open on PRODUCTION, needed from you, in the Supabase dashboard:** Authentication >
+  Sign In / Providers: minimum password length **12**. Authentication > URL configuration:
+  Site URL `https://luzenarestaurant.com/dashboard/`, and the same address in the redirect
+  allow-list. Without the last two, the owner's password-reset link will not lead back to
+  the dashboard.
+- **Not yet proven anywhere: a signed-in dashboard against a real backend.** Everything
+  that needs no sign-in passes on both projects. The first real sign-in will be the
+  owner's, after the site is live.
 - **Ready on our side:** `DEPLOYMENT_CHECKLIST.md` section 2; `supabase/provision-restaurant.sql`;
   a secrets file per environment with its own freshly generated keys
   (`supabase/functions/.env.test`, `.env.production`, both git-ignored);

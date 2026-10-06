@@ -35,7 +35,9 @@ secret. With `SUPABASE_PUBLIC_KEY`, `OWNER_EMAIL` and `OWNER_PASSWORD` it signs 
 every dashboard screen. It writes no menu data. **Run against the TEST project on
 2026-10-06, after the first deployment there: 15 of 15, and no response showing
 internals.** The signed-in half has not run yet (TEST's Auth settings are still to be
-applied). Not run against PRODUCTION: nothing is deployed there.
+applied). **Run against PRODUCTION the same day, after its first deployment: 15 of 15**,
+and `verify:public-access` 15 of 15 before and after. The signed-in half has not run on
+either project.
 
 `npm run verify:site` is the outside view of a deployed website (`SITE_URL`, and
 `EXPECT_SUPABASE_URL` set to the project that site must use). It checks HTTPS and the
