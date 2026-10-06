@@ -1096,3 +1096,32 @@ What changed:
   SQL (form request, database, dashboard API, email, CV download, access by role and by
   restaurant, retention). Browser tests cover the form and the dashboard screens on the
   demo data. Not tested: any of it against a deployed project, and a real email.
+
+### 2026-10-06 Checkpoint: "push and deploy" — pushed; both deployments wait on the client
+
+The instruction was "push and deploy". Everything since `da003a8` (the redesign, the
+placeholder photos, the map, the dashboard restyle, the job application system) was
+committed on `main` as `d34c746` and pushed to GitHub, after `npm run verify` passed in full.
+
+Not deployed, and why:
+
+- **Supabase (the new migration and the two changed functions).** The CLI on this machine
+  is signed out again: `supabase projects list` answers Unauthorized. Once the client has
+  run `supabase login` in their own terminal, the order is the usual one, TEST first:
+  `supabase db push --dry-run --linked --project-ref cgxhifkeoesvsycewwfs` (expect exactly
+  one migration, `..700`), then without `--dry-run`; then
+  `supabase functions deploy dashboard-api public-menu job-application clover-webhook
+  --project-ref cgxhifkeoesvsycewwfs --use-api`; `npm run verify:functions`. Then the same on
+  PRODUCTION (`xqzpuqjrlrxyitjubkqk`), plus `npm run verify:public-access` and
+  `npm run verify:database` (it now expects 17 tables). No secret changes: the two
+  job-application switches stay unset.
+- **The website.** `deploy.sh` runs on the VPS and nobody connects to it from here. The
+  client runs `sudo -u luzena bash /var/www/luzenarestaurant.com/repo/deploy/deploy.sh`;
+  then `npm run verify:site` from this machine.
+
+The two are independent and either can go first. The new website works with the old
+functions: the dashboard shows "Applications" only when the backend grants the permission,
+which the old backend does not. The new functions work with the old website.
+
+Until the website step is done, the live site is still the old design and still shows the
+owner's email address.
