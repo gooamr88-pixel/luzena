@@ -67,10 +67,12 @@ which is what Clover recommends for an integration that serves one merchant
   nothing is published until the owner shows it; every write is one the owner makes by
   hand in the dashboard, checked against Clover first and reported honestly; the owner can
   delete the token in Clover at any moment.
-- **Still needed before the visit, from you:** the Supabase CLI signed in, so that the
-  migration, the functions and `CLOVER_ENV=na` can be deployed to PRODUCTION; then one
-  `deploy.sh` run on the VPS for the dashboard. Until both are done the production
-  dashboard has no token form, and connecting any other way would publish the inventory.
+- **Deployed to both Supabase projects on 2026-10-06:** the migration (imported items
+  start hidden), the functions with the token connection, and on PRODUCTION `CLOVER_ENV=na`.
+  The outside checks pass on both.
+- **Still needed before the visit, from you:** one `deploy.sh` run on the VPS, so that the
+  live dashboard has the token form. Until then there is nothing on the live site to
+  connect with.
 - **To be seen on the owner's screen:** whether their Clover dashboard offers "API tokens"
   at all. If it does not, nothing can be connected that day.
 

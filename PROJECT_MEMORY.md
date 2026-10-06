@@ -738,6 +738,26 @@ applications (policy, retention, email).
      runs `deploy.sh` on the VPS and `verify:site` is run from here. **Until all of that is
      done, the production dashboard cannot connect a merchant by token, and must not
      connect one any other way.**
+   - **DEPLOYED to both Supabase projects, 2026-10-06** (the client signed the CLI in):
+     - `supabase db push --dry-run --linked --project-ref <ref>` first on each: exactly one
+       migration, `..600`. Then applied. Both now have 6 migrations and
+       `menu_items.web_hidden` defaults to true. (`db push` works with the CLI's login role;
+       no database password is needed. The `[remotes.*]` blocks in `config.toml` load.)
+     - The four functions redeployed to TEST then PRODUCTION. `verify:functions` 15 of 15 on
+       each; `verify:public-access` 15 of 15 on PRODUCTION.
+     - PRODUCTION secrets now include `CLOVER_ENV=na`, which is what switches the token form
+       on. The only Clover-related secrets there are `CLOVER_ENV` and
+       `TOKEN_ENCRYPTION_KEY`: no app id, no app secret. PRODUCTION had 0 menu items and 0
+       Clover connections before and after.
+     - `POST /dashboard-api/clover/connect-token` exists on PRODUCTION and answers 401 to a
+       request with no session or a forged one.
+     - **First evidence from Clover itself:** with made-up values (no real merchant, no real
+       token), `api.clover.com` and `apisandbox.dev.clover.com` both answer a
+       `/v3/merchants/.../items` read with HTTP 401 `{"message":"401 Unauthorized"}`. That
+       is the answer the code maps to "Clover did not accept this merchant ID and token".
+     - **Still to do before a merchant is connected: the website.** The live dashboard is
+       the old build, with no token form and none of the new wording. The client runs
+       `deploy.sh` on the VPS; then `npm run verify:site` from here.
    - The real merchant has not been touched.
 2a. (Superseded by the note above; kept for the order.) As soon as the CLI can reach TEST, TEST project (`cgxhifkeoesvsycewwfs`) first, in
    this order: deploy the four functions; set secrets from `.env.test`; Auth settings; a
