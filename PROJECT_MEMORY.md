@@ -1156,3 +1156,50 @@ is written in no file here.
   (privacy policy, B-3; retention period, B-4) and the notification email (Resend, B-7).
 - Not tested on the live system: anything signed in. The owner opening the dashboard and
   seeing Applications (empty) is the first real use of the new routes.
+
+### 2026-10-06 Checkpoint: applications OPENED — policy drafted, 90 days, backend live; the site waits for one more deploy
+
+The client, asked what the two open items needed, answered: keep applications **90 days**;
+**draft the privacy policy for me**; **I have a Resend API key**.
+
+- **Privacy policy** written into `legal.privacy.sections` and published at `/privacy/`
+  (commit `26c71b6`). It says what the system does and nothing else: what a visit and an
+  application collect, who reads an application, Supabase in the United States, the
+  notification through Resend, the hashed address, 90 days, deletion on request by phone,
+  the Google map, Clover for payments, no tracking. The engineer wrote it. No lawyer has
+  read it and the owner has not approved it.
+- **`careers.applications.enabled` is `true`.** The production build now carries the form.
+- **Deletion on request**, which the policy promises, did not exist: added
+  `DELETE /applications/{id}` (owners and managers) and a "Delete application" button with
+  a confirmation. CV first, then the row; the history goes with it; the audit log keeps only
+  that it happened.
+- **TEST:** functions redeployed; `JOB_APPLICATIONS_ENABLED=true`,
+  `JOB_APPLICATION_RETENTION_DAYS=90`. **The first real run of the whole path:** a labelled
+  test application with a PDF was accepted; sent again with the same submission id it stayed
+  one application; a foreign origin got 403; bad answers got 422 with a message per field.
+  In the database: one row with every answer, the CV in the private `cvs` bucket (the first
+  file this system has ever stored), history `submitted, email_failed` (TEST has no email
+  provider, so this is the designed outcome), found by the dashboard's search function.
+  Then the row was aged past 90 days and a second application triggered the clean-up: the
+  row, its history and the file were all removed. Left clean: 0 applications, 0 files.
+- **PRODUCTION:** functions redeployed; the same two secrets set (also added to the local
+  `.env.production` and `.env.test`); `verify:functions` passes with
+  `EXPECT_APPLICATIONS=open`. One labelled test application without a CV was accepted,
+  stored as `new` with history `submitted, email_failed`, and deleted by SQL. Left clean:
+  0 applications, 0 history rows, 0 files. The recipient address is set in the
+  restaurant's row.
+- **Still to do:**
+  1. The client runs `deploy.sh` on the VPS: until then the live Careers page still says
+     "open soon" and `/privacy/` is still empty. Then `npm run verify:site` from here with
+     `EXPECT_APPLICATIONS=open`.
+  2. The client sets `RESEND_API_KEY` and `EMAIL_FROM` on PRODUCTION from their own
+     terminal. The sender's domain has to be verified in Resend. Until then applications
+     arrive in the dashboard marked "notification not sent". No real email has ever been
+     sent by this system.
+  3. The owner reads and approves the policy.
+  4. The access token pasted into the chat is still the CLI's login: revoke and replace it.
+- **A promise to watch:** the policy says deleted after 90 days; the clean-up runs when an
+  application arrives or the dashboard overview is opened, so it can run late in a quiet
+  spell (`BLOCKERS.md` N-9 is the scheduled version).
+- Not tested anywhere real: the signed-in dashboard (list, open, status, CV download,
+  delete) against a deployed project. It needs the owner's password.
