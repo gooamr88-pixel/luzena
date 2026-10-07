@@ -6,6 +6,7 @@ import { clientIp, corsHeaders, json, preflight } from "../http.ts";
 import { errorFields } from "../log.ts";
 import { runSync } from "../sync.ts";
 import type { Deps } from "../types.ts";
+import { upkeep } from "./retention.ts";
 
 const UNAVAILABLE = "Menu temporarily unavailable. Please try again shortly.";
 const SLUG = /^[a-z0-9][a-z0-9-]{0,58}[a-z0-9]$/;
@@ -54,6 +55,8 @@ export async function handlePublicMenu(request: Request, deps: Deps, storagePubl
       p_restaurant: restaurant.id, p_ttl_seconds: deps.env.menuSyncTtlSeconds,
     });
     if (due) deps.waitUntil(runSync(deps, restaurant.id, "stale"));
+    // The hourly chores (see retention.ts), on the back of a page that visitors open.
+    deps.waitUntil(upkeep(deps));
 
     if (menu.synced_at === null && menu.categories.length === 0 && menu.uncategorized.length === 0) {
       // Never synced: there is no menu to show yet.

@@ -9,7 +9,7 @@
 // recorded on the application, where the dashboard shows it.
 import { sha256Hex } from "../crypto.ts";
 import { DOCUMENT_TYPES, hasActiveContent, safeFilename, sniffDocument } from "../files.ts";
-import { ApiError, clientIp, corsHeaders, errorBody, isAllowedOrigin, json, newRequestId, preflight } from "../http.ts";
+import { ApiError, clientIp, corsHeaders, errorBody, isAllowedOrigin, json, newRequestId, preflight, readForm } from "../http.ts";
 import { errorFields } from "../log.ts";
 import type { Deps } from "../types.ts";
 import { uuid, ValidationError, v, type Validator } from "../validate.ts";
@@ -21,6 +21,7 @@ export const CV_BUCKET = "cvs";
 const MAX_CV_BYTES = 5 * 1024 * 1024;
 const MAX_REQUEST_BYTES = MAX_CV_BYTES + 64 * 1024;
 const MIN_FILL_MS = 3000;
+const MAX_PER_ADDRESS_PER_HOUR = 20;
 const SLUG = /^[a-z0-9][a-z0-9-]{0,58}[a-z0-9]$/;
 
 const text: Record<string, Validator<string>> = {
@@ -74,22 +75,28 @@ export async function handleJobApplication(request: Request, deps: Deps): Promis
     if (!(request.headers.get("content-type") ?? "").toLowerCase().startsWith("multipart/form-data")) {
       throw new ApiError(415, "unsupported_media_type", "Submit the form as multipart/form-data.");
     }
-    if (Number(request.headers.get("content-length") ?? "0") > MAX_REQUEST_BYTES) {
-      throw new ApiError(413, "payload_too_large", "The CV is too large. The maximum size is 5 MB.");
-    }
+    const tooLarge = () => new ApiError(413, "payload_too_large", "The CV is too large. The maximum size is 5 MB.");
+    if (Number(request.headers.get("content-length") ?? "0") > MAX_REQUEST_BYTES) throw tooLarge();
 
+    // One address is often many people: a mobile carrier, a college, the restaurant's own
+    // wifi on a hiring day. So this limit is set to stop a script, not a queue of
+    // applicants; one person sending many is stopped by the limit on the email address
+    // further down, and a bot by the traps.
     const ipHash = await sha256Hex(`${deps.env.ipHashSalt}:${clientIp(request)}`);
     const allowed = await deps.db.rpc<boolean>("rate_limit_hit", {
-      p_key: `apply:${ipHash}`, p_max: 5, p_window_seconds: 3600,
+      p_key: `apply:${ipHash}`, p_max: MAX_PER_ADDRESS_PER_HOUR, p_window_seconds: 3600,
     });
     if (!allowed) {
       throw new ApiError(429, "rate_limited", "Too many applications from this connection. Please try again later.");
     }
 
+    // The form is read under a cap on the bytes that actually arrive: the length a caller
+    // declares is only a claim.
     let form: FormData;
     try {
-      form = await request.formData();
-    } catch {
+      form = await readForm(request, MAX_REQUEST_BYTES, tooLarge);
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
       throw new ApiError(400, "invalid_form", "The form could not be read.");
     }
     const field = (name: string) => {

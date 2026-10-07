@@ -1,5 +1,5 @@
 // Item list: search, filters, sorting, pagination, inline toggles and bulk actions.
-import { priceLabel, timeAgo } from "../../js/lib/format.js";
+import { formatPrice, priceLabel, timeAgo } from "../../js/lib/format.js";
 import { api } from "../api.js";
 import { can, currency, state } from "../state.js";
 import { append, badge, clear, confirmDialog, errorBlock, h, icon, loadingBlock, pageHeader, stateBlock, switchControl, toast, toastFailure } from "../ui.js";
@@ -167,7 +167,9 @@ export async function itemsView(outlet, _match, query) {
       item.removed_from_clover && badge("Removed in Clover", "bad"),
     ],
     categories: () => item.categories.map((c) => c.name).join(", ") || "None",
-    price: () => priceLabel(item, currency(), state.locale) || (item.price_type === "VARIABLE" ? "Variable" : ""),
+    // The website leaves a price of zero out; here the owner is shown it, as Clover has it.
+    price: () => priceLabel(item, currency(), state.locale)
+      || (item.price_type === "VARIABLE" ? "Variable" : item.price_cents === 0 ? formatPrice(0, currency(), state.locale) : ""),
   });
 
   async function archive(item) {

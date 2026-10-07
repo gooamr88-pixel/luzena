@@ -309,7 +309,6 @@ export function loadContent(profile, env = process.env) {
       // ORDER NOW button leads to Clover (`orderUrl`): website -> Order Online -> Clover.
       // With no Clover link set, the same page says that ordering opens soon.
       orderHref: "/order/",
-      orderIsExternal: false,
       socialLinks: Object.entries(site.social ?? {})
         .filter(([, url]) => filled(url))
         .map(([network, url]) => ({ network, label: network[0].toUpperCase() + network.slice(1), url })),

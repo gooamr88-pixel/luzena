@@ -30,6 +30,8 @@ KEEP_RELEASES="${KEEP_RELEASES:-5}"
 REPO="$APP_DIR/repo"
 RELEASES="$APP_DIR/releases"
 ENV_FILE="$APP_DIR/shared/site.env"
+# One small file per release: the names of the hashed files that release built.
+OWN_ASSETS="$APP_DIR/shared/own-assets"
 
 # The Supabase project each environment must use. A site built against the other one is
 # refused: the test project must never serve the live site, nor the reverse.
@@ -122,15 +124,39 @@ grep -q "data-menu-url=\"$expected/functions/v1/public-menu" dist/menu/index.htm
 
 mkdir "$RELEASES/$release"
 cp -a dist/. "$RELEASES/$release/"
+previous="$(live_release)"
+
+# carry-assets: begin
 # Keep the previous release's hashed files for one more release, so a page a visitor opened
 # just before this deployment can still load its scripts and fonts.
-previous="$(live_release)"
-if [ -n "$previous" ] && [ -d "$RELEASES/$previous/assets" ]; then
-  for file in "$RELEASES/$previous/assets/"*; do
-    [ -f "$file" ] || continue
-    [ -e "$RELEASES/$release/assets/$(basename "$file")" ] || cp -a "$file" "$RELEASES/$release/assets/"
-  done
+#
+# Only the files that release BUILT are carried, not the ones it was itself carrying from
+# the release before it: otherwise every release would hold the files of all the releases
+# there have ever been. Which files a release built is noted here, outside the served
+# folder, before anything is carried into it.
+mkdir -p "$OWN_ASSETS"
+if [ -d "$RELEASES/$release/assets" ]; then
+  ls -1 "$RELEASES/$release/assets" > "$OWN_ASSETS/$release"
+else
+  : > "$OWN_ASSETS/$release"
 fi
+if [ -n "$previous" ] && [ -d "$RELEASES/$previous/assets" ] && [ -d "$RELEASES/$release/assets" ]; then
+  if [ -f "$OWN_ASSETS/$previous" ]; then
+    while IFS= read -r name; do
+      [ -n "$name" ] || continue
+      [ -f "$RELEASES/$previous/assets/$name" ] || continue
+      [ -e "$RELEASES/$release/assets/$name" ] || cp -a "$RELEASES/$previous/assets/$name" "$RELEASES/$release/assets/"
+    done < "$OWN_ASSETS/$previous"
+  else
+    # A release from before these notes were kept: nothing says which files it built, so
+    # all of them are carried, this once.
+    for file in "$RELEASES/$previous/assets/"*; do
+      [ -f "$file" ] || continue
+      [ -e "$RELEASES/$release/assets/$(basename "$file")" ] || cp -a "$file" "$RELEASES/$release/assets/"
+    done
+  fi
+fi
+# carry-assets: end
 # Nginx reads these as its own user.
 chmod -R a+rX "$RELEASES/$release"
 
@@ -139,7 +165,7 @@ echo "deploy: $release is live."
 
 # Old releases are removed, the live one and the newest $KEEP_RELEASES never.
 ls -1 "$RELEASES" | sort | head -n "-$KEEP_RELEASES" | while read -r old; do
-  [ "$old" = "$release" ] || rm -rf "${RELEASES:?}/$old"
+  [ "$old" = "$release" ] || { rm -rf "${RELEASES:?}/$old"; rm -f "${OWN_ASSETS:?}/$old"; }
 done
 
 echo "deploy: now run the outside check from a developer machine:"

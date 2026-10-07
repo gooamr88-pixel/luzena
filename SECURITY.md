@@ -177,6 +177,16 @@ storage path, nothing about who uploaded a photo or when. The description an own
 put on the page as an attribute and as text, never as markup. Proven by
 `tests/site-photos.test.js` and the "website photos" browser tests.
 
+**Size limits are enforced on what arrives, not on what is declared.** Every body this
+backend reads (JSON, the application form, photo uploads, Clover's notifications) goes
+through `readBytes` in `_shared/http.ts`. The `Content-Length` header is the sender's claim
+and is only used to refuse an honest oversized request early; reading stops the moment the
+count of bytes received passes the cap, so a sender who declares nothing, or less than it
+sends, cannot make a function hold more than the cap in memory. Before 2026-10-07 the form
+and photo endpoints checked the header and then read the whole body. Proven by "reading a
+request body under a cap" in `units.test.js` and by the 7 MB streamed form in
+`public.test.js`.
+
 **Not covered:** no antivirus scan. The active-content check does not see inside compressed
 PDF streams. Whoever downloads a CV from the dashboard should treat it like any file from a
 stranger.
@@ -186,7 +196,7 @@ stranger.
 | Surface | Limit |
 |---|---|
 | Public menu | 120 per minute per address |
-| Job applications | 5 per hour per connection and 3 per day per email address (both counted as salted hashes), plus a honeypot field, a minimum fill time and an origin check. The form's own id for each visit makes a repeated send one application. |
+| Job applications | 20 per hour per connection (one address is often many people: a mobile carrier, the restaurant's own wifi) and 3 per day per email address (both counted as salted hashes), plus a honeypot field, a minimum fill time and an origin check. The form's own id for each visit makes a repeated send one application. |
 | CV downloads | 60 per 5 minutes per user |
 | Dashboard reads | 600 per 5 minutes per user |
 | Dashboard writes | 240 per 5 minutes per user |

@@ -1338,3 +1338,113 @@ the page was wider than the screen.
 - Verified: lint; 234 browser tests. Not committed at this checkpoint.
 - The screenshot also showed the live site is still the version before the redesign: the
   VPS has not been deployed since `2d4f8b4`.
+
+### 2026-10-07 Checkpoint: full audit of the codebase; motion added to the public site
+
+**The audit** (asked for by the client: front end, back end, database, UX/UI, responsive,
+dead code, security). Read: every shared backend module, the migrations, the deployment
+files, the public scripts and the dashboard's entry, sign-in and photos code. Run:
+`npm audit` (0 vulnerabilities), a scan for unused styles and exports, `verify:site` on
+the live site (all passed), an accessibility scan of five live pages (no violations), and a
+test on TEST of whether an invented X-Forwarded-For header gets round the public rate limit
+(it does not: 120 of 140 answered either way). Nothing in the audit was fixed except the
+stale home page copy below; the rest is open.
+
+Open findings, most serious first:
+
+1. **Gallery: the same photo uploaded twice shares one file; removing either copy deletes
+   the file the other still uses** (broken image on the live gallery). Confirmed with a
+   throwaway test. `site-photos.ts` / `dash_site_photo_remove`: files are named by a hash of
+   their content and removed without asking whether another row names them.
+2. **The placeholder stock photos are live and their licence was never checked** (N-1).
+3. **The notification email was not configured on PRODUCTION when last seen** (`RESEND_API_KEY`,
+   `EMAIL_FROM`): without it applications arrive in the dashboard marked "email failed". Not
+   checked again: the CLI is signed out.
+4. **The owner's sign-in has no second factor**, and the dashboard holds applicants'
+   personal details and CVs. TOTP is enabled in the Supabase config but the dashboard has no
+   screen for it.
+5. The Supabase access token pasted into chat twice: the CLI on this machine answers
+   "Unauthorized" again, so it appears to have been revoked. Nothing to do if so.
+6. **Uploads are capped by the Content-Length header only** (job application, item and site
+   photos): a caller who lies about it is limited by the platform, not by this code.
+   `http.ts` already says the header cannot be trusted and `readJson` counts real bytes.
+7. **The job application limit is 5 an hour per address, counted before validation.** People
+   on one mobile carrier or one Wi-Fi share an address; a hiring day could hit it.
+8. **Tables that only grow:** `rate_limits` (one row per address per endpoint, removed only
+   when that address returns), `idempotency_keys`, `sync_runs` (a row every five minutes
+   while the site has visitors), `integration_logs`.
+9. **Deleting applications after 90 days depends on someone visiting**: it runs after an
+   application or when the overview is opened (N-9).
+10. **`deploy.sh` carries every older release's asset files forward for ever**: it copies
+    all of the previous release's `assets/`, which already holds the ones before it.
+11. Live menu content: no dish has a description, 49 of 53 have no photo, none is marked
+    featured (so "Most Popular Dishes" never shows), and "Tanur French Bread, Saj Bread" is
+    priced $0.00 and printed so.
+12. CSP allows any `*.supabase.co` for images and requests, not this project's host only.
+13. The Clover webhook writes any caller's "verificationCode" to the log before checking
+    who is calling, and reads the whole body before checking its size.
+14. An item photo is uploaded before the item row is updated; a failed update leaves the file.
+15. Dead code: `orderIsExternal` is always false (seven template branches); the role
+    descriptions and `careers.image` in the content are shown nowhere; `.alert-success`;
+    the Order page's "opening soon" branch is in no built site and no browser test.
+16. `npm:@supabase/supabase-js@2` in the functions is not pinned to a version.
+17. Never done: a signed-in session against the live dashboard, a real application through
+    the live form, a real notification email, the Clover write paths against real Clover.
+
+Fixed in passing: the home page still said "See the open positions" and its button "See
+Open Positions", for a page that is now the form alone. Now "Applying online takes about
+five minutes" and "Apply Now".
+
+**Motion** (the client: "I need more professional and animations"). Public site only; the
+dashboard is unchanged. See "Motion" in `docs/DESIGN_SYSTEM.md`: page-to-page cross-fade,
+header words arriving, scroll reveal with staggered cards, hover lift, things that open.
+All of it is off for reduced motion. The browser tests now open pages as a reduced-motion
+visitor (the page at rest) and the animations have 14 tests of their own, chiefly that
+nothing is ever left hidden. Not committed at this checkpoint.
+
+### 2026-10-07 Checkpoint: the audit's findings fixed, except those that are not code
+
+The client refused the push of the motion work with "Fix all first". Numbers are those of
+the list in the checkpoint above.
+
+**Fixed, each with a test:**
+
+- **1. Gallery duplicate.** A file is deleted only when no photo on the website still shows
+  it (`noLongerShown`), on remove, on replace, when a full gallery refuses a photo, and when
+  saving fails. No database change.
+- **6. Upload sizes.** `readBytes` and `readForm` in `http.ts` count the bytes that arrive
+  and stop at the cap. Used by the application form, both photo uploads, JSON bodies and the
+  Clover webhook.
+- **7. Application limit** per address: 20 an hour, was 5. The limit of 3 a day per email
+  address and the bot traps are unchanged.
+- **8 and 9. Clean-up.** `upkeep` runs about once an hour on the back of `public-menu` and
+  `public-site` requests: expired applications, then `housekeeping()` (new migration
+  `20261007000900_housekeeping.sql`).
+- **10. deploy.sh** notes which hashed files each release built (`shared/own-assets/`) and
+  carries only those into the next release. Its lines were run over four pretend releases.
+- **11 (part).** A price of zero is no longer printed on the website; the dashboard's item
+  list still shows it. The other content gaps are the owner's to fill in the dashboard.
+- **13. Webhook.** At most five verification requests an hour are written to the log; the
+  body is read under a cap.
+- **14. Item photo.** A file stored for a photo that then cannot be saved is removed.
+- **15. Dead code.** `orderIsExternal` and its seven template branches; `.alert-success`.
+- **16.** `@supabase/supabase-js` pinned to 2.117.2 in the functions.
+
+**Not fixed, and why:**
+
+- **4. A second sign-in factor.** A feature, not a fix: an enrolment screen, a challenge at
+  sign-in and enforcement in the backend. It cannot be tried from here (no sign-in to the
+  live project) and a mistake locks the owner out. Needs the client's go-ahead and a test
+  account.
+- **12. The security policy naming one Supabase project** instead of any. The policy file
+  is shared by TEST, PRODUCTION and the tests, and the server's copy is installed by hand
+  with sudo; the gain is small. Left as it is.
+- **2, 3, 5, 11 (rest), 17** are not code: the photos' licence, the email key, the token,
+  the menu's descriptions and photos, and the things only the owner can try.
+- The role descriptions and `careers.image` stay in the content file: unused, but written
+  work that may be wanted back.
+
+**Deployment this needs:** the backend first: migration `..900_housekeeping`, then the five
+functions, TEST then PRODUCTION (the Supabase CLI is signed out). Then `deploy.sh`. If the
+functions go first, the hourly pass logs `upkeep_failed` until the migration is there and
+nothing else is affected.

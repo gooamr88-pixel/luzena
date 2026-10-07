@@ -33,7 +33,7 @@
           {{#if site.hero.text}}<p class="lead mt-5 max-w-xl">{{site.hero.text}}</p>{{/if}}
           <div class="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
             <a href="/menu/" class="btn btn-primary">{{> icon name="utensils"}}View Menu</a>
-            <a href="{{site.orderHref}}" class="btn btn-on-photo"{{#if site.orderIsExternal}} rel="noopener"{{/if}}>{{> icon name="bag"}}Order Online</a>
+            <a href="{{site.orderHref}}" class="btn btn-on-photo">{{> icon name="bag"}}Order Online</a>
             {{#if site.primaryLocation}}<a href="{{site.primaryLocation.directionsUrl}}" class="btn btn-on-photo" target="_blank" rel="noopener">{{> icon name="pin"}}Get Directions<span class="sr-only"> (opens in a new tab)</span></a>{{/if}}
           </div>
         </div>
@@ -217,9 +217,9 @@
           <div class="max-w-2xl">
             <p class="eyebrow">Careers</p>
             <h2 id="team-title" class="h-section mt-2">Join Our Team</h2>
-            <p class="mt-3">We are hiring for the kitchen, the cafe and the floor. See the open positions and apply online.</p>
+            <p class="mt-3">We are hiring for the kitchen, the cafe and the floor. Applying online takes about five minutes.</p>
           </div>
-          <a href="/careers/" class="btn btn-primary shrink-0">See Open Positions{{> icon name="arrow-right"}}</a>
+          <a href="/careers/" class="btn btn-primary shrink-0">Apply Now{{> icon name="arrow-right"}}</a>
         </div>
       </div>
     </section>

@@ -404,6 +404,126 @@ describe("join our team, with applications open", () => {
   });
 });
 
+// The site's animations: words that arrive as a page opens, blocks that fade up as they are
+// scrolled to. What matters is not that they look good (a test cannot say) but that they
+// can never cost a visitor any content: nothing on the first screen is hidden, everything
+// hidden is shown again, and a visitor who asked for no motion gets none.
+describe("motion", () => {
+  const MOVING_PAGES = ["/", "/about/", "/menu/", "/locations/", "/gallery/", "/contact/", "/order/", "/careers/", "/privacy/"];
+  // Blocks the scroll reveal is still holding back, among those that are drawn at all.
+  const held = (page) => page.evaluate(() => [...document.querySelectorAll(".reveal, .reveal-in")]
+    .filter((node) => node.getClientRects().length > 0)
+    .map((node) => `${node.tagName.toLowerCase()}.${[...node.classList].join(".")}`.slice(0, 80)));
+  // Scrolls down the page as a reader would, then puts any block that is still waiting in
+  // the middle of the screen: a busy test machine drops frames, and a block that was never
+  // drawn on screen is rightly still held. Ends when nothing is held, or gives up.
+  const scrollThrough = async (page) => {
+    await page.evaluate(async () => {
+      for (let y = 0; y <= document.documentElement.scrollHeight; y += 300) {
+        window.scrollTo(0, y);
+        await new Promise((resolve) => setTimeout(resolve, 120));
+      }
+    });
+    await expect.poll(() => page.evaluate(() => {
+      const waiting = [...document.querySelectorAll(".reveal, .reveal-in")].filter((node) => node.getClientRects().length > 0);
+      waiting.find((node) => !node.classList.contains("reveal-in"))?.scrollIntoView({ block: "center" });
+      return waiting.length;
+    }), { timeout: 60_000, interval: 300 }).toBe(0).catch(() => {});
+  };
+
+  it("opens a page with its heading words arriving, and leaves all of them fully there", async () => {
+    for (const path of ["/", "/order/", "/careers/"]) {
+      const { page, context, problems } = await openPage(browser, `${site.url}${path}`, { motion: true });
+      const running = await page.locator("main h1").evaluate((heading) => getComputedStyle(heading).animationName);
+      expect(running, path).toBe("rise-in");
+      // Every word of the page's header ends where it belongs, fully shown.
+      const arriving = () => [...document.querySelectorAll(":is(.hero, .page-hero, .form-head) :is(h1, p, .btn, .arrow-link, ul, li)")]
+        .filter((node) => node.getClientRects().length > 0)
+        .filter((node) => getComputedStyle(node).opacity !== "1" || getComputedStyle(node).transform !== "none").length;
+      await expect.poll(() => page.evaluate(arriving), { timeout: 30_000, interval: 250, message: path }).toBe(0);
+      expect(problems, path).toEqual([]);
+      await context.close();
+    }
+  });
+
+  it("never hides anything that is on the first screen when the page opens", async () => {
+    for (const size of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
+      for (const path of ["/", "/order/", "/about/"]) {
+        const { page, context } = await openPage(browser, `${site.url}${path}`, { ...size, motion: true });
+        const hiddenOnScreen = await page.evaluate(() => [...document.querySelectorAll(".reveal:not(.reveal-in)")]
+          .filter((node) => node.getClientRects().length > 0 && node.getBoundingClientRect().top < innerHeight * 0.9).length);
+        expect(hiddenOnScreen, `${path} at ${size.width}px`).toBe(0);
+        await context.close();
+      }
+    }
+  });
+
+  it("holds a block below the first screen back, and fades it up when it is scrolled to", async () => {
+    const { page, context } = await openPage(browser, `${site.url}/`, { motion: true });
+    const waiting = await held(page);
+    expect(waiting.length).toBeGreaterThan(3);
+    // One that is drawn (a block of a section still waiting for the menu has no place on
+    // the page to scroll to) and well below the screen: a block at the very edge of the
+    // screen can come into view by itself as photos above it load, and be part-way in.
+    await page.evaluate(() => {
+      const far = [...document.querySelectorAll(".reveal:not(.reveal-in)")]
+        .find((node) => node.getClientRects().length > 0 && node.getBoundingClientRect().top > innerHeight * 1.5);
+      far.dataset.watched = "";
+    });
+    const block = page.locator("[data-watched]");
+    expect(await block.evaluate((node) => getComputedStyle(node).opacity)).toBe("0");
+    await block.evaluate((node) => node.scrollIntoView({ block: "center" }));
+    await page.waitForFunction(() => getComputedStyle(document.querySelector("[data-watched]")).opacity === "1");
+    // Once it has arrived the classes go, so the block's own hover effects work again.
+    await page.waitForFunction(() => !document.querySelector("[data-watched]").classList.contains("reveal"));
+    expect(await page.locator("[data-watched]").evaluate((node) => getComputedStyle(node).transform)).toBe("none");
+    await context.close();
+  });
+
+  it.each(MOVING_PAGES)("leaves nothing hidden on %s once the page has been scrolled through, on a phone and a laptop", async (path) => {
+    for (const size of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
+      const { page, context, problems } = await openPage(browser, `${site.url}${path}`, { ...size, motion: true });
+      await page.waitForFunction(() => document.querySelector("[data-menu]")?.getAttribute("aria-busy") !== "true");
+      await scrollThrough(page);
+      expect(await held(page), `${path} at ${size.width}px`).toEqual([]);
+      // Nothing in the page's content is left part-way through a fade.
+      const dim = () => [...document.querySelectorAll("main *")]
+        .filter((node) => node.getClientRects().length > 0 && !node.closest("[aria-hidden='true'], .hero picture, .sr-only"))
+        .filter((node) => Number(getComputedStyle(node).opacity) < 1)
+        .map((node) => `${node.tagName.toLowerCase()}.${String(node.className).slice(0, 50)}`).slice(0, 5);
+      await expect.poll(() => page.evaluate(dim), { timeout: 20_000, interval: 250, message: `${path} at ${size.width}px` }).toEqual([]);
+      expect(await hasHorizontalOverflow(page), `${path} at ${size.width}px`).toBe(false);
+      expect(problems, `${path} at ${size.width}px`).toEqual([]);
+      await context.close();
+    }
+  });
+
+  it("passes the accessibility scan with motion on, after the home page has been scrolled through", async () => {
+    const { page, context } = await openPage(browser, `${site.url}/`, { motion: true });
+    await scrollThrough(page);
+    expect(await held(page)).toEqual([]);
+    const violations = await accessibilityViolations(page);
+    expect(violations, describeViolations(violations)).toEqual([]);
+    await context.close();
+  });
+
+  it("gives a visitor who asked for reduced motion a page that is simply there", async () => {
+    for (const path of ["/", "/order/", "/gallery/"]) {
+      const { page, context } = await openPage(browser, `${site.url}${path}`);
+      expect(await page.locator(".reveal").count(), path).toBe(0);
+      expect(await page.locator("main h1").evaluate((heading) => getComputedStyle(heading).animationName), path).toBe("none");
+      const facts = await page.evaluate(() => ({
+        opacity: [...document.querySelectorAll("main section, main h2, main .btn")].every((node) => getComputedStyle(node).opacity === "1"),
+        button: getComputedStyle(document.querySelector(".site-header .btn")).transitionProperty,
+      }));
+      expect(facts.opacity, path).toBe(true);
+      // The button's lift on hover is part of the motion and is not there either.
+      expect(facts.button, path).not.toContain("transform");
+      await context.close();
+    }
+  });
+});
+
 describe("keyboard and phone navigation", () => {
   it("offers a skip link first, and it moves to the content", async () => {
     const { page, context } = await openPage(browser, `${site.url}/about/`);

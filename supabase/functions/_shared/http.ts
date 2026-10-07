@@ -60,19 +60,53 @@ export function clientIp(request: Request): string {
   return forwarded ? forwarded.split(",")[0].trim() : "unknown";
 }
 
-// Reads a JSON body with a hard size cap. The cap is enforced on the bytes actually read,
-// not on the Content-Length header, which a client controls.
+// Reads a request body, stopping at a hard cap. The Content-Length header is the caller's
+// own claim: it is looked at first only so that an honest oversized request is refused
+// before any of it is read. What decides is the count of the bytes that actually arrive,
+// and reading stops the moment that count passes the cap, so a caller who understates the
+// length, or sends none, cannot make this function hold more than `maxBytes` in memory.
+export async function readBytes(request: Request, maxBytes: number, tooLarge: () => Error): Promise<Uint8Array> {
+  if (Number(request.headers.get("content-length") ?? "0") > maxBytes) throw tooLarge();
+  if (!request.body) return new Uint8Array(0);
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel().catch(() => {});
+      throw tooLarge();
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return bytes;
+}
+
+// A multipart form, read under the same cap and then parsed from the bytes that were
+// counted. Throws whatever `tooLarge` makes when the body is over the cap, and the parser's
+// own error when the bytes are not a form.
+export async function readForm(request: Request, maxBytes: number, tooLarge: () => Error): Promise<FormData> {
+  const bytes = await readBytes(request, maxBytes, tooLarge);
+  return new Response(bytes as BodyInit, { headers: { "content-type": request.headers.get("content-type") ?? "" } }).formData();
+}
+
+// Reads a JSON body with a hard size cap, enforced on the bytes actually read.
 export async function readJson(request: Request, maxBytes = 64 * 1024): Promise<unknown> {
   const type = request.headers.get("content-type") ?? "";
   if (!type.toLowerCase().includes("application/json")) {
     throw new ApiError(415, "unsupported_media_type", "Send the request as JSON.");
   }
-  const buffer = await request.arrayBuffer();
-  if (buffer.byteLength > maxBytes) {
-    throw new ApiError(413, "payload_too_large", "The request is too large.");
-  }
+  const bytes = await readBytes(request, maxBytes, () => new ApiError(413, "payload_too_large", "The request is too large."));
   try {
-    return JSON.parse(new TextDecoder().decode(buffer));
+    return JSON.parse(new TextDecoder().decode(bytes));
   } catch {
     throw new ApiError(400, "invalid_json", "The request body is not valid JSON.");
   }

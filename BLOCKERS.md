@@ -311,9 +311,11 @@ with the production project's exact host and regenerate the Nginx file
 
 ### N-9. A guaranteed schedule for deleting old applications — NON-BLOCKING · OPTIONAL
 
-Deletion runs when an application arrives and when an owner opens the dashboard. If the
-privacy policy promises deletion by an exact day regardless of activity, add a daily
-schedule (described in `DEPLOYMENT_CHECKLIST.md`).
+Since 2026-10-07 deletion also runs about once an hour on the back of any visit to the
+public website (see "Job applications" in `ARCHITECTURE.md`), as well as when an application
+arrives and when an owner opens the dashboard. Only a period with no visitor at all delays
+it. If the privacy policy promises deletion by an exact day regardless of activity, add a
+daily schedule (described in `DEPLOYMENT_CHECKLIST.md`).
 
 ### N-11. SQL functions without a fixed `search_path` — NON-BLOCKING · INFRASTRUCTURE
 

@@ -137,6 +137,8 @@ why it is shaped this way:
 /var/www/luzenarestaurant.com/
   repo/              a clone of the GitHub repository. Never served.
   shared/site.env    the build variables: public values only
+  shared/own-assets/ one small file per release: the names of the hashed files it built,
+                     so that only those are carried into the next release
   releases/<id>/     one folder of built files per deployment (the last five are kept)
   current            a link to the live release. This is Nginx's root.
   acme/              used by certificate renewal

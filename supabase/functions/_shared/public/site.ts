@@ -10,6 +10,7 @@ import { sha256Hex } from "../crypto.ts";
 import { clientIp, corsHeaders, json, preflight } from "../http.ts";
 import { errorFields } from "../log.ts";
 import type { Deps } from "../types.ts";
+import { upkeep } from "./retention.ts";
 
 const SLUG = /^[a-z0-9][a-z0-9-]{0,58}[a-z0-9]$/;
 const MAX_REQUESTS_PER_MINUTE = 120;
@@ -78,6 +79,9 @@ export async function handlePublicSite(request: Request, deps: Deps, storagePubl
     if (!restaurant) return fail(404, "not_found");
 
     const photos = await deps.db.rpc<StoredPhotos>("site_photos_for", { p_restaurant: restaurant.id, p_with_id: false });
+    // The home page asks this of every visitor, which makes it the steadiest place to hang
+    // the hourly chores. After the answer; it cannot fail the request.
+    deps.waitUntil(upkeep(deps));
     return json(200, { version: 1, photos: photosForBrowser(photos, storagePublicBase, restaurant.name) }, {
       ...cors,
       // Reused for a minute, so a photo changed in the dashboard is on the website within

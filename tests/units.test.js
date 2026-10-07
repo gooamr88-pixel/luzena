@@ -7,6 +7,7 @@ import { decryptSecret, encryptSecret, randomToken, timingSafeEqual } from "../s
 import { ConfigError, loadEnv } from "../supabase/functions/_shared/env.ts";
 import { hasActiveContent, safeFilename, sniffDocument, sniffImage } from "../supabase/functions/_shared/files.ts";
 import { createLogger, redact } from "../supabase/functions/_shared/log.ts";
+import { ApiError, readBytes, readForm, readJson } from "../supabase/functions/_shared/http.ts";
 import { parseBody, v } from "../supabase/functions/_shared/validate.ts";
 
 const ok = (body) => new Response(JSON.stringify(body), { status: 200 });
@@ -271,5 +272,59 @@ describe("request validation", () => {
       expect(error.status).toBe(422);
       expect(error.extra.fields).toEqual({ name: "must be at most 5 characters" });
     }
+  });
+});
+
+describe("reading a request body under a cap", () => {
+  const tooLarge = () => new ApiError(413, "too_large", "Too large.");
+  // A body sent in pieces, with no content-length: its size is only known by counting.
+  const streamed = (pieces, headers = {}) => {
+    let index = 0;
+    const pulled = { count: 0 };
+    const body = new ReadableStream({
+      pull(controller) {
+        pulled.count += 1;
+        if (index < pieces.length) controller.enqueue(pieces[index++]);
+        else controller.close();
+      },
+    });
+    return { request: new Request("https://fn.test/x", { method: "POST", headers, body, duplex: "half" }), pulled };
+  };
+  const piece = (size, fill = 0x61) => new Uint8Array(size).fill(fill);
+
+  it("returns the whole body when it fits, to the byte", async () => {
+    const { request } = streamed([piece(400), piece(600)]);
+    const bytes = await readBytes(request, 1000, tooLarge);
+    expect(bytes.byteLength).toBe(1000);
+    expect((await readBytes(new Request("https://fn.test/x", { method: "POST" }), 10, tooLarge)).byteLength).toBe(0);
+  });
+
+  it("refuses a body that declares itself too large, without reading it", async () => {
+    const { request, pulled } = streamed([piece(10)], { "content-length": "5000" });
+    await expect(readBytes(request, 1000, tooLarge)).rejects.toMatchObject({ status: 413 });
+    expect(pulled.count).toBeLessThanOrEqual(1);
+  });
+
+  it("stops at the cap when the sender declares nothing, or less than it sends", async () => {
+    const pieces = Array.from({ length: 50 }, () => piece(1000));
+    const silent = streamed(pieces);
+    await expect(readBytes(silent.request, 3000, tooLarge)).rejects.toMatchObject({ status: 413 });
+    // It gave up a few pieces in, not after all fifty.
+    expect(silent.pulled.count).toBeLessThan(10);
+  });
+
+  it("reads a form and a JSON body under the same cap", async () => {
+    const form = new FormData();
+    form.append("slot", "hero");
+    form.append("file", new File([piece(2000)], "a.bin"));
+    const good = await readForm(new Request("https://fn.test/x", { method: "POST", body: form }), 10_000, tooLarge);
+    expect(good.get("slot")).toBe("hero");
+    expect(good.get("file").size).toBe(2000);
+    await expect(readForm(new Request("https://fn.test/x", { method: "POST", body: form }), 1000, tooLarge)).rejects.toMatchObject({ status: 413 });
+
+    const json = (text) => new Request("https://fn.test/x", { method: "POST", headers: { "content-type": "application/json" }, body: text });
+    expect(await readJson(json('{"a":1}'))).toEqual({ a: 1 });
+    await expect(readJson(json(JSON.stringify({ a: "x".repeat(200) })), 100)).rejects.toMatchObject({ status: 413, code: "payload_too_large" });
+    await expect(readJson(json("{not json"))).rejects.toMatchObject({ status: 400 });
   });
 });

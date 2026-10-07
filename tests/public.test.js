@@ -134,6 +134,28 @@ describe("Clover webhook", () => {
     expect(h.logs.some((l) => l.event === "clover_webhook_verification" && l.verification_value === "abc-123")).toBe(true);
   });
 
+  // Clover sends the verification before it has given out the shared secret, so anyone can
+  // send one. It changes nothing; this keeps it from being a way to fill the log.
+  it("writes only a few verification requests an hour to the log, and answers them all alike", async () => {
+    const statuses = [];
+    for (let i = 0; i < 9; i++) statuses.push((await post({ verificationCode: `flood-${i}` })).status);
+    expect(new Set(statuses)).toEqual(new Set([200]));
+    const written = h.logs.filter((l) => l.event === "clover_webhook_verification").length;
+    expect(written).toBe(5);
+  });
+
+  it("stops reading a body that is larger than a notification can be, whatever length it declares", async () => {
+    const big = new Uint8Array(300 * 1024).fill(0x20);
+    const chunks = [big.subarray(0, 100 * 1024), big.subarray(100 * 1024, 200 * 1024), big.subarray(200 * 1024)];
+    let pulled = 0;
+    const body = new ReadableStream({ pull(controller) { pulled < chunks.length ? controller.enqueue(chunks[pulled++]) : controller.close(); } });
+    // No content-length at all: the size is only known by counting.
+    const response = await handleCloverWebhook(new Request("https://fn.test/clover-webhook", {
+      method: "POST", headers: { "content-type": "application/json" }, body, duplex: "half",
+    }), h.deps);
+    expect(response.status).toBe(413);
+  });
+
   it("re-syncs the menu when inventory changes in Clover", async () => {
     h.clover.items.get(soup).price = 950;
     const response = await post(event(`I:${soup}`), { "x-clover-auth": "webhook-shared-secret" });
@@ -320,11 +342,48 @@ describe("job application", () => {
     expect(h.logs.some((entry) => entry.event === "job_application_email_not_configured")).toBe(true);
   });
 
-  it("limits how many applications one connection can send", async () => {
+  // One address is often many people (a mobile carrier, the restaurant's own wifi on a
+  // hiring day), so the limit per address stops a script and not a queue of applicants.
+  it("limits how many applications one connection can send, generously", async () => {
     const headers = { origin: ORIGIN, "x-forwarded-for": "203.0.113.99" };
     const statuses = [];
-    for (let i = 0; i < 6; i++) statuses.push((await submit(valid(), null, headers)).status);
-    expect(statuses).toEqual([200, 200, 200, 200, 200, 429]);
+    for (let i = 0; i < 21; i++) statuses.push((await submit(valid(), null, headers)).status);
+    expect(statuses.slice(0, 20).every((status) => status === 200)).toBe(true);
+    expect(statuses[20]).toBe(429);
+  });
+
+  it("refuses a form larger than the limit by counting what arrives, not by what the sender says", async () => {
+    const before = await count();
+    const storedBefore = h.stored.size;
+    const boundary = "----audit";
+    const head = new TextEncoder().encode(`--${boundary}\r\ncontent-disposition: form-data; name="cv"; filename="cv.pdf"\r\ncontent-type: application/pdf\r\n\r\n%PDF-1.7\n`);
+    const megabyte = new Uint8Array(1024 * 1024).fill(0x41);
+    let sent = 0;
+    // Seven megabytes, sent in pieces with no content-length: more than the 5 MB a CV may be.
+    const body = new ReadableStream({
+      pull(controller) {
+        if (sent === 0) controller.enqueue(head);
+        if (sent < 7) controller.enqueue(megabyte);
+        else controller.close();
+        sent += 1;
+      },
+    });
+    const response = await handleJobApplication(new Request("https://fn.test/job-application", {
+      method: "POST", headers: { ...from(), "content-type": `multipart/form-data; boundary=${boundary}` }, body, duplex: "half",
+    }), h.deps).then(read);
+    expect(response.status).toBe(413);
+    expect(response.body.error.code).toBe("payload_too_large");
+    // Reading stopped soon after the limit, well before the end of what was being sent.
+    expect(sent).toBeLessThanOrEqual(7);
+    expect(await count()).toBe(before);
+    expect(h.stored.size).toBe(storedBefore);
+  });
+
+  it("refuses a form that declares itself larger than the limit before reading any of it", async () => {
+    const response = await handleJobApplication(new Request("https://fn.test/job-application", {
+      method: "POST", headers: { ...from(), "content-type": "multipart/form-data; boundary=x", "content-length": String(50 * 1024 * 1024) }, body: "--x--",
+    }), h.deps).then(read);
+    expect(response.status).toBe(413);
   });
 
   it("limits how many applications one email address can send in a day", async () => {
@@ -432,6 +491,83 @@ describe("job application", () => {
       h.deps.env.jobApplications = original;
       expect(await exists(old)).toBe(true);
       await h.pg.query("delete from public.job_applications where id = $1", [old]);
+    });
+
+    // There is no scheduler. Before, expired applications were deleted only when a new one
+    // arrived or an owner opened the dashboard; now any visitor to the website sets it off,
+    // about once an hour.
+    describe("the hourly chores, on the back of the public pages", () => {
+      let hoursOn = 0;
+      const anHourOn = async (run) => {
+        const realNow = h.deps.now;
+        // Each use moves the clock on again: this copy of the backend last looked hours
+        // ago, and the database has not let anyone through this hour.
+        hoursOn += 3;
+        const ahead = hoursOn * 3600 * 1000;
+        h.deps.now = () => realNow() + ahead;
+        await h.pg.query("delete from public.rate_limits where key = 'upkeep'");
+        try {
+          return await run();
+        } finally {
+          h.deps.now = realNow;
+        }
+      };
+
+      it("deletes expired applications when a visitor opens the menu, and only once in the hour", async () => {
+        const old = await addApplication("Swept By A Visitor", 300, `${alpha}/visitor.pdf`);
+        await anHourOn(async () => {
+          expect((await menu()).status).toBe(200);
+          await h.settle();
+        });
+        expect(await exists(old)).toBe(false);
+        expect(h.stored.has(`cvs/${alpha}/visitor.pdf`)).toBe(false);
+
+        // A second visitor in the same hour sets nothing off.
+        const later = await addApplication("Not Yet", 300, null);
+        await menu();
+        await h.settle();
+        expect(await exists(later)).toBe(true);
+        await h.pg.query("delete from public.job_applications where id = $1", [later]);
+      });
+
+      it("clears rows that are only of use for a while, and keeps the recent ones and the audit log", async () => {
+        await h.pg.exec(`
+          insert into public.rate_limits (key, window_start, count) values
+            ('menu:old-visitor', now() - interval '3 days', 4), ('menu:new-visitor', now() - interval '1 hour', 4);
+          insert into public.idempotency_keys (restaurant_id, key, request_hash, status, created_at) values
+            ('${alpha}', 'old-key-0001', 'h', 'completed', now() - interval '8 days'),
+            ('${alpha}', 'new-key-0001', 'h', 'completed', now() - interval '1 day');
+          insert into public.sync_runs (restaurant_id, trigger, status, started_at) values
+            ('${alpha}', 'stale', 'succeeded', now() - interval '31 days'), ('${alpha}', 'stale', 'succeeded', now() - interval '2 days');
+          insert into public.integration_logs (restaurant_id, level, event, created_at) values
+            ('${alpha}', 'error', 'old_event', now() - interval '91 days'), ('${alpha}', 'error', 'new_event', now() - interval '5 days');
+          insert into public.oauth_states (nonce_hash, restaurant_id, user_id, expires_at) values
+            ('old-nonce', '${alpha}', gen_random_uuid(), now() - interval '2 days'), ('new-nonce', '${alpha}', gen_random_uuid(), now() + interval '5 minutes');`);
+        const audits = (await h.pg.query("select count(*)::int as n from public.audit_logs")).rows[0].n;
+
+        await anHourOn(async () => {
+          await menu();
+          await h.settle();
+        });
+
+        const left = async (sql) => (await h.pg.query(sql)).rows.map((row) => Object.values(row)[0]);
+        expect(await left("select key from public.rate_limits where key like 'menu:%-visitor'")).toEqual(["menu:new-visitor"]);
+        expect(await left("select key from public.idempotency_keys where key like '%-key-0001'")).toEqual(["new-key-0001"]);
+        expect(await left("select event from public.integration_logs where event like '%_event'")).toEqual(["new_event"]);
+        expect(await left("select nonce_hash from public.oauth_states where nonce_hash like '%-nonce'")).toEqual(["new-nonce"]);
+        expect((await h.pg.query("select count(*)::int as n from public.sync_runs where started_at < now() - interval '30 days'")).rows[0].n).toBe(0);
+        expect((await h.pg.query("select count(*)::int as n from public.sync_runs where started_at > now() - interval '3 days'")).rows[0].n).toBeGreaterThan(0);
+        expect((await h.pg.query("select count(*)::int as n from public.audit_logs")).rows[0].n).toBe(audits);
+        expect(h.logs.some((entry) => entry.event === "housekeeping_done" && entry.rate_limits >= 1)).toBe(true);
+        expect(h.logs.some((entry) => entry.event === "upkeep_failed")).toBe(false);
+      });
+
+      it("is closed to the public roles, like every other function", async () => {
+        for (const role of ["anon", "authenticated"]) {
+          const result = await h.pg.query("select has_function_privilege($1, 'public.housekeeping()', 'execute') as open", [role]);
+          expect(result.rows[0].open, role).toBe(false);
+        }
+      });
     });
 
     it("runs after a new application is accepted", async () => {

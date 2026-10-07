@@ -185,7 +185,7 @@ visitor scrolls near it, and the security policy allows frames from `www.google.
 | Choice | `.choice` | One of several boxes to tick, as a 48 px row that is all target; tinted when ticked, red-edged when the group is in error |
 | Application form | on `/careers/` | A white `.panel` on `sand`. Questions in `<fieldset>` groups, each with an eyebrow `<legend>`: About you, The role, Your experience, A little more. Two columns of fields from 640 px, one below. It is the first thing on the page after the page header; the three steps of how applying works come under it, and the open positions under those. Errors appear under each question and focus goes to the first; the button says "Sending..." and cannot be pressed twice; a sent application replaces the form with a confirmation panel. |
 | File control | `.file-drop`, `.file-drop-zone`, `.file-drop-chosen`, `.file-drop-icon` | The site's own, because a browser words its control in the browser's language ("No file chosen" appeared in Arabic) and draws it its own way. The real `<input type="file">` is kept, visually hidden and still focusable; a dashed area says "Choose a file or drop it here"; a chosen file shows its name and size with a Remove button; a file of the wrong kind is refused as soon as it is chosen. The focus ring is drawn on the visible part. |
-| Alert | `.alert` + `.alert-error` / `.alert-success` | |
+| Alert | `.alert` + `.alert-error` | |
 | Skeleton | `.skeleton` | Menu loading state |
 | Gallery | `.gallery-tile`, `.lightbox` | Tiles are buttons; the viewer is a dark `<dialog>` |
 | Footer | `.site-footer` | `night`: logo, order button, social links, address, hours, page links |
@@ -203,6 +203,34 @@ visitor scrolls near it, and the security policy allows frames from `www.google.
   photo scales 5% (gallery tiles 4%); arrows step 3 px forward.
 - **Motion**: 200 ms colour transitions, 300 to 500 ms on tiles and cards.
   `prefers-reduced-motion` disables animation, smooth scrolling and the strip's glide.
+
+### Motion (added 2026-10-07)
+
+All of it is in one block at the end of `main.css`, inside
+`@media (prefers-reduced-motion: no-preference)`: for a visitor who asked for reduced motion
+none of these rules exists. One easing throughout, `cubic-bezier(0.2, 0.7, 0.2, 1)`; nothing
+longer than 0.9 s except the hero photo's slow settle.
+
+| What moves | How |
+|---|---|
+| Page to page | The old page cross-fades into the new one (`@view-transition`, 0.26 s) and the header stays put. Browsers without it change pages as before. |
+| A page opening | The header's words arrive in turn: label, title (70 ms), text (150 ms), buttons (230 ms), each rising 0.9rem as it fades in. The home photo eases back from 107% over 9 s. Order Online's photo settles in from 97%. The application card's head does the same. |
+| Scrolling | A block below the first screen fades up 1.5rem as it comes into view; the cards of a row follow one another 70 ms apart. `src/js/lib/reveal.js`. |
+| A pointer | Buttons lift 1 px (the gold one gains a soft gold shadow) and press in to 98%; step cards, dish cards and category tiles lift 4 px with their shadow. |
+| Things that open | The phone navigation drops in and its links follow one another; the photo viewer and each photo in it fade in; a question on Order Online opens to its answer instead of jumping (where the browser can animate to `auto`); the menu arrives a section at a time; the thank-you after an application rises in and its tick pops. |
+
+Rules the scroll reveal keeps, each with a test in `tests/browser/public.spec.js` ("motion"):
+
+- **Nothing is hidden by the stylesheet or the markup.** Only the script hides a block, and
+  only where it can show it again: it needs `IntersectionObserver`, and it does nothing for
+  reduced motion. Without the script, or if it fails, the page is all there.
+- **Nothing on the first screen is ever hidden.** A block already in view when the page
+  opens is left alone, so there is no flicker.
+- **A row that scrolls sideways is revealed whole**, never card by card: cards beyond the
+  edge of the screen would wait unseen.
+- **The classes come off when the block has arrived**, so its own hover transition, which
+  they override meanwhile, works again.
+- The menu and the application form are not revealed piece by piece.
 
 ### Images
 

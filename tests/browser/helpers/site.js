@@ -90,8 +90,13 @@ export const launchBrowser = () => chromium.launch({ executablePath: findChromiu
 //
 // `prepare` is given the browser context before the page loads, for a test that answers a
 // request the page makes as it opens.
-export async function openPage(browser, url, { width = 1280, height = 900, allowRequestFailures = [], prepare } = {}) {
-  const context = await browser.newContext({ viewport: { width, height } });
+//
+// Pages open as for a visitor who has asked for reduced motion, unless `motion` is true. The
+// site's animations do not exist for that visitor, so what is measured (positions, sizes,
+// contrast) is the page as it comes to rest, not a frame of something still moving. The
+// animations have tests of their own, which ask for `motion`.
+export async function openPage(browser, url, { width = 1280, height = 900, allowRequestFailures = [], prepare, motion = false } = {}) {
+  const context = await browser.newContext({ viewport: { width, height }, reducedMotion: motion ? "no-preference" : "reduce" });
   await prepare?.(context);
   // The map on the home and locations pages is Google's own page in a frame. The tests
   // answer for it with an empty page, so they check this site's markup and layout and do not

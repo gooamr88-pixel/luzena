@@ -5,10 +5,13 @@ export function formatPrice(cents, currency = "USD", locale = "en-US") {
   return new Intl.NumberFormat(locale, { style: "currency", currency }).format(cents / 100);
 }
 
-// What to print next to an item. Clover's VARIABLE price type means the price is entered at
-// the register, so there is no price to show.
+// What to print next to an item on the website. Clover's VARIABLE price type means the
+// price is entered at the register, so there is no price to show. A price of zero is not
+// shown either: in a till it nearly always means "no price was entered" (a bread that comes
+// with a dish, an item priced by its options), and "$0.00" on a menu reads as a mistake or
+// as an offer of something free. The dashboard still shows the zero, so the owner sees it.
 export function priceLabel(item, currency, locale) {
-  if (item.price_type === "VARIABLE" || item.price_cents === null || item.price_cents === undefined) return "";
+  if (item.price_type === "VARIABLE" || item.price_cents === null || item.price_cents === undefined || item.price_cents === 0) return "";
   const price = formatPrice(item.price_cents, currency, locale);
   return item.price_type === "PER_UNIT" && item.unit_name ? `${price} / ${item.unit_name}` : price;
 }

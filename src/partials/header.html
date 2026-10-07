@@ -16,7 +16,7 @@
     </nav>
 
     <div class="flex items-center gap-2 sm:gap-3">
-      <a href="{{site.orderHref}}" class="btn btn-primary btn-sm"{{#if site.orderIsExternal}} rel="noopener"{{/if}}>Order Online</a>
+      <a href="{{site.orderHref}}" class="btn btn-primary btn-sm">Order Online</a>
       <button type="button" class="icon-button lg:hidden" aria-haspopup="dialog" aria-controls="mobile-nav" data-nav-open>
         <span class="sr-only">Open navigation</span>
         {{> icon name="menu" class="size-[1.4rem]"}}
@@ -43,7 +43,7 @@
       </ul>
     </nav>
     <div class="container-x shrink-0 space-y-3 border-t border-ink/10 py-5">
-      <a href="{{site.orderHref}}" class="btn btn-primary w-full"{{#if site.orderIsExternal}} rel="noopener"{{/if}}>{{> icon name="bag"}}Order Online</a>
+      <a href="{{site.orderHref}}" class="btn btn-primary w-full">{{> icon name="bag"}}Order Online</a>
       {{#if site.primaryLocation.phoneHref}}<a href="{{site.primaryLocation.phoneHref}}" class="btn btn-outline w-full">{{> icon name="phone"}}Call {{site.primaryLocation.phone}}</a>{{/if}}
     </div>
   </div>

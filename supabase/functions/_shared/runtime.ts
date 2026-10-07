@@ -1,6 +1,6 @@
 // Production wiring. This is the only file that touches Deno globals and the Supabase
 // client; everything else is plain TypeScript that also runs under Node for tests.
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2.117.2";
 import { createResendSender } from "./email.ts";
 import { loadEnv } from "./env.ts";
 import { createLogger } from "./log.ts";

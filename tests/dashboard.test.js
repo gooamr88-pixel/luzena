@@ -428,6 +428,18 @@ describe("item photos", () => {
     expect(h.stored.has(`menu-images/${response.body.item.image_path}`)).toBe(true);
   });
 
+  it("does not leave a file behind when the photo cannot be saved on the item", async () => {
+    const other = new Uint8Array([0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50, 9, 9, 9, 9]);
+    const before = [...h.stored.keys()].sort();
+    const realRpc = h.deps.db.rpc;
+    h.deps.db.rpc = (fn, args) => (fn === "web_update_item" ? Promise.reject(new Error("database unavailable")) : realRpc(fn, args));
+    const response = await h.api(owner, "POST", `/items/${steak}/image`, form(other, "steak-2.webp", "image/webp"));
+    h.deps.db.rpc = realRpc;
+    expect(response.status).toBe(500);
+    // The item keeps the photo it had, and the file that was not saved is gone again.
+    expect([...h.stored.keys()].sort()).toEqual(before);
+  });
+
   it("rejects a file that is not an image, whatever it is named", async () => {
     const exe = new Uint8Array([0x4d, 0x5a, 0x90, 0x00]);
     const response = await h.api(owner, "POST", `/items/${steak}/image`, form(exe, "photo.webp", "image/webp"));

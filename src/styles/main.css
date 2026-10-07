@@ -695,10 +695,6 @@
     @apply border-danger/40 bg-danger/8 text-danger;
   }
 
-  .alert-success {
-    @apply border-success/40 bg-success/10 text-success;
-  }
-
   .skeleton {
     @apply animate-pulse rounded-md bg-sand-deep;
   }
@@ -731,5 +727,224 @@
 
   .site-footer {
     @apply bg-night;
+  }
+}
+
+/* MOTION. Everything that moves is here, and all of it is for visitors who have not asked
+   their device for reduced motion: for the others none of these rules exists, and the page
+   is simply there. Movement is short, eased, and never the only way anything is shown.
+   Nothing here hides content by itself: the scroll reveal's hidden state (.reveal) is put on
+   a block by src/js/lib/reveal.js, which takes it off again. */
+@media (prefers-reduced-motion: no-preference) {
+  /* Going from page to page: the old page cross-fades into the new one instead of flashing
+     white, and the header stays where it is. Browsers without it change pages as before. */
+  @view-transition {
+    navigation: auto;
+  }
+
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation-duration: 0.26s;
+  }
+}
+
+@layer components {
+  @media (prefers-reduced-motion: no-preference) {
+    .site-header {
+      view-transition-name: site-header;
+    }
+
+    /* PAGE OPENING. The words of a page header arrive one after another: label, title,
+       text, buttons. `backwards` holds each at its start until its turn and then lets go
+       completely, so hover effects on the buttons are not held back by a finished animation. */
+    :is(.hero, .page-hero, .form-head) :is(.eyebrow, h1, .lead, .btn, .arrow-link, ul, .form-head-mark),
+    .page-hero .container-x > p,
+    .form-head > p {
+      animation: rise-in 0.75s cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
+    }
+
+    :is(.hero, .page-hero, .form-head) h1 { animation-delay: 70ms; }
+    :is(.hero, .page-hero, .form-head) .lead,
+    .page-hero .container-x > p:not(.eyebrow),
+    .form-head > p:not(.eyebrow) { animation-delay: 150ms; }
+    :is(.hero, .page-hero) :is(.btn, .arrow-link) { animation-delay: 230ms; }
+    :is(.hero, .page-hero, .form-head) ul { animation-delay: 300ms; }
+
+    /* The photo beside the words of a page header (Order Online). */
+    .page-hero .media {
+      animation: settle-in 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) 120ms backwards;
+    }
+
+    /* The home page's photo eases back a little as the page opens. It shares the element
+       with the fade that lets a dashboard-chosen photo in, so both are named each time. */
+    .hero picture img {
+      animation: hero-zoom 9s cubic-bezier(0.2, 0.6, 0.2, 1) backwards;
+    }
+
+    .hero[data-site-photo] picture img {
+      animation: photo-reveal 0.4s ease 2s forwards, hero-zoom 9s cubic-bezier(0.2, 0.6, 0.2, 1) backwards;
+    }
+
+    .hero[data-site-photo][data-photo-ready] picture img {
+      animation: hero-zoom 9s cubic-bezier(0.2, 0.6, 0.2, 1) backwards;
+    }
+
+    /* SCROLL REVEAL. See reveal.js. A row's cards follow one another. */
+    .reveal {
+      opacity: 0;
+      transform: translateY(1.5rem);
+      transition: opacity 0.7s cubic-bezier(0.2, 0.7, 0.2, 1), transform 0.7s cubic-bezier(0.2, 0.7, 0.2, 1);
+    }
+
+    .reveal.reveal-in {
+      opacity: 1;
+      transform: none;
+    }
+
+    .reveal-1 { transition-delay: 70ms; }
+    .reveal-2 { transition-delay: 140ms; }
+    .reveal-3 { transition-delay: 210ms; }
+    .reveal-4 { transition-delay: 280ms; }
+    .reveal-5 { transition-delay: 350ms; }
+
+    /* THINGS THAT ANSWER A POINTER. A button lifts a hair and settles when pressed; a card
+       lifts with its shadow. */
+    .btn {
+      transition-property: color, background-color, border-color, transform, box-shadow;
+    }
+
+    .btn:hover {
+      transform: translateY(-1px);
+    }
+
+    .btn-primary:hover {
+      box-shadow: 0 10px 22px -12px rgb(201 160 99 / 0.75);
+    }
+
+    .btn:active {
+      transform: translateY(0) scale(0.98);
+    }
+
+    .btn[disabled],
+    .btn[aria-disabled="true"] {
+      transform: none;
+      box-shadow: none;
+    }
+
+    .step-card,
+    .dish-card,
+    .category-tile {
+      transition: transform 0.35s cubic-bezier(0.2, 0.7, 0.2, 1), box-shadow 0.35s ease;
+    }
+
+    :is(.step-card, .dish-card, .category-tile):hover {
+      transform: translateY(-4px);
+      box-shadow: var(--shadow-lift);
+    }
+
+    /* THINGS THAT OPEN. The phone navigation comes down with its links one after another;
+       the photo viewer fades in, and so does each photo in it; a question opens to its
+       answer instead of jumping; the menu arrives a section at a time; the thank-you after
+       an application rises into place. */
+    .mobile-nav[open] {
+      animation: drop-in 0.3s cubic-bezier(0.2, 0.7, 0.2, 1);
+    }
+
+    .mobile-nav[open] li {
+      animation: rise-in 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
+    }
+
+    .mobile-nav[open] li:nth-child(1) { animation-delay: 60ms; }
+    .mobile-nav[open] li:nth-child(2) { animation-delay: 100ms; }
+    .mobile-nav[open] li:nth-child(3) { animation-delay: 140ms; }
+    .mobile-nav[open] li:nth-child(4) { animation-delay: 180ms; }
+    .mobile-nav[open] li:nth-child(5) { animation-delay: 220ms; }
+    .mobile-nav[open] li:nth-child(6) { animation-delay: 260ms; }
+    .mobile-nav[open] li:nth-child(n + 7) { animation-delay: 300ms; }
+
+    .lightbox[open],
+    .lightbox[open]::backdrop,
+    .lightbox [data-lightbox-stage] > * {
+      animation: fade-in 0.28s ease;
+    }
+
+    [data-menu] > section {
+      animation: rise-in 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
+    }
+
+    [data-menu] > section:nth-child(2) { animation-delay: 80ms; }
+    [data-menu] > section:nth-child(n + 3) { animation-delay: 160ms; }
+
+    [data-apply-success]:not([hidden]) {
+      animation: rise-in 0.6s cubic-bezier(0.2, 0.7, 0.2, 1);
+    }
+
+    [data-apply-success]:not([hidden]) .feature-icon {
+      animation: pop-in 0.5s cubic-bezier(0.3, 1.4, 0.5, 1) 0.15s backwards;
+    }
+
+    @supports (interpolate-size: allow-keywords) {
+      .faq {
+        interpolate-size: allow-keywords;
+      }
+
+      .faq::details-content {
+        block-size: 0;
+        overflow: clip;
+        transition: block-size 0.3s cubic-bezier(0.2, 0.7, 0.2, 1), content-visibility 0.3s allow-discrete;
+      }
+
+      .faq[open]::details-content {
+        block-size: auto;
+      }
+    }
+  }
+
+  @keyframes rise-in {
+    from {
+      opacity: 0;
+      transform: translateY(0.9rem);
+    }
+  }
+
+  @keyframes settle-in {
+    from {
+      opacity: 0;
+      transform: scale(0.97);
+    }
+  }
+
+  @keyframes hero-zoom {
+    from {
+      transform: scale(1.07);
+    }
+  }
+
+  @keyframes drop-in {
+    from {
+      opacity: 0;
+      transform: translateY(-0.75rem);
+    }
+  }
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+  }
+
+  @keyframes pop-in {
+    from {
+      opacity: 0;
+      transform: scale(0.6);
+    }
+  }
+
+  /* Paper has no scrolling to wait for. */
+  @media print {
+    .reveal {
+      opacity: 1;
+      transform: none;
+    }
   }
 }

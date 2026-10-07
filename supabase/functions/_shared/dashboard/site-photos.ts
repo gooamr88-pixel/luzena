@@ -7,7 +7,7 @@
 // slot and a hash of the content; nothing of the uploaded file's name is used.
 import { sha256Hex } from "../crypto.ts";
 import { IMAGE_TYPES, sniffImage } from "../files.ts";
-import { ApiError, json } from "../http.ts";
+import { ApiError, json, readForm } from "../http.ts";
 import type { StoredPhotos } from "../public/site.ts";
 import type { Deps, Session } from "../types.ts";
 import { parseBody, uuid, ValidationError, v } from "../validate.ts";
@@ -28,6 +28,19 @@ const notFound = () => new ApiError(404, "not_found", "This photo does not exist
 const removeFiles = (deps: Deps, paths: string[]) =>
   (paths.length === 0 ? Promise.resolve() : deps.files.remove(IMAGE_BUCKET, paths))
     .catch((error) => deps.log.warn("site_photo_cleanup_failed", { paths, error_message: String(error) }));
+
+// The files that nothing shows any more. A file is named by a hash of its content, so the
+// same photo added to the gallery twice is one file with two rows pointing at it: taking one
+// row away must leave the file for the other. `photos` is what the website shows now.
+function noLongerShown(paths: string[], photos: StoredPhotos): string[] {
+  const shown = new Set<string>();
+  for (const photo of [photos.hero, photos.story, ...photos.gallery]) {
+    if (!photo) continue;
+    shown.add(photo.path);
+    if (photo.small_path) shown.add(photo.small_path);
+  }
+  return paths.filter((path) => !shown.has(path));
+}
 
 export async function listSitePhotos(deps: Deps, session: Session): Promise<Response> {
   const photos = await deps.db.rpc<StoredPhotos>("site_photos_for", { p_restaurant: restaurantOf(session), p_with_id: true });
@@ -52,12 +65,12 @@ const dimension = (form: FormData, name: string): number | null => {
 };
 
 export async function uploadSitePhoto(deps: Deps, session: Session, request: Request): Promise<Response> {
-  const declared = Number(request.headers.get("content-length") ?? "0");
-  if (declared > 2 * MAX_IMAGE_BYTES + 8192) throw new ApiError(413, "image_too_large", TOO_LARGE);
+  // Two files at most, read under a cap on the bytes that actually arrive.
   let form: FormData;
   try {
-    form = await request.formData();
-  } catch {
+    form = await readForm(request, 2 * MAX_IMAGE_BYTES + 8192, () => new ApiError(413, "image_too_large", TOO_LARGE));
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
     throw new ApiError(400, "invalid_upload", "The upload could not be read.");
   }
   const slot = String(form.get("slot") ?? "");
@@ -92,15 +105,23 @@ export async function uploadSitePhoto(deps: Deps, session: Session, request: Req
       p_small_width: small ? dimension(form, "small_width") : null, p_alt: alt,
     });
   } catch (error) {
-    await removeFiles(deps, [imagePath, ...(smallPath ? [smallPath] : [])]);
+    // The photo was not saved, so its files go: but only once it is known that no photo
+    // already on the website uses them. If that cannot be found out either, they stay. A
+    // file nobody uses costs a little storage; a photo with its file gone is a broken page.
+    const current = await deps.db.rpc<StoredPhotos>("site_photos_for", { p_restaurant: restaurantId, p_with_id: true }).catch(() => null);
+    if (current) await removeFiles(deps, noLongerShown([imagePath, ...(smallPath ? [smallPath] : [])], current));
     throw error;
   }
   if (saved.full || !saved.photos) {
-    await removeFiles(deps, [imagePath, ...(smallPath ? [smallPath] : [])]);
+    // The gallery is full, so this photo was not added. Its files go, unless they are also
+    // the files of a photo that is in the gallery already.
+    const current = await deps.db.rpc<StoredPhotos>("site_photos_for", { p_restaurant: restaurantId, p_with_id: true });
+    await removeFiles(deps, noLongerShown([imagePath, ...(smallPath ? [smallPath] : [])], current));
     throw new ApiError(409, "gallery_full", `The gallery holds ${MAX_GALLERY} photos. Remove one to add another.`);
   }
-  // A replaced photo's files, unless the new photo is the very same file again.
-  await removeFiles(deps, (saved.unused ?? []).filter((path) => path !== imagePath && path !== smallPath));
+  // A replaced photo's files, unless something still shows them (the new photo is the very
+  // same file again).
+  await removeFiles(deps, noLongerShown(saved.unused ?? [], saved.photos));
   await audit(deps, session, {
     action: "SITE_PHOTO_SET", entityType: "site_photo", entityId: slot, newValues: { slot, image_path: imagePath }, result: "success",
   });
@@ -126,7 +147,7 @@ export async function removeSitePhoto(deps: Deps, session: Session, id: string):
     p_restaurant: restaurantOf(session), p_id: id,
   });
   if (!removed) throw notFound();
-  await removeFiles(deps, removed.unused);
+  await removeFiles(deps, noLongerShown(removed.unused, removed.photos));
   // Recorded by where the photo was, as setting one is; the photo's own id means nothing now.
   await audit(deps, session, { action: "SITE_PHOTO_REMOVED", entityType: "site_photo", entityId: removed.slot, result: "success" });
   return json(200, { result: "saved", photos: removed.photos, message: "Photo removed." });

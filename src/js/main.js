@@ -1,4 +1,9 @@
-// Behaviour shared by every public page: the mobile navigation.
+// Behaviour shared by every public page: the mobile navigation, and blocks that fade up
+// into place as the visitor scrolls to them.
+import { startReveal } from "./lib/reveal.js";
+
+startReveal();
+
 const dialog = document.getElementById("mobile-nav");
 const openButton = document.querySelector("[data-nav-open]");
 

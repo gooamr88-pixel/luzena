@@ -3,7 +3,7 @@
     <div>
       {{#if site.logo}}{{picture site.logo alt=site.fullName class="logo-light h-14 w-auto"}}{{else}}<p class="font-display text-3xl tracking-[0.06em] text-white">{{site.name}}</p>{{/if}}
       {{#if site.tagline}}<p class="mt-4 max-w-xs text-sm text-muted">{{site.tagline}}</p>{{/if}}
-      <a href="{{site.orderHref}}" class="btn btn-primary btn-sm mt-6"{{#if site.orderIsExternal}} rel="noopener"{{/if}}>Order Online</a>
+      <a href="{{site.orderHref}}" class="btn btn-primary btn-sm mt-6">Order Online</a>
       {{#if site.socialLinks.length}}
       <ul class="mt-6 flex flex-wrap gap-x-5 gap-y-2 text-sm">
         {{#each site.socialLinks}}<li><a href="{{url}}" class="inline-flex min-h-11 items-center gap-2 text-ink transition-colors hover:text-brand" target="_blank" rel="noopener">{{#if (eq network "instagram")}}{{> icon name="instagram" class="size-5"}}{{/if}}{{label}}<span class="sr-only"> (opens in a new tab)</span></a></li>{{/each}}

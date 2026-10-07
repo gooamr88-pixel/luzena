@@ -35,6 +35,10 @@ describe("money", () => {
     expect(priceLabel({ price_cents: 900, price_type: "PER_UNIT", unit_name: "lb" }, "USD", "en-US")).toBe("$9.00 / lb");
     expect(priceLabel({ price_cents: 0, price_type: "VARIABLE" }, "USD", "en-US")).toBe("");
     expect(priceLabel({ price_cents: null, price_type: "FIXED" }, "USD", "en-US")).toBe("");
+    // Zero is what a till holds when no price was entered: the website prints nothing for it.
+    expect(priceLabel({ price_cents: 0, price_type: "FIXED" }, "USD", "en-US")).toBe("");
+    expect(priceLabel({ price_cents: 0, price_type: "PER_UNIT", unit_name: "lb" }, "USD", "en-US")).toBe("");
+    expect(priceLabel({ price_cents: 1, price_type: "FIXED" }, "USD", "en-US")).toBe("$0.01");
   });
 });
 
@@ -280,7 +284,6 @@ describe("content gate", () => {
       expect(issues.errors).toEqual([]);
       expect(site.orderUrl).toBe(CLOVER);
       expect(site.orderHref).toBe("/order/");
-      expect(site.orderIsExternal).toBe(false);
       // Clover's own address for a restaurant's ordering page raises no question.
       expect(issues.warnings.join("\n")).not.toMatch(/ordering\.url/);
       expect(restaurantJsonLd(site, {})["@graph"][0].potentialAction).toEqual({ "@type": "OrderAction", target: CLOVER });

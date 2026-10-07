@@ -59,7 +59,24 @@ deployed, and the Nginx configuration has never been loaded by an Nginx.
 The browser tests need a Chromium. They use one already installed by Playwright under
 `%LOCALAPPDATA%\ms-playwright`, or the executable named in `CHROME_PATH`.
 
-## Latest run: 2026-10-07 (second), after the Order Online and Join Our Team pages were redesigned
+## Latest run: 2026-10-07 (third), after motion was added to the public site
+
+Lint and types clean; `npm run test:browser` **248 passed** (3 files). The unit tests were
+not run again: nothing they cover changed.
+
+**The browser tests now open pages as a visitor who asked for reduced motion**
+(`tests/browser/helpers/site.js`), for whom the site's animations do not exist. What they
+measure (positions, sizes, contrast, sideways scroll) is therefore the page at rest, not a
+frame of something moving. The animations have their own 14 tests ("motion" in
+`public.spec.js`), which ask for motion: the header's words arrive and end fully shown;
+nothing on the first screen is hidden when a page opens; a block below it is held back and
+fades up when scrolled to, then loses its classes; on nine pages, at a phone's and a
+laptop's width, nothing is left hidden or half-faded once the page has been scrolled;
+the accessibility scan passes with motion on; and a reduced-motion visitor gets none of it.
+Whether the animations look good is not something a test can say: they were looked at in
+still frames only (`.visual/motion/`), never in a video or on a phone.
+
+## The run before: 2026-10-07 (second), after the Order Online and Join Our Team pages were redesigned
 
 One command chain on one Windows machine, nothing deployed: lint, types and production
 content clean; `npm test` **263 passed** (8 files); `npm run test:browser` **234 passed**

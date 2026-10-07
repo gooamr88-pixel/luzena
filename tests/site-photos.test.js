@@ -175,6 +175,44 @@ describe("the gallery", () => {
     expect(h.stored.has(`menu-images/${gallery[0].path}`)).toBe(true);
   });
 
+  // Found in an audit. A file is named by a hash of its content, so the same photo added
+  // twice is one file with two rows; removing one row used to delete the file of the other,
+  // which left a broken picture on the public gallery.
+  it("keeps the file when the same photo is in the gallery twice and one copy is removed", async () => {
+    const same = () => photoForm("gallery", { alt: "The same photo", bytes: webp(77), small: false });
+    await h.api(owner, "POST", "/site/photos", same());
+    const second = await h.api(owner, "POST", "/site/photos", same());
+    const copies = second.body.photos.gallery.filter((photo) => photo.alt === "The same photo");
+    expect(copies).toHaveLength(2);
+    expect(copies[0].path).toBe(copies[1].path);
+
+    const removed = await h.api(owner, "DELETE", `/site/photos/${copies[0].id}`);
+    expect(removed.status).toBe(200);
+    // The other copy is still there, and so is the file it shows.
+    expect(removed.body.photos.gallery.filter((photo) => photo.alt === "The same photo")).toHaveLength(1);
+    expect(h.stored.has(`menu-images/${copies[1].path}`)).toBe(true);
+    const shown = (await publicSite()).body.photos.gallery.find((photo) => photo.alt === "The same photo");
+    expect(shown.src).toBe(`${STORAGE}/${copies[1].path}`);
+
+    // Removing the last copy removes the file.
+    await h.api(owner, "DELETE", `/site/photos/${copies[1].id}`);
+    expect(h.stored.has(`menu-images/${copies[1].path}`)).toBe(false);
+  });
+
+  it("keeps the file of a photo already in a full gallery when the same photo is refused as the 25th", async () => {
+    const kept = await h.api(owner, "POST", "/site/photos", photoForm("gallery", { alt: "Already here", bytes: webp(88), small: false }));
+    const { path, id } = kept.body.photos.gallery.find((photo) => photo.alt === "Already here");
+    const have = kept.body.photos.gallery.length;
+    await h.pg.query(
+      `insert into public.site_photos (restaurant_id, slot, sort_order, image_path, alt)
+       select $1, 'gallery', 200 + n, 'padding/' || n || '.webp', 'Padding' from generate_series(1, $2) n`, [alpha, 24 - have]);
+    const refused = await h.api(owner, "POST", "/site/photos", photoForm("gallery", { alt: "Again", bytes: webp(88), small: false }));
+    expect(refused.status).toBe(409);
+    expect(h.stored.has(`menu-images/${path}`)).toBe(true);
+    await h.pg.query("delete from public.site_photos where image_path like 'padding/%'");
+    await h.api(owner, "DELETE", `/site/photos/${id}`);
+  });
+
   it("holds 24 photos and says so at the 25th, keeping nothing of it", async () => {
     await h.pg.query(
       `insert into public.site_photos (restaurant_id, slot, sort_order, image_path, alt)

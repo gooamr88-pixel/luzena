@@ -221,6 +221,10 @@ Visitor:   page opens with the built photos -> GET /public-site -> chosen photos
   named by a hash of their content. They are public by nature. The dashboard resizes each
   photo in the browser to two sizes (full and phone) and re-encodes it, which also drops EXIF
   data; the server still checks size (1 MB each) and reads the real type from the bytes.
+- **One file, perhaps several rows.** A file is named by a hash of its content, so the same
+  photo added to the gallery twice is one file with two rows. A file is therefore deleted
+  only when no photo on the website shows it any more (`noLongerShown` in `site-photos.ts`),
+  never merely because one of its rows went.
 - **Table** `site_photos`: one row per photo, `slot` in `hero | story | gallery`, at most one
   row each for `hero` and `story` (a partial unique index), at most 24 in the gallery, with
   `sort_order` and `alt`. A replaced or removed photo's files are deleted from the bucket.
@@ -246,9 +250,19 @@ cannot be skipped:
 
 Applications older than the retention period are deleted by `purgeExpiredApplications`
 (`_shared/public/retention.ts`): CV files first, then the rows, so a failed file deletion
-never leaves a file without its record. It runs after an application is accepted and when an
-owner opens the dashboard overview. There is no scheduler; `DEPLOYMENT_CHECKLIST.md` says how
-to add one if the privacy policy needs a guaranteed day.
+never leaves a file without its record.
+
+There is no scheduler, so it runs on the back of ordinary requests. `upkeep` in the same
+file is called after the answer to every `public-menu` and `public-site` request, and does
+its work about once an hour, whichever request comes first: each running copy of the backend
+asks the database at most hourly, and the database lets one of them through. So expired
+applications go within about an hour of anyone at all opening the website, not only when an
+application arrives or an owner opens the dashboard (those two still trigger it directly).
+The same hourly pass calls `housekeeping()`, which clears rows that are only of use for a
+while: rate-limit counters over two days old, idempotency keys over a week, sync history
+over 30 days, integration logs over 90 days, abandoned connection attempts. The audit log is
+kept. A day with no visitor at all runs nothing; `DEPLOYMENT_CHECKLIST.md` says how to add a
+schedule if the privacy policy needs a guaranteed day.
 
 ### Job applications: the path one takes
 
