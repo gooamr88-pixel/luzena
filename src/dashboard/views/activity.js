@@ -13,6 +13,7 @@ const LABELS = {
   APPLICATION_STATUS_CHANGED: "Job application status changed", APPLICATION_CV_DOWNLOADED: "Job application CV downloaded",
   APPLICATION_DELETED: "Job application deleted",
   SITE_PHOTO_SET: "Website photo changed", SITE_PHOTO_REMOVED: "Website photo removed",
+  CATEGORY_IMAGE_UPDATED: "Category photo changed", CATEGORY_IMAGE_REMOVED: "Category photo removed",
   CLOVER_CONNECTED: "Clover connected", CLOVER_DISCONNECTED: "Clover disconnected", CLOVER_CONNECT_FAILED: "Clover connection failed",
 };
 

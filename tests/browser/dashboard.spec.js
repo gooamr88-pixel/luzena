@@ -898,6 +898,75 @@ describe("website photos", () => {
     await context.close();
   });
 
+  it("lists the menu's categories with the photo each tile shows, in the website's order", async () => {
+    const { page, context, problems } = await dashboard("#/photos");
+    await page.waitForSelector('section[aria-labelledby="photos-categories"] li[data-category]');
+    const cards = section(page, "categories").locator("li[data-category]");
+    expect(await cards.count()).toBe(4);
+    expect(await cards.locator("h3").allInnerTexts()).toEqual(["Starters", "Mains", "Desserts", "Drinks"]);
+    // Nothing chosen yet: each shows a starting photo, and its place on the home page.
+    expect(await cards.locator(".d-badge").allInnerTexts()).toEqual(["Starting photo", "Starting photo", "Starting photo", "Starting photo"]);
+    expect(await cards.first().locator(".d-photo-frame").innerText()).toMatch(/^1/);
+    const photos = await cards.locator(".d-photo-frame img").evaluateAll((images) => images.map((image) => image.getAttribute("src")));
+    expect(photos.every((src) => /^\/media\/.+\.jpg$/.test(src))).toBe(true);
+    // Different starting photos, as on the home page, not one repeated.
+    expect(new Set(photos).size).toBe(4);
+    // Each file button says which category it is for.
+    expect(await cards.first().locator("label.d-btn").innerText()).toMatch(/Choose a photo\s*for Starters/);
+    expect(await section(page, "categories").locator('a[href="#/categories"]').count()).toBe(1);
+    expect(problems).toEqual([]);
+    await context.close();
+  });
+
+  it("sets a category's photo, small enough for a tile, and goes back to the automatic one", async () => {
+    const { page, context, problems } = await dashboard("#/photos");
+    await page.waitForSelector('section[aria-labelledby="photos-categories"] li[data-category]');
+    await page.evaluate(() => {
+      const append = FormData.prototype.append;
+      window.sent = {};
+      FormData.prototype.append = function (name, value, ...rest) {
+        window.sent[name] = value instanceof File ? { name: value.name, type: value.type, size: value.size } : value;
+        return append.call(this, name, value, ...rest);
+      };
+    });
+    const card = section(page, "categories").locator("li[data-category]", { hasText: "Mains" });
+    await card.locator('input[type="file"]').setInputFiles(wide);
+    await page.waitForFunction(() => [...document.querySelectorAll("li[data-category]")]
+      .find((item) => item.textContent.includes("Mains"))?.querySelector(".d-badge-ok"));
+
+    expect(await card.locator(".d-badge-ok").innerText()).toBe("Your photo");
+    expect(await card.locator(".d-photo-frame img").getAttribute("src")).toMatch(/^blob:/);
+    // The other categories are untouched.
+    expect(await section(page, "categories").locator(".d-badge-ok").count()).toBe(1);
+    // One file, re-encoded under the page's own name for it.
+    const sent = await page.evaluate(() => window.sent);
+    expect(sent.file.name).toMatch(/^photo\.(webp|jpg)$/);
+    expect(JSON.stringify(sent)).not.toContain("IMG_2041");
+    // 2400 x 1500 is brought down to 960 on its longer side: a tile needs no more.
+    const size = await card.locator(".d-photo-frame img").evaluate(async (image) => {
+      await image.decode();
+      return [image.naturalWidth, image.naturalHeight];
+    });
+    expect(size).toEqual([960, 600]);
+
+    await page.locator('aside a[data-nav="#/activity"]').click();
+    await page.waitForSelector("table.d-table tbody tr");
+    expect(await rows(page).first().innerText()).toContain("Category photo changed");
+    await page.locator('aside a[data-nav="#/photos"]').click();
+    await page.waitForSelector('section[aria-labelledby="photos-categories"] .d-badge-ok');
+
+    const again = section(page, "categories").locator("li[data-category]", { hasText: "Mains" });
+    expect(await again.locator("label.d-btn").innerText()).toMatch(/Replace\s*for Mains/);
+    await again.getByRole("button", { name: "Remove the photo of Mains" }).click();
+    expect(await dialog(page).innerText()).toContain("Remove the photo of Mains?");
+    expect(await page.evaluate(() => document.activeElement.textContent)).toBe("Cancel");
+    await dialog(page).getByRole("button", { name: "Remove my photo" }).click();
+    await page.waitForFunction(() => document.querySelectorAll('section[aria-labelledby="photos-categories"] .d-badge-ok').length === 0);
+    expect(await again.locator(".d-photo-frame img").getAttribute("src")).toMatch(/^\/media\//);
+    expect(problems).toEqual([]);
+    await context.close();
+  });
+
   it("refuses a file that is not a photo and changes nothing", async () => {
     const { page, context } = await dashboard("#/photos");
     await page.waitForSelector("#photo-hero");

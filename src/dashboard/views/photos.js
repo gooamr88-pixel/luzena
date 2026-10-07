@@ -1,14 +1,21 @@
-// The website's own photos: the home page's main photo, the "our story" photo and the
-// gallery. Each starts as the photo the website was built with; the owner replaces it here,
-// and the public pages show the change within about a minute, with no deployment.
+// The website's own photos: the home page's main photo, the "our story" photo, the gallery,
+// and the photo of each menu category on the home page. Each starts as a photo the website
+// chooses by itself; the owner replaces it here, and the public pages show the change
+// within about a minute, with no deployment.
 import { api } from "../api.js";
-import { optimiseSitePhoto } from "../image.js";
+import { optimiseImage, optimiseSitePhoto } from "../image.js";
 import { state } from "../state.js";
 import { append, badge, clear, confirmDialog, errorBlock, h, icon, loadingBlock, pageHeader, toast, toastFailure } from "../ui.js";
 
 // The photos the website was built with, written into the page by the build.
 const starting = document.documentElement.dataset;
 const startingGallery = (starting.defaultGallery ?? "").split(/\s+/).filter(Boolean);
+// The photos a category or a dish without one of its own is given, in the website's order.
+const startingDishes = (starting.defaultDishPhotos ?? "").split(/\s+/).filter(Boolean);
+// How many category tiles the home page shows (MAX_CATEGORIES in src/js/featured.js), and
+// the longer side a tile's photo needs: a tile is never wider than about 300 px on screen.
+const HOME_CATEGORIES = 6;
+const CATEGORY_EDGE = 960;
 
 // A stored photo's address. Paths in the bucket get the bucket's address in front; the demo
 // hands over addresses that are already whole.
@@ -28,6 +35,9 @@ export async function photosView(outlet) {
 
   let photos;
   let limits = { gallery: 24 };
+  // The menu's categories, or null when they could not be read: the rest of the page does
+  // not depend on them.
+  let categories = null;
 
   const failed = (failure) => (failure?.details ? toastFailure(failure) : toast(failure?.message ?? "The photo could not be uploaded.", "bad"));
 
@@ -216,6 +226,87 @@ export async function photosView(outlet) {
         : h("ol", { class: "mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3", "aria-label": "Your gallery photos, in order" }, own.map(tile)));
   }
 
+  // The menu's categories, each with the photo its tile on the home page shows. A category
+  // without one of its own borrows a dish's photo, then a starting photo, exactly as the
+  // website does, so what is drawn here is what a visitor sees.
+  function categorySection() {
+    const listed = categories.filter((category) => !category.archived && !category.removed_from_clover);
+    let place = 0;
+
+    const card = (category) => {
+      const hasDishes = (category.on_website_count ?? category.item_count) > 0;
+      const eligible = !category.web_hidden && hasDishes;
+      const position = eligible ? place++ : null;
+      const onHome = position !== null && position < HOME_CATEGORIES;
+      const own = category.image_path;
+      const borrowed = category.dish_image_path;
+      const fallback = startingDishes.length > 0 ? startingDishes[(position ?? 0) % startingDishes.length] : null;
+      const shown = own ? address(own) : borrowed ? address(borrowed) : fallback;
+      const why = category.web_hidden ? "Hidden on the website"
+        : !hasDishes ? "No dishes on the website"
+        : !onHome ? "Not among the first six" : null;
+
+      const [input, choose] = picker(`photo-category-${category.id}`, own ? "Replace" : "Choose a photo", {
+        primary: !own,
+        onFiles: async ([file], progress) => {
+          progress("Uploading...");
+          const form = new FormData();
+          form.append("file", await optimiseImage(file, CATEGORY_EDGE));
+          const result = await api("POST", `/categories/${category.id}/image`, form);
+          categories = result.categories;
+          toast(result.message);
+        },
+      });
+      choose.classList.add("d-btn-sm");
+      // The label is the button's whole name, so it says which category it is for.
+      append(choose, h("span", { class: "sr-only" }, ` for ${category.name}`));
+
+      const removeOwn = async () => {
+        if (!(await confirmDialog({
+          title: `Remove the photo of ${category.name}?`,
+          body: ["Your photo is taken off the website and deleted.", borrowed
+            ? "The category shows the photo of one of its dishes again."
+            : "The category shows one of the website's starting photos again."],
+          confirmLabel: "Remove my photo", danger: true,
+        }))) return;
+        try {
+          const result = await api("DELETE", `/categories/${category.id}/image`);
+          categories = result.categories;
+          toast(result.message);
+        } catch (failure) {
+          toastFailure(failure);
+        }
+        draw();
+      };
+
+      return h("li", { class: "flex flex-col gap-3 rounded-xl border border-line bg-surface p-3", dataset: { category: category.id } },
+        h("div", { class: "d-photo-frame relative aspect-[5/4]" },
+          shown
+            ? h("img", { src: shown, alt: "", loading: "lazy", decoding: "async" })
+            : h("p", { class: "flex size-full items-center justify-center p-3 text-center text-sm text-muted" }, "A green tile, no photo"),
+          onHome && h("span", { class: "absolute top-2 left-2 rounded-full bg-night/80 px-2 py-0.5 text-[0.72rem] font-semibold text-white" },
+            String(position + 1), h("span", { class: "sr-only" }, " on the home page"))),
+        h("div", { class: "min-w-0" },
+          h("h3", { class: "truncate text-[0.98rem] font-semibold", title: category.name }, category.name),
+          h("p", { class: "mt-1 flex flex-wrap gap-1.5" },
+            own ? badge("Your photo", "ok") : borrowed ? badge("From one of its dishes") : badge("Starting photo"),
+            why && badge(why, "warn"))),
+        h("div", { class: "mt-auto flex flex-wrap items-center gap-2" }, input, choose,
+          own && h("button", { type: "button", class: "d-btn d-btn-quiet d-btn-sm", onClick: removeOwn },
+            "Remove", h("span", { class: "sr-only" }, ` the photo of ${category.name}`))));
+    };
+
+    return h("section", { class: "d-card p-5 sm:p-6", "aria-labelledby": "photos-categories" },
+      h("h2", { id: "photos-categories", class: "d-title" }, "Menu categories"),
+      h("p", { class: "mt-1 max-w-3xl text-sm text-muted" },
+        "The category tiles on the home page. A category without a photo of its own shows the photo of one of its dishes, or one of the website's starting photos. The home page shows the first six categories that have dishes on the website; their order is set on the ",
+        h("a", { href: "#/categories", class: "font-medium text-brand hover:underline" }, "Categories page"), "."),
+      listed.length === 0
+        ? h("div", { class: "d-alert d-alert-info mt-5" }, "There are no categories yet. They come from Clover, once it is connected and the menu has been imported.")
+        : h("ul", { class: "mt-5 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4", "aria-label": "Menu categories, in the website's order" }, listed.map(card)),
+      listed.length > 0 && h("p", { class: "d-hint mt-4" }, "JPEG, PNG or WebP, wider than it is tall. Photos are resized automatically before upload."));
+  }
+
   function draw() {
     clear(region);
     append(region, h("div", { class: "space-y-5" },
@@ -231,13 +322,20 @@ export async function photosView(outlet) {
         advice: "A photo of the dining room, the kitchen or the team works well here. At least 1200 pixels on its longer side.",
         shape: "aspect-[4/3]", fallback: starting.defaultStory,
       }),
+      categories && categorySection(),
       gallery()));
   }
 
   try {
-    const answer = await api("GET", "/site/photos");
+    // The categories are asked for alongside. If they cannot be read, the section is left
+    // out and the rest of the page works as before.
+    const [answer, menu] = await Promise.all([
+      api("GET", "/site/photos"),
+      api("GET", "/categories").catch(() => null),
+    ]);
     photos = answer.photos;
     limits = answer.limits ?? limits;
+    categories = menu?.categories ?? null;
     draw();
   } catch (failure) {
     clear(region);

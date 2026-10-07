@@ -45,7 +45,7 @@ export async function handlePublicMenu(request: Request, deps: Deps, storagePubl
 
     const menu = await deps.db.rpc<{
       synced_at: string | null;
-      categories: { id: string; name: string; items: PublicItem[] }[];
+      categories: { id: string; name: string; image_path?: string | null; items: PublicItem[] }[];
       uncategorized: PublicItem[];
     }>("public_menu", { p_restaurant: restaurant.id });
 
@@ -67,9 +67,15 @@ export async function handlePublicMenu(request: Request, deps: Deps, storagePubl
       const { image_path, ...rest } = item;
       return { ...rest, image_url: image_path ? `${storagePublicBase}/${image_path}` : null };
     };
-    const categories = menu.categories.map((category) => ({ ...category, items: category.items.map(withUrl) }));
+    // A category carries the photo the owner chose for it, as an address; null when none
+    // was chosen and the page picks one itself. Never the path inside the bucket.
+    const categories = menu.categories.map(({ image_path, ...category }) => ({
+      ...category,
+      image_url: image_path ? `${storagePublicBase}/${image_path}` : null,
+      items: category.items.map(withUrl),
+    }));
     if (menu.uncategorized.length > 0) {
-      categories.push({ id: "more", name: "More", items: menu.uncategorized.map(withUrl) });
+      categories.push({ id: "more", name: "More", image_url: null, items: menu.uncategorized.map(withUrl) });
     }
 
     return json(200, {

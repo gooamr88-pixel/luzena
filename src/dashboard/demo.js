@@ -16,7 +16,7 @@ export function installDemo(state) {
 
   const categories = sample.categories.map((category, index) => ({
     id: category.id, name: category.name, sort_order: index + 1, web_hidden: false, archived: false,
-    removed_from_clover: false, updated_at: stamp(600),
+    removed_from_clover: false, updated_at: stamp(600), image_path: null, dish_image_path: null,
   }));
   const groups = new Map();
   const items = [];
@@ -147,10 +147,13 @@ export function installDemo(state) {
     if (!item) throw new ApiFailure(404, { code: "not_found", message: "This item does not exist." });
     return item;
   };
-  const categoryList = () => [...categories].sort((a, b) => a.sort_order - b.sort_order).map((category) => ({
-    ...category,
-    item_count: items.filter((item) => !item.archived && item.categories.some((c) => c.id === category.id)).length,
-  }));
+  const categoryList = () => [...categories].sort((a, b) => a.sort_order - b.sort_order).map((category) => {
+    const own = items.filter((item) => !item.archived && item.categories.some((c) => c.id === category.id));
+    return {
+      ...category, item_count: own.length,
+      on_website_count: own.filter((item) => !item.hidden && !item.web_hidden).length,
+    };
+  });
   const groupList = () => [...groups.values()].map((group) => ({
     ...group, item_count: items.filter((item) => item.modifier_groups.some((g) => g.id === group.id)).length,
   }));
@@ -255,7 +258,7 @@ export function installDemo(state) {
 
     if (path === "/categories" && method === "GET") return { categories: categoryList() };
     if (path === "/categories" && method === "POST") {
-      categories.push({ id: newId("DEMOCAT"), name: body.name, sort_order: categories.length + 1, web_hidden: false, archived: false, removed_from_clover: false, updated_at: stamp() });
+      categories.push({ id: newId("DEMOCAT"), name: body.name, sort_order: categories.length + 1, web_hidden: false, archived: false, removed_from_clover: false, updated_at: stamp(), image_path: null, dish_image_path: null });
       log("CATEGORY_CREATED", "category", null, body, "success", "SYNCED");
       return { result: "synced", categories: categoryList(), message: "Demo: category created." };
     }
@@ -263,6 +266,17 @@ export function installDemo(state) {
       body.ids.forEach((id, index) => { categories.find((c) => c.id === id).sort_order = index + 1; });
       log("CATEGORY_REORDERED", "category", null, body, "success", "SYNCED");
       return { result: "synced", categories: categoryList(), message: "Demo: order saved." };
+    }
+    if ((match = path.match(/^\/categories\/([A-Z0-9]{13})\/image$/))) {
+      const category = categories.find((c) => c.id === match[1]);
+      if (!category) throw new ApiFailure(404, { code: "not_found", message: "This category does not exist." });
+      // The chosen file is shown straight from the browser's memory. It is uploaded nowhere.
+      category.image_path = method === "DELETE" ? null : URL.createObjectURL(body.get("file"));
+      log(method === "DELETE" ? "CATEGORY_IMAGE_REMOVED" : "CATEGORY_IMAGE_UPDATED", "category", category.id, null);
+      return {
+        result: "saved", categories: categoryList(),
+        message: method === "DELETE" ? "Demo: photo removed." : "Demo: photo set in this browser tab only.",
+      };
     }
     if ((match = path.match(/^\/categories\/([A-Z0-9]{13})$/))) {
       const category = categories.find((c) => c.id === match[1]);

@@ -1,7 +1,8 @@
 <!doctype html>
 <html lang="en" data-restaurant-name="{{site.fullName}}" data-logo="{{mediaUrl site.logo}}" data-locale="{{site.locale}}" data-api="{{build.apiBase}}"
   data-default-hero="{{#if site.hero.image}}{{photoUrl site.hero.image 800}}{{/if}}" data-default-story="{{#if site.about.image}}{{photoUrl site.about.image 800}}{{/if}}"
-  data-default-gallery="{{#each site.gallery}}{{photoUrl image 480}} {{/each}}">
+  data-default-gallery="{{#each site.gallery}}{{photoUrl image 480}} {{/each}}"
+  data-default-dish-photos="{{#each site.defaultDishPhotos}}{{photoUrl this 480}} {{/each}}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">

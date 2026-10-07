@@ -4,9 +4,11 @@
 //
 // The application form posts to a fake backend address that the test intercepts, so the
 // success and failure states are exercised without any server.
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
-  accessibilityViolations, describeViolations, hasHorizontalOverflow, launchBrowser, openPage, serveBuild, VIEWPORT_WIDTHS,
+  accessibilityViolations, describeViolations, hasHorizontalOverflow, launchBrowser, openPage, ROOT, serveBuild, VIEWPORT_WIDTHS,
 } from "./helpers/site.js";
 
 let site, browser;
@@ -185,6 +187,45 @@ describe("gallery viewer", () => {
     // Focus lands on the photo that was on screen, not on the one that opened the viewer.
     await page.waitForFunction(() => document.activeElement.getAttribute("data-gallery-open") === "5");
     expect(problems).toEqual([]);
+    await context.close();
+  });
+});
+
+// A category's own photo, chosen in the dashboard, comes with the menu. The test hands the
+// page a menu in which one category has one.
+describe("category photos the owner has chosen in the dashboard", () => {
+  it("shows a category's own photo on its tile, and leaves the others as they were", async () => {
+    const sample = JSON.parse(readFileSync(join(ROOT, "content", "sample-menu.json"), "utf8"));
+    sample.categories[1].image_url = "/media/team-800.jpg";
+    const { page, context, problems } = await openPage(browser, `${site.url}/`, {
+      prepare: (context) => context.route("**/sample-api/menu.json", (route) =>
+        route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(sample) })),
+    });
+    await page.waitForSelector("[data-categories]:not([hidden]) .category-tile");
+    const tiles = page.locator(".category-tile");
+    expect(await tiles.count()).toBe(4);
+    expect(await tiles.nth(1).locator("img").getAttribute("src")).toBe("/media/team-800.jpg");
+    // The first category has none of its own, so it keeps the photo the site chose.
+    expect(await tiles.first().locator("img").getAttribute("src")).toBe("/media/gallery-1-480.jpg");
+    // The photo is there for the eye only: the tile's name is its text.
+    expect(await tiles.nth(1).locator("img").getAttribute("alt")).toBe("");
+    expect(await tiles.nth(1).innerText()).toMatch(/Mains/);
+    const violations = await accessibilityViolations(page);
+    expect(violations, describeViolations(violations)).toEqual([]);
+    expect(problems).toEqual([]);
+    await context.close();
+  });
+
+  it("falls back to the site's own photo when a category's photo cannot be loaded", async () => {
+    const sample = JSON.parse(readFileSync(join(ROOT, "content", "sample-menu.json"), "utf8"));
+    sample.categories[0].image_url = "/media/a-photo-that-was-deleted.jpg";
+    const { page, context } = await openPage(browser, `${site.url}/`, {
+      allowRequestFailures: [/a-photo-that-was-deleted/, /status of 404/],
+      prepare: (context) => context.route("**/sample-api/menu.json", (route) =>
+        route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(sample) })),
+    });
+    await page.waitForSelector("[data-categories]:not([hidden]) .category-tile");
+    await page.waitForFunction(() => document.querySelector(".category-tile img")?.getAttribute("src") === "/media/gallery-1-480.jpg");
     await context.close();
   });
 });

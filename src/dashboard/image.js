@@ -43,10 +43,12 @@ async function encode(bitmap, maxEdge, name) {
   throw new Error("This photo could not be reduced enough. Try a different photo.");
 }
 
-export async function optimiseImage(file) {
+// `maxEdge` is the longer side in pixels. A dish photo keeps the default; a photo that is
+// only ever shown small (a category's tile) asks for less.
+export async function optimiseImage(file, maxEdge = MAX_EDGE) {
   const bitmap = await read(file);
   try {
-    return (await encode(bitmap, MAX_EDGE, "photo")).file;
+    return (await encode(bitmap, maxEdge, "photo")).file;
   } finally {
     bitmap.close?.();
   }

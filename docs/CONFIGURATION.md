@@ -168,7 +168,8 @@ shows **placeholder photos** in their place rather than the photo-less layouts:
 | Home hero | `placeholder-hero.jpg` | The same dark hero with a warm glow and the logo's leaf |
 | Home "our story", About | `placeholder-story.jpg` | Home: the "what to expect" points on a forest green panel. About: the logo, in white, on a forest green panel. |
 | Gallery page, home photo strip | `placeholder-gallery-1` to `-5` | Page hidden from navigation and search; strip left out |
-| Home categories and popular dishes | The dish's own photo from the dashboard, else one of `defaultDishPhotos` | Green tiles and text-only cards |
+| Home category tiles | The category's own photo from the dashboard (**Photos > Menu categories**), else the photo of one of its dishes, else one of `defaultDishPhotos` | Green tiles |
+| Home popular dishes | The dish's own photo from the dashboard, else one of `defaultDishPhotos` | Text-only cards |
 | Location | The Google map. `placeholder-location.jpg` is set but only shows if the map is removed. | The opening hours, day by day |
 | Link previews | An image generated from the logo (`og-default.png`) | The same |
 | Careers | Left out | Left out |
@@ -179,7 +180,8 @@ how to replace each one.
 
 There are two ways to replace a photo:
 
-1. **In the dashboard, with no deployment** (hero, "our story", gallery): the owner opens
+1. **In the dashboard, with no deployment** (hero, "our story", gallery, and each menu
+   category's tile): the owner opens
    **Photos**, chooses a photo and writes its description. The website shows it within about
    a minute. "Use the starting photo" goes back to the built one. A gallery of the owner's
    replaces the built gallery whole (up to 24 photos; the first eight are the row on the home

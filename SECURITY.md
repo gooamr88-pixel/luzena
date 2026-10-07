@@ -177,6 +177,11 @@ storage path, nothing about who uploaded a photo or when. The description an own
 put on the page as an attribute and as text, never as markup. Proven by
 `tests/site-photos.test.js` and the "website photos" browser tests.
 
+**Category photos** (`dashboard-api`): as item photos, with the `site.manage` permission.
+The category is looked up as this restaurant's before anything is stored, so no file is
+kept for another restaurant's category or for one that does not exist. Proven by
+`tests/category-photos.test.js`.
+
 **Size limits are enforced on what arrives, not on what is declared.** Every body this
 backend reads (JSON, the application form, photo uploads, Clover's notifications) goes
 through `readBytes` in `_shared/http.ts`. The `Content-Length` header is the sender's claim

@@ -1448,3 +1448,59 @@ the list in the checkpoint above.
 functions, TEST then PRODUCTION (the Supabase CLI is signed out). Then `deploy.sh`. If the
 functions go first, the hourly pass logs `upkeep_failed` until the migration is there and
 nothing else is affected.
+
+### 2026-10-08 Checkpoint: category photos from the dashboard; backend DEPLOYED; second audit
+
+The client: use the access token given earlier to sign in, let the owner control the photos
+of the home page's category tiles from the dashboard's Photos page, audit again, push.
+
+**Category photos.** `menu_categories.web_image_path` (migration
+`20261008001000_category_photos.sql`), website-only, untouched by synchronisation. It
+reaches the page inside `public-menu` as each category's `image_url`. A tile shows the
+first that loads: the category's own photo, a dish's, a starting photo. The dashboard's
+Photos page has a "Menu categories" section that draws each tile as a visitor sees it, with
+its place on the home page, and says where the photo comes from ("Your photo", "From one of
+its dishes", "Starting photo") and why a category is not on the home page. Photos are
+resized to 960 px in the browser. Routes `POST` and `DELETE /categories/<id>/image`,
+permission `site.manage`. 14 backend tests, 4 browser tests.
+
+**Deployed to TEST, then PRODUCTION** (the token still worked: the "Unauthorized" seen on
+2026-10-07 was this machine's stored sign-in, not a revoked token):
+
+- Dry run on each named exactly `..900_housekeeping` and `..1000_category_photos`; applied.
+- The five functions deployed to each, so the audit's backend fixes are live too.
+- By query on each: 18 tables, the new column there, the new functions closed to `anon`
+  and `authenticated` and open to `service_role`.
+- `verify:functions` passed on both; `verify:public-access` 15 of 15 on PRODUCTION; the
+  live menu's 8 categories each carry `image_url` and no storage path.
+- The hourly pass is running on PRODUCTION: its counter is there, and no rate-limit row is
+  older than two days.
+
+**Verified locally:** lint, types, content; 291 unit tests (9 files); Deno checks; 252
+browser tests.
+
+**Second audit.** `npm audit` 0; the unused-code scan found nothing real; `verify:site`
+passed on the live site. Read this time: the Clover client and token code, in full.
+
+Still open, none of it new code to write without a decision:
+
+1. **The notification email is not configured on PRODUCTION.** Checked by name: neither
+   `RESEND_API_KEY` nor `EMAIL_FROM` is set. Applications will arrive marked "email failed".
+2. **No application has ever been received on PRODUCTION** (0 rows): the live form, the
+   dashboard's Applications pages and the email have never been used for real.
+3. **The access token is still valid**, has been pasted in chat three times, and is stored
+   on this machine. It should be revoked and replaced.
+4. **No second sign-in factor** on the owner's account.
+5. The placeholder stock photos are live, licence unchecked. The owner can now replace
+   every one of them from the dashboard except the location photo and the link preview.
+6. Menu content: no descriptions, 49 of 53 dishes without a photo, none featured.
+7. A single "unauthorized" answer from Clover to a merchant API token marks the connection
+   as needing a new token (`clover/auth.ts`). Right if the token was revoked; a one-off
+   wrong answer from Clover would stop the menu refreshing until the owner re-enters it.
+8. A category that Clover removes keeps its photo file in storage.
+9. The number of category tiles on the home page (six) is written in two places:
+   `src/js/featured.js` and `src/dashboard/views/photos.js`.
+10. The security policy allows any `*.supabase.co`; the role descriptions are unused.
+
+**The website is not deployed with any of this**: the live home page still says "See Open
+Positions". `deploy.sh` on the VPS publishes the motion, the fixes and the category tiles.

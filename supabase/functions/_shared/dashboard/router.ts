@@ -12,7 +12,7 @@ import {
   updateModifierGroupHandler, updateModifierHandler,
 } from "./catalog.ts";
 import { completeConnect, connectionStatus, connectWithToken, disconnect, manualSync, startConnect } from "./connection.ts";
-import { removeItemImage, uploadItemImage } from "./images.ts";
+import { removeCategoryImage, removeItemImage, uploadCategoryImage, uploadItemImage } from "./images.ts";
 import { bulkItems, createItemHandler, DIETARY_TAGS, getItemDetail, listItems, updateItemHandler } from "./items.ts";
 import { authenticate, cloverApiError, type Permission, permissionsOf, rateLimit, requirePermission } from "./session.ts";
 import { describeSitePhoto, listSitePhotos, removeSitePhoto, reorderGallery, uploadSitePhoto } from "./site-photos.ts";
@@ -93,6 +93,12 @@ const ROUTES: Route[] = [
     handle: async (c) => updateCategoryHandler(c.deps, c.session, c.params[0], await body(c)) },
   { method: "POST", pattern: new RegExp(`^/categories/${ID}/items/reorder$`), permission: "menu.write", limit: WRITE,
     handle: async (c) => reorderCategoryItems(c.deps, c.session, c.params[0], await body(c)) },
+  // A category's photo on the home page: one of the website's own photos, so it goes with
+  // the permission for those.
+  { method: "POST", pattern: new RegExp(`^/categories/${ID}/image$`), permission: "site.manage", limit: ["upload", 60, 600],
+    handle: ({ deps, session, params, request }) => uploadCategoryImage(deps, session, params[0], request) },
+  { method: "DELETE", pattern: new RegExp(`^/categories/${ID}/image$`), permission: "site.manage", limit: WRITE,
+    handle: ({ deps, session, params }) => removeCategoryImage(deps, session, params[0]) },
 
   { method: "GET", pattern: /^\/modifier-groups$/, permission: "menu.read", limit: READ,
     handle: ({ deps, session }) => listModifierGroupsHandler(deps, session) },

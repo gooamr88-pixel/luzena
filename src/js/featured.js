@@ -43,13 +43,14 @@ function categoryTile(template, category, index) {
   part(tile, "link").href = menuLink(category);
   part(tile, "name").textContent = category.name;
   part(tile, "count").textContent = `${category.items.length} ${category.items.length === 1 ? "item" : "items"}`;
-  // A category borrows the photo of one of its dishes, then a default photo. With neither
-  // it is a green tile with the logo's leaf.
+  // The photo the owner chose for the category in the dashboard comes first. Without one a
+  // category borrows the photo of one of its dishes, then a default photo. With none of
+  // these it is a green tile with the logo's leaf.
   const image = part(tile, "photo");
   const scrim = part(tile, "scrim");
   const leaf = part(tile, "leaf");
   leaf.hidden = true;
-  setPhoto(image, [category.items.find((item) => item.image_url)?.image_url, defaultPhoto(index)], () => {
+  setPhoto(image, [category.image_url, category.items.find((item) => item.image_url)?.image_url, defaultPhoto(index)], () => {
     image.remove();
     scrim.remove();
     leaf.hidden = false;

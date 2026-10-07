@@ -233,6 +233,17 @@ Visitor:   page opens with the built photos -> GET /public-site -> chosen photos
   `small_width`, `file`, `file_small`), `PATCH /site/photos/<id>` (`{alt}`),
   `DELETE /site/photos/<id>`, `POST /site/photos/reorder` (`{ids}`, every gallery photo once;
   409 if the gallery changed meanwhile). Setting and removing are recorded in the activity log.
+- **Category photos** (since 2026-10-08) are the fourth kind, and travel differently: a
+  category belongs to the menu, so its photo is a column on the menu mirror
+  (`menu_categories.web_image_path`, website-only like a dish's description; synchronisation
+  never writes to it) and reaches the page inside `public-menu` as each category's
+  `image_url`, not through `public-site`. The home page's tile shows the first of these
+  that loads: the category's own photo, the photo of one of its dishes, a starting photo;
+  with none, a green tile. Routes: `POST /categories/<id>/image` (multipart `file`) and
+  `DELETE /categories/<id>/image`, permission `site.manage`. `GET /categories` also tells
+  the dashboard which photo the website borrows (`dish_image_path`) and how many of the
+  category's dishes the website shows (`on_website_count`), so the Photos page can draw
+  each tile as a visitor sees it. Files: `<restaurant>/categories/<category>/<hash>.<ext>`.
 - **Not covered:** the logo, the Open Graph image, the location photo and the default dish
   photos are still build-time only (`content/site.json`). Dish photos have always been
   changeable per item in the dashboard.
