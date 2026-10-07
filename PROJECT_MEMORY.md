@@ -1203,3 +1203,20 @@ The client, asked what the two open items needed, answered: keep applications **
   spell (`BLOCKERS.md` N-9 is the scheduled version).
 - Not tested anywhere real: the signed-in dashboard (list, open, status, CV download,
   delete) against a deployed project. It needs the owner's password.
+
+### 2026-10-07 Checkpoint: Careers page, form first; a file control of the site's own
+
+The client, looking at the live form: the file field read "No file chosen" in Arabic and
+looked plain; make it English and professional, and put the form at the top of the page with
+everything else under it.
+
+- The wording was the browser's, not the site's: a browser labels `<input type="file">` in
+  its own language. The input is now visually hidden and a control of the site's own stands
+  in for it (`.file-drop`): "Choose a file or drop it here", then the chosen file's name and
+  size with Remove. A wrong kind of file is refused when it is chosen.
+- Careers page order: page header, **the form**, the three steps, the open positions.
+- Verified: 243 unit tests and the Deno checks; the browser run was cut through by the
+  machine going to sleep (three timeouts in the sample tests, one "lasting" 1.9 hours), so
+  the sample file was run again on its own: 23 of 23. Public and dashboard files passed in
+  the first run.
+- Website only: no function or database change. Needs `deploy.sh` on the VPS.

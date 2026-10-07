@@ -232,6 +232,57 @@ describe("job application form (applications switched on)", () => {
     await context.close();
   });
 
+  it("puts the form first on the page, with how it works and the open positions below it", async () => {
+    const { page, context } = await open((route) => route.fulfill({ status: 200, json: { ok: true } }));
+    const top = (selector) => page.locator(selector).first().evaluate((node) => node.getBoundingClientRect().top + window.scrollY);
+    const form = await top("[data-apply-form]");
+    expect(form).toBeLessThan(await top("#apply ol"));
+    expect(form).toBeLessThan(await top("#positions-title"));
+    expect(await top("#apply")).toBeLessThan(await top("details.position"));
+    expect(await page.locator("main h2").allInnerTexts()).toEqual(["Send your application", "Open positions"]);
+    // From the top of the page: straight to the form, or down to the roles.
+    expect(await page.locator('.page-hero a[href="#apply"]').count()).toBe(1);
+    expect(await page.locator('.page-hero a[href="#positions-title"]').count()).toBe(1);
+    await context.close();
+  });
+
+  it("has its own file control, in English whatever the browser's language, that shows the chosen file", async () => {
+    const { page, context } = await open((route) => route.fulfill({ status: 200, json: { ok: true } }));
+    // The browser's control would say "No file chosen" in the browser's own language. It is
+    // kept for its behaviour and hidden; the words on the page are the site's.
+    const native = await page.locator("#cv").boundingBox();
+    expect(native.width).toBeLessThanOrEqual(1);
+    const zone = page.locator("[data-file-empty]");
+    expect(await zone.innerText()).toMatch(/Choose a file\s+or drop it here\s+No file chosen/);
+    expect(await page.locator("[data-file-chosen]").isHidden()).toBe(true);
+
+    await page.setInputFiles("#cv", { name: "Sam Rivera CV.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.7 test") });
+    expect(await zone.isHidden()).toBe(true);
+    const chosen = page.locator("[data-file-chosen]");
+    expect(await chosen.innerText()).toContain("Sam Rivera CV.pdf");
+    expect(await chosen.innerText()).toContain("13 bytes");
+    expect(await page.locator("#cv-error").isHidden()).toBe(true);
+
+    await chosen.getByRole("button", { name: /Remove/ }).click();
+    expect(await zone.isVisible()).toBe(true);
+    expect(await page.locator("#cv").evaluate((input) => input.files.length)).toBe(0);
+
+    // A file that cannot be accepted is said to be so as soon as it is chosen.
+    await page.setInputFiles("#cv", { name: "holiday.jpg", mimeType: "image/jpeg", buffer: Buffer.from("x") });
+    expect(await page.locator("#cv-error").innerText()).toMatch(/PDF, DOC or DOCX/);
+    expect(await page.locator("#cv").getAttribute("aria-describedby")).toBe("cv-hint cv-error");
+
+    // The keyboard reaches it, and the ring is drawn on the part that can be seen.
+    await page.locator("#cv").focus();
+    await page.keyboard.press("Tab");
+    await page.keyboard.press("Shift+Tab");
+    const outline = await page.locator("[data-file-chosen]").evaluate((node) => getComputedStyle(node).outlineStyle);
+    expect(outline).toBe("solid");
+    const violations = await accessibilityViolations(page);
+    expect(violations, describeViolations(violations)).toEqual([]);
+    await context.close();
+  });
+
   it("explains each missing field, marks it invalid and focuses the first one, without sending anything", async () => {
     const { page, context, requests } = await open((route) => route.fulfill({ status: 200, json: { ok: true } }));
     await page.click("[data-apply-submit]");

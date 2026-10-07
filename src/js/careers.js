@@ -1,5 +1,7 @@
 // Job application form. Validation here is for the applicant's convenience only; the
 // server validates everything again and is the one that decides.
+import { fileSize } from "./lib/application.js";
+
 const form = document.querySelector("[data-apply-form]");
 const submitButton = form.querySelector("[data-apply-submit]");
 const errorBox = form.querySelector("[data-apply-error]");
@@ -85,6 +87,47 @@ function showFormError(message) {
   errorBox.hidden = false;
   errorBox.focus();
 }
+
+// The file control. The browser's own is hidden and does the work; what the applicant sees
+// is the site's, so it reads the same, in English, in every browser.
+const fileBox = form.querySelector("[data-file]");
+const fileInput = form.elements.cv;
+const fileEmpty = fileBox.querySelector("[data-file-empty]");
+const fileChosen = fileBox.querySelector("[data-file-chosen]");
+
+function showFile() {
+  const file = fileInput.files?.[0];
+  fileEmpty.hidden = Boolean(file);
+  fileChosen.hidden = !file;
+  if (file) {
+    fileChosen.querySelector("[data-file-name]").textContent = file.name;
+    fileChosen.querySelector("[data-file-size]").textContent = fileSize(file.size);
+  }
+  // A file of the wrong kind or size is said to be so at once, not at the end of the form.
+  setFieldError("cv", check("cv"));
+}
+
+fileInput.addEventListener("change", showFile);
+fileChosen.querySelector("[data-file-remove]").addEventListener("click", () => {
+  fileInput.value = "";
+  showFile();
+  fileInput.focus();
+});
+// Dropping a file on the area chooses it, as pressing the area and picking it would.
+fileBox.addEventListener("dragover", (event) => {
+  event.preventDefault();
+  fileBox.setAttribute("data-dragging", "");
+});
+for (const type of ["dragleave", "dragend", "drop"]) fileBox.addEventListener(type, () => fileBox.removeAttribute("data-dragging"));
+fileBox.addEventListener("drop", (event) => {
+  event.preventDefault();
+  const [file] = event.dataTransfer?.files ?? [];
+  if (!file) return;
+  const transfer = new DataTransfer();
+  transfer.items.add(file);
+  fileInput.files = transfer.files;
+  showFile();
+});
 
 // "Apply" buttons on the position cards preselect that position.
 for (const link of document.querySelectorAll("[data-apply-for]")) {

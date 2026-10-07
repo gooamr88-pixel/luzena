@@ -527,6 +527,41 @@
     @apply border-danger;
   }
 
+  /* Choosing a file. The browser's own control is worded in the browser's language and
+     drawn the browser's way, so it is kept for its behaviour only (visually hidden, still
+     focusable) and these stand in for it: an area to press or drop a file on, and, once a
+     file is chosen, its name and size with a way to take it back. */
+  .file-drop-zone {
+    @apply flex min-h-28 cursor-pointer flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed border-ink/35 bg-white px-4 py-5 text-center text-[0.95rem] text-ink transition-colors hover:border-brand hover:bg-[#fbf5ea];
+  }
+
+  .file-drop-chosen {
+    @apply flex items-center gap-3 rounded-lg border border-ink/25 bg-white p-3 sm:p-4;
+  }
+
+  .file-drop-icon {
+    @apply flex size-11 shrink-0 items-center justify-center rounded-full bg-sand text-brand;
+  }
+
+  .file-drop-icon svg {
+    @apply size-5;
+  }
+
+  /* The hidden control has the keyboard focus; the ring is drawn on what can be seen. */
+  .file-drop input:focus-visible ~ .file-drop-zone,
+  .file-drop input:focus-visible ~ .file-drop-chosen {
+    outline: 2px solid var(--color-brand);
+    outline-offset: 3px;
+  }
+
+  .file-drop[data-dragging] .file-drop-zone {
+    @apply border-brand bg-[#fbf5ea];
+  }
+
+  .file-drop:has([aria-invalid="true"]) :is(.file-drop-zone, .file-drop-chosen) {
+    @apply border-danger;
+  }
+
   /* The question above a group of fields. A <legend> does not take a top margin from its
      neighbours, so the space is its own. */
   legend.field-label {

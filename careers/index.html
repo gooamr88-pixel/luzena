@@ -12,68 +12,18 @@
         <p class="eyebrow">Careers</p>
         <h1 class="h-display mt-3">Join our team</h1>
         {{#if site.careers.intro}}<p class="lead mt-5 max-w-2xl">{{site.careers.intro}}</p>{{/if}}
-        {{#if site.careers.applicationsOpen}}<a href="#apply" class="btn btn-primary mt-8">Apply now{{> icon name="arrow-right"}}</a>{{else}}<a href="#positions-title" class="btn btn-primary mt-8">See open positions</a>{{/if}}
+        <div class="mt-8 flex flex-col gap-3 sm:flex-row">
+          {{#if site.careers.applicationsOpen}}<a href="#apply" class="btn btn-primary">Apply now{{> icon name="arrow-right"}}</a>{{/if}}
+          <a href="#positions-title" class="btn {{#if site.careers.applicationsOpen}}btn-outline{{else}}btn-primary{{/if}}">See open positions</a>
+        </div>
       </div>
     </div>
-
-    <section class="section" aria-labelledby="positions-title">
-      <div class="container-x">
-        <div class="flex flex-wrap items-end justify-between gap-6">
-          <div>
-            <h2 id="positions-title" class="h-section">Open positions</h2>
-            <div class="rule mt-6"></div>
-          </div>
-          <p class="text-sm text-muted">{{site.careers.positions.length}} roles across the kitchen, the cafe and the floor. Open a role to read more.</p>
-        </div>
-
-        <!-- Jump links, one per department. -->
-        <nav aria-label="Departments" class="mt-8">
-          <ul class="flex flex-wrap gap-2">
-            {{#each site.careers.departments}}<li><a href="#department-{{@index}}" class="chip">{{name}} <span class="ml-2 text-muted">{{positions.length}}</span></a></li>{{/each}}
-          </ul>
-        </nav>
-
-        <div class="mt-12 grid gap-x-16 gap-y-14 lg:grid-cols-2">
-          {{#each site.careers.departments}}
-          <section id="department-{{@index}}" aria-labelledby="department-title-{{@index}}">
-            <h3 id="department-title-{{@index}}" class="eyebrow font-sans">{{name}}</h3>
-            <!-- Each role is a native disclosure, so it works with a keyboard and without JavaScript. -->
-            <div class="mt-4 border-t border-ink/15">
-              {{#each positions}}
-              <details class="position group border-b border-ink/15" id="role-{{slug}}">
-                <summary class="flex min-h-14 cursor-pointer list-none items-center justify-between gap-4 py-3 [&::-webkit-details-marker]:hidden">
-                  <span class="font-display text-[1.35rem] leading-snug text-ink group-open:text-brand">{{title}}</span>
-                  <svg class="shrink-0 text-brand transition-transform duration-200 group-open:rotate-180" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
-                </summary>
-                <div class="pb-7">
-                  {{#if type}}<p class="mb-4 flex flex-wrap gap-2"><span class="tag">{{type}}</span>{{#if location}}<span class="tag">{{location}}</span>{{/if}}</p>{{/if}}
-                  {{#if summary}}<p>{{summary}}</p>{{/if}}
-                  {{#if responsibilities.length}}
-                  <h4 class="mt-5 text-[0.7rem] font-bold tracking-[0.16em] text-ink uppercase">What you will do</h4>
-                  <ul class="mt-2.5 list-disc space-y-1.5 pl-5 marker:text-brand">{{#each responsibilities}}<li>{{this}}</li>{{/each}}</ul>
-                  {{/if}}
-                  {{#if requirements.length}}
-                  <h4 class="mt-5 text-[0.7rem] font-bold tracking-[0.16em] text-ink uppercase">What we look for</h4>
-                  <ul class="mt-2.5 list-disc space-y-1.5 pl-5 marker:text-brand">{{#each requirements}}<li>{{this}}</li>{{/each}}</ul>
-                  {{/if}}
-                  {{#if @root.site.careers.applicationsOpen}}<a href="#apply" class="btn btn-primary btn-sm mt-6" data-apply-for="{{title}}">Apply<span class="sr-only"> for {{title}}</span></a>{{/if}}
-                </div>
-              </details>
-              {{/each}}
-            </div>
-          </section>
-          {{/each}}
-        </div>
-
-        {{#if site.careers.applicationsOpen}}<p class="mt-12 max-w-2xl text-sm text-muted">Do not see your role? Apply anyway: choose "Other" and tell us what you do.</p>{{/if}}
-      </div>
-    </section>
 
     {{#unless site.careers.applicationsOpen}}
     <!-- Online applications are switched off (careers.applications.enabled in
          content/site.json). They collect personal data, so they stay off until a privacy
          policy is published. No form, and no script, is sent to the browser. -->
-    <section id="apply" class="section border-t border-ink/10 bg-sand" aria-labelledby="apply-title">
+    <section id="apply" class="section bg-sand" aria-labelledby="apply-title">
       <div class="container-x">
         <div class="panel max-w-2xl">
           <p class="eyebrow">Apply</p>
@@ -89,23 +39,13 @@
     <!-- The application form. It posts to the job-application function, which stores the
          application privately; the restaurant reads it in the dashboard. Nothing here says
          where notifications go: that address is kept on the server. -->
-    <section id="apply" class="section border-t border-ink/10 bg-sand" aria-labelledby="apply-title">
-      <div class="container-x grid gap-10 lg:grid-cols-[1fr_1.6fr] lg:gap-14">
-        <div class="lg:sticky lg:top-32 lg:self-start">
+    <section id="apply" class="section bg-sand" aria-labelledby="apply-title">
+      <div class="container-x">
+        <div class="mx-auto max-w-3xl">
           <p class="eyebrow">Apply</p>
           <h2 id="apply-title" class="h-section mt-3">Send your application</h2>
-          <p class="mt-5">It takes about five minutes. Your details go only to the people who hire for {{site.fullName}}.</p>
-          <ol class="mt-8 space-y-5">
-            <li class="flex gap-4"><span class="feature-icon shrink-0 font-display text-xl" aria-hidden="true">1</span><p class="pt-2.5"><span class="font-semibold text-ink">Fill in the form.</span> A resume helps, but it is not required.</p></li>
-            <li class="flex gap-4"><span class="feature-icon shrink-0 font-display text-xl" aria-hidden="true">2</span><p class="pt-2.5"><span class="font-semibold text-ink">We read every application.</span></p></li>
-            <li class="flex gap-4"><span class="feature-icon shrink-0 font-display text-xl" aria-hidden="true">3</span><p class="pt-2.5"><span class="font-semibold text-ink">If there is a match,</span> we call or email you to arrange a conversation.</p></li>
-          </ol>
-          {{#if site.careers.image}}
-          <div class="media mt-8 hidden aspect-[4/3] lg:block">{{picture site.careers.image alt=site.careers.imageAlt sizes="28rem" class="size-full object-cover"}}</div>
-          {{/if}}
-        </div>
+          <p class="mt-4 mb-8 max-w-2xl">It takes about five minutes. Your details go only to the people who hire for {{site.fullName}}.</p>
 
-        <div>
           <div data-apply-success hidden tabindex="-1" class="panel text-center outline-none" role="status">
             <span class="feature-icon mx-auto size-14 border-success/40 text-success" aria-hidden="true"><svg class="size-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>
             <h3 class="mt-5 text-2xl">Thank you. Your application has been received.</h3>
@@ -216,8 +156,23 @@
                 </div>
                 <div>
                   <label class="field-label" for="cv">Resume / CV <span class="font-normal text-muted">(optional)</span></label>
-                  <input class="field-input file:mr-4 file:cursor-pointer file:rounded file:border-0 file:bg-sand-deep file:px-4 file:py-2 file:text-sm file:font-semibold file:text-ink" id="cv" name="cv" type="file"
-                    accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" aria-describedby="cv-hint">
+                  <div class="file-drop" data-file>
+                    <input class="peer sr-only" id="cv" name="cv" type="file"
+                      accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" aria-describedby="cv-hint">
+                    <label for="cv" class="file-drop-zone" data-file-empty>
+                      <span class="file-drop-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5M5 20h14"/></svg></span>
+                      <span><span class="font-semibold text-brand underline decoration-brand/40 underline-offset-4">Choose a file</span> <span class="text-muted">or drop it here</span></span>
+                      <span class="text-sm text-muted">No file chosen</span>
+                    </label>
+                    <div class="file-drop-chosen" data-file-chosen hidden>
+                      <span class="file-drop-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5M9 13h6M9 17h6"/></svg></span>
+                      <span class="min-w-0 flex-1">
+                        <span class="block truncate font-semibold text-ink" data-file-name></span>
+                        <span class="block text-sm text-muted" data-file-size></span>
+                      </span>
+                      <button type="button" class="btn btn-outline btn-sm" data-file-remove>Remove<span class="sr-only"> the chosen file</span></button>
+                    </div>
+                  </div>
                   <p class="field-hint" id="cv-hint">PDF, DOC or DOCX, up to 5 MB.</p>
                   <p class="field-error" id="cv-error" hidden></p>
                 </div>
@@ -261,10 +216,73 @@
               <button type="submit" class="btn btn-primary mt-7 w-full sm:w-auto" data-apply-submit>Send application</button>
             </div>
           </form>
+
+          <!-- What happens next, under the form it explains. -->
+          <ol class="mt-10 grid gap-4 sm:grid-cols-3">
+            <li class="flex gap-4 sm:flex-col sm:gap-3"><span class="feature-icon shrink-0 font-display text-xl" aria-hidden="true">1</span><p class="pt-2.5 sm:pt-0"><span class="font-semibold text-ink">Fill in the form.</span> A resume helps, but it is not required.</p></li>
+            <li class="flex gap-4 sm:flex-col sm:gap-3"><span class="feature-icon shrink-0 font-display text-xl" aria-hidden="true">2</span><p class="pt-2.5 sm:pt-0"><span class="font-semibold text-ink">We read every application.</span></p></li>
+            <li class="flex gap-4 sm:flex-col sm:gap-3"><span class="feature-icon shrink-0 font-display text-xl" aria-hidden="true">3</span><p class="pt-2.5 sm:pt-0"><span class="font-semibold text-ink">If there is a match,</span> we call or email you to arrange a conversation.</p></li>
+          </ol>
+          {{#if site.careers.image}}
+          <div class="media mt-10 hidden aspect-[16/7] sm:block">{{picture site.careers.image alt=site.careers.imageAlt sizes="(min-width: 768px) 48rem, 100vw" class="size-full object-cover"}}</div>
+          {{/if}}
         </div>
       </div>
     </section>
     {{/unless}}
+
+    <section class="section border-t border-ink/10" aria-labelledby="positions-title">
+      <div class="container-x">
+        <div class="flex flex-wrap items-end justify-between gap-6">
+          <div>
+            <h2 id="positions-title" class="h-section">Open positions</h2>
+            <div class="rule mt-6"></div>
+          </div>
+          <p class="text-sm text-muted">{{site.careers.positions.length}} roles across the kitchen, the cafe and the floor. Open a role to read more.</p>
+        </div>
+
+        <!-- Jump links, one per department. -->
+        <nav aria-label="Departments" class="mt-8">
+          <ul class="flex flex-wrap gap-2">
+            {{#each site.careers.departments}}<li><a href="#department-{{@index}}" class="chip">{{name}} <span class="ml-2 text-muted">{{positions.length}}</span></a></li>{{/each}}
+          </ul>
+        </nav>
+
+        <div class="mt-12 grid gap-x-16 gap-y-14 lg:grid-cols-2">
+          {{#each site.careers.departments}}
+          <section id="department-{{@index}}" aria-labelledby="department-title-{{@index}}">
+            <h3 id="department-title-{{@index}}" class="eyebrow font-sans">{{name}}</h3>
+            <!-- Each role is a native disclosure, so it works with a keyboard and without JavaScript. -->
+            <div class="mt-4 border-t border-ink/15">
+              {{#each positions}}
+              <details class="position group border-b border-ink/15" id="role-{{slug}}">
+                <summary class="flex min-h-14 cursor-pointer list-none items-center justify-between gap-4 py-3 [&::-webkit-details-marker]:hidden">
+                  <span class="font-display text-[1.35rem] leading-snug text-ink group-open:text-brand">{{title}}</span>
+                  <svg class="shrink-0 text-brand transition-transform duration-200 group-open:rotate-180" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+                </summary>
+                <div class="pb-7">
+                  {{#if type}}<p class="mb-4 flex flex-wrap gap-2"><span class="tag">{{type}}</span>{{#if location}}<span class="tag">{{location}}</span>{{/if}}</p>{{/if}}
+                  {{#if summary}}<p>{{summary}}</p>{{/if}}
+                  {{#if responsibilities.length}}
+                  <h4 class="mt-5 text-[0.7rem] font-bold tracking-[0.16em] text-ink uppercase">What you will do</h4>
+                  <ul class="mt-2.5 list-disc space-y-1.5 pl-5 marker:text-brand">{{#each responsibilities}}<li>{{this}}</li>{{/each}}</ul>
+                  {{/if}}
+                  {{#if requirements.length}}
+                  <h4 class="mt-5 text-[0.7rem] font-bold tracking-[0.16em] text-ink uppercase">What we look for</h4>
+                  <ul class="mt-2.5 list-disc space-y-1.5 pl-5 marker:text-brand">{{#each requirements}}<li>{{this}}</li>{{/each}}</ul>
+                  {{/if}}
+                  {{#if @root.site.careers.applicationsOpen}}<a href="#apply" class="btn btn-primary btn-sm mt-6" data-apply-for="{{title}}">Apply<span class="sr-only"> for {{title}}</span></a>{{/if}}
+                </div>
+              </details>
+              {{/each}}
+            </div>
+          </section>
+          {{/each}}
+        </div>
+
+        {{#if site.careers.applicationsOpen}}<p class="mt-12 max-w-2xl text-sm text-muted">Do not see your role? Apply anyway: choose "Other" and tell us what you do.</p>{{/if}}
+      </div>
+    </section>
   </main>
 
   {{> footer}}
