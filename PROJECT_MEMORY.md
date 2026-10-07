@@ -1306,3 +1306,17 @@ the `supabase/` folder had no uncommitted change.
 - **Still only on this machine, by instruction:** the Order Online and Join Our Team
   redesign and the Clover ordering link. Not committed, so `deploy.sh` will not publish it.
 - Not tested: a signed-in owner uploading a real photo on the live dashboard.
+
+### 2026-10-07 Checkpoint: Join Our Team becomes the application form alone
+
+The client, after the redesign went to GitHub (`a8bf499`): "Remove hero section and the
+below. Put the form only. But make it very professional."
+
+- The page header, the "What happens next" column and the list of open positions are gone.
+  The page is one card: a head that carries the title (`h1` "Join Our Team", the intro,
+  three assurances), the four numbered parts, and the consent and send button in its foot.
+- The 18 roles are still offered, as the choices of the Position list, by department, with
+  "Other". Their descriptions stay in `content/site.json` but are shown nowhere.
+- No field, rule or request changed. `src/js/careers.js` lost only the code for the
+  "Apply" buttons that were on the removed role cards.
+- The meta description no longer says "Open positions".

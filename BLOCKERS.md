@@ -274,6 +274,9 @@ repository: file into `content/media/`, name into `content/site.json`, redeploy.
 ### N-2. Approval of the written text — NON-BLOCKING · CLIENT INPUT
 
 The home headline, the About page and the 18 role descriptions were written for this build.
+(Since 2026-10-07 the role descriptions are not shown: Join Our Team is the application form
+alone, and the roles are the choices in its Position list. The descriptions are still in
+`content/site.json`.)
 The About text is based only on the restaurant's Instagram description. The role
 descriptions are standard for each job. Please read and correct them.
 

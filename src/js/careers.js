@@ -129,14 +129,6 @@ fileBox.addEventListener("drop", (event) => {
   showFile();
 });
 
-// "Apply" buttons on the position cards preselect that position.
-for (const link of document.querySelectorAll("[data-apply-for]")) {
-  link.addEventListener("click", () => {
-    form.elements.position.value = link.dataset.applyFor;
-    setFieldError("position", "");
-  });
-}
-
 // Clear a question's error as soon as the applicant fixes it.
 form.addEventListener("input", (event) => {
   const name = event.target.name;

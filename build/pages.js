@@ -46,7 +46,7 @@ export const PAGES = [
   {
     id: "careers", file: "careers/index.html", path: "/careers/",
     title: (site) => `Join Our Team | ${site.fullName}`,
-    description: (site) => `Open positions at ${site.fullName}. Apply online in a few minutes.`,
+    description: (site) => `Join the team at ${site.fullName}. Apply online in a few minutes.`,
   },
   {
     id: "order", file: "order/index.html", path: "/order/",

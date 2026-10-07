@@ -6,59 +6,53 @@
 <body>
   {{> header}}
 
-  <main id="main">
-    <div class="page-hero page-hero-compact">
+  <!-- The page is the application form and nothing else: one card whose head carries the
+       page's title. The form posts to the job-application function, which stores the
+       application privately; the restaurant reads it in the dashboard. Nothing here says
+       where notifications go: that address is kept on the server. -->
+  <main id="main" class="bg-sand">
+    <section id="apply" class="py-8 sm:py-14 lg:py-16" aria-labelledby="apply-title">
       <div class="container-x">
-        <p class="eyebrow">Careers</p>
-        <h1 class="h-display mt-3">Join Our Team</h1>
-        {{#if site.careers.intro}}<p class="lead mt-4 max-w-2xl">{{site.careers.intro}}</p>{{/if}}
-        <!-- The form is the next thing on the page, so the header offers only the way past it. -->
-        <p class="mt-5 flex flex-col gap-x-7 gap-y-1 text-sm sm:flex-row sm:flex-wrap sm:items-center">
-          {{#if site.careers.applicationsOpen}}<span class="flex items-center gap-2">{{> icon name="clock" class="size-4 shrink-0 text-brand"}}Applying takes about five minutes</span>{{/if}}
-          <a href="#positions-title" class="arrow-link">See the {{site.careers.positions.length}} open positions{{> icon name="arrow-right"}}</a>
-        </p>
-      </div>
-    </div>
+        <div class="form-card mx-auto max-w-3xl">
+          <div class="h-1 bg-gold" aria-hidden="true"></div>
+          <header class="form-head">
+            <span class="form-head-mark" aria-hidden="true"><span class="leaf-mark block size-7"></span></span>
+            <p class="eyebrow mt-5">Careers at {{site.name}}</p>
+            <h1 id="apply-title" class="mt-2 text-[clamp(2rem,4.2vw,2.75rem)] leading-[1.1] tracking-[-0.01em]">Join Our Team</h1>
+            {{#if site.careers.intro}}<p class="mx-auto mt-3 max-w-xl">{{site.careers.intro}}</p>{{/if}}
+            {{#if site.careers.applicationsOpen}}
+            <ul class="mt-6 flex flex-col items-center gap-x-7 gap-y-2 text-sm text-ink sm:flex-row sm:flex-wrap sm:justify-center">
+              <li class="flex items-center gap-2">{{> icon name="clock" class="size-4 shrink-0 text-brand"}}About five minutes</li>
+              <li class="flex items-center gap-2">{{> icon name="file" class="size-4 shrink-0 text-brand"}}Resume optional</li>
+              <li class="flex items-center gap-2">{{> icon name="lock" class="size-4 shrink-0 text-brand"}}Read only by our hiring team</li>
+            </ul>
+            {{/if}}
+          </header>
 
-    {{#unless site.careers.applicationsOpen}}
-    <!-- Online applications are switched off (careers.applications.enabled in
-         content/site.json). They collect personal data, so they stay off until a privacy
-         policy is published. No form, and no script, is sent to the browser. -->
-    <section id="apply" class="bg-sand py-10 sm:py-14" aria-labelledby="apply-title">
-      <div class="container-x">
-        <div class="panel max-w-2xl bg-white">
-          <p class="eyebrow">Apply</p>
-          <h2 id="apply-title" class="h-section mt-3 text-3xl">Online applications open soon</h2>
-          <p class="mt-4">We are getting our application form ready. Please check back shortly.</p>
-          {{#if site.primaryLocation}}
-          <p class="mt-4">In the meantime, you can reach us on <a href="{{site.primaryLocation.phoneHref}}" class="text-link">{{site.primaryLocation.phone}}</a>.</p>
-          {{/if}}
-        </div>
-      </div>
-    </section>
-    {{else}}
-    <!-- The application form. It posts to the job-application function, which stores the
-         application privately; the restaurant reads it in the dashboard. Nothing here says
-         where notifications go: that address is kept on the server. -->
-    <section id="apply" class="bg-sand py-10 sm:py-14" aria-labelledby="apply-title">
-      <div class="container-x grid gap-8 lg:grid-cols-[minmax(0,1fr)_19.5rem] lg:gap-10 xl:grid-cols-[minmax(0,1fr)_21.5rem] xl:gap-14">
-        <div class="min-w-0">
-          <div data-apply-success hidden tabindex="-1" class="form-card px-5 py-12 text-center outline-none sm:px-9 sm:py-16" role="status">
+          {{#unless site.careers.applicationsOpen}}
+          <!-- Online applications are switched off (careers.applications.enabled in
+               content/site.json). They collect personal data, so they stay off until a privacy
+               policy is published. No form, and no script, is sent to the browser. -->
+          <div class="form-part text-center">
+            <h2 class="text-2xl">Online applications open soon</h2>
+            <p class="mx-auto mt-3 max-w-md">We are getting our application form ready. Please check back shortly.</p>
+            {{#if site.primaryLocation.phoneHref}}
+            <p class="mx-auto mt-3 max-w-md">In the meantime, you can reach us on <a href="{{site.primaryLocation.phoneHref}}" class="text-link">{{site.primaryLocation.phone}}</a>.</p>
+            {{/if}}
+          </div>
+          {{else}}
+          <div data-apply-success hidden tabindex="-1" class="form-part text-center outline-none" role="status">
             <span class="feature-icon mx-auto size-14 border-success/40 text-success" aria-hidden="true"><svg class="size-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>
             <h2 class="mt-5 text-2xl sm:text-3xl">Thank you. Your application has been received.</h2>
             <p class="mx-auto mt-3 max-w-md">We read every application and will contact you if there is a match. There is nothing more you need to do.</p>
             <a href="/" class="btn btn-outline mt-7">Back to the home page</a>
           </div>
 
-          <form data-apply-form novalidate class="form-card" enctype="multipart/form-data">
-            <div class="form-part">
-              <p class="eyebrow">Application form</p>
-              <h2 id="apply-title" class="mt-2 text-[clamp(1.6rem,2.6vw,2.1rem)] leading-tight">Send your application</h2>
-              <p class="mt-3 text-[0.95rem]">Every question needs an answer unless it is marked optional.</p>
-              <div data-apply-error hidden tabindex="-1" class="alert alert-error mt-5" role="alert"></div>
-            </div>
+          <form data-apply-form novalidate enctype="multipart/form-data">
+            <div data-apply-error hidden tabindex="-1" class="alert alert-error mx-5 mb-7 sm:mx-9" role="alert"></div>
 
             <div class="form-part">
+            <p class="mb-7 text-sm text-muted">Every question needs an answer unless it is marked optional.</p>
             <fieldset>
               <legend class="form-part-title"><span class="form-part-number" aria-hidden="true">1</span>About you</legend>
               <div class="mt-6 grid gap-5 sm:grid-cols-2">
@@ -228,80 +222,8 @@
               </div>
             </div>
           </form>
+          {{/unless}}
         </div>
-
-        <!-- Beside the form on a wide screen, where it stays in view; under it on a phone. -->
-        <aside class="space-y-5 lg:sticky lg:top-[calc(var(--header-h)+1.5rem)] lg:self-start" aria-label="About applying">
-          <div class="panel bg-white">
-            <h2 class="eyebrow font-sans">What happens next</h2>
-            <ol class="mt-5 space-y-5 text-[0.95rem]">
-              <li class="flex gap-4"><span class="step-number size-9 shrink-0 text-base" aria-hidden="true">1</span><p><span class="block font-semibold text-ink">You send the form</span>A resume helps, but it is not required.</p></li>
-              <li class="flex gap-4"><span class="step-number size-9 shrink-0 text-base" aria-hidden="true">2</span><p><span class="block font-semibold text-ink">We read every application</span>Each one is read by the people who hire.</p></li>
-              <li class="flex gap-4"><span class="step-number size-9 shrink-0 text-base" aria-hidden="true">3</span><p><span class="block font-semibold text-ink">We get in touch</span>If there is a match, we call or email you to arrange a conversation.</p></li>
-            </ol>
-          </div>
-          <div class="panel bg-white">
-            <p class="flex items-center gap-2.5 font-semibold text-ink">{{> icon name="lock" class="size-5 shrink-0 text-brand"}}Your details stay private</p>
-            <p class="mt-2 text-[0.95rem]">They go only to the people who hire for {{site.fullName}}, and are used only for your application. <a href="{{site.legal.privacyUrl}}" class="text-link">Privacy policy</a>.</p>
-          </div>
-          {{#if site.careers.image}}
-          <div class="media hidden aspect-[4/3] lg:block">{{picture site.careers.image alt=site.careers.imageAlt sizes="22rem" class="size-full object-cover"}}</div>
-          {{/if}}
-        </aside>
-      </div>
-    </section>
-    {{/unless}}
-
-    <section class="section border-t border-ink/10" aria-labelledby="positions-title">
-      <div class="container-x">
-        <div class="flex flex-wrap items-end justify-between gap-6">
-          <div>
-            <h2 id="positions-title" class="h-section">Open positions</h2>
-            <div class="rule mt-6"></div>
-          </div>
-          <p class="text-sm text-muted">{{site.careers.positions.length}} roles across the kitchen, the cafe and the floor. Open a role to read more.</p>
-        </div>
-
-        <!-- Jump links, one per department. -->
-        <nav aria-label="Departments" class="mt-8">
-          <ul class="flex flex-wrap gap-2">
-            {{#each site.careers.departments}}<li><a href="#department-{{@index}}" class="chip">{{name}} <span class="ml-2 text-muted">{{positions.length}}</span></a></li>{{/each}}
-          </ul>
-        </nav>
-
-        <div class="mt-12 grid gap-x-16 gap-y-14 lg:grid-cols-2">
-          {{#each site.careers.departments}}
-          <section id="department-{{@index}}" aria-labelledby="department-title-{{@index}}">
-            <h3 id="department-title-{{@index}}" class="eyebrow font-sans">{{name}}</h3>
-            <!-- Each role is a native disclosure, so it works with a keyboard and without JavaScript. -->
-            <div class="mt-4 border-t border-ink/15">
-              {{#each positions}}
-              <details class="position group border-b border-ink/15" id="role-{{slug}}">
-                <summary class="flex min-h-14 cursor-pointer list-none items-center justify-between gap-4 py-3 [&::-webkit-details-marker]:hidden">
-                  <span class="font-display text-[1.35rem] leading-snug text-ink group-open:text-brand">{{title}}</span>
-                  <svg class="shrink-0 text-brand transition-transform duration-200 group-open:rotate-180" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
-                </summary>
-                <div class="pb-7">
-                  {{#if type}}<p class="mb-4 flex flex-wrap gap-2"><span class="tag">{{type}}</span>{{#if location}}<span class="tag">{{location}}</span>{{/if}}</p>{{/if}}
-                  {{#if summary}}<p>{{summary}}</p>{{/if}}
-                  {{#if responsibilities.length}}
-                  <h4 class="mt-5 text-[0.7rem] font-bold tracking-[0.16em] text-ink uppercase">What you will do</h4>
-                  <ul class="mt-2.5 list-disc space-y-1.5 pl-5 marker:text-brand">{{#each responsibilities}}<li>{{this}}</li>{{/each}}</ul>
-                  {{/if}}
-                  {{#if requirements.length}}
-                  <h4 class="mt-5 text-[0.7rem] font-bold tracking-[0.16em] text-ink uppercase">What we look for</h4>
-                  <ul class="mt-2.5 list-disc space-y-1.5 pl-5 marker:text-brand">{{#each requirements}}<li>{{this}}</li>{{/each}}</ul>
-                  {{/if}}
-                  {{#if @root.site.careers.applicationsOpen}}<a href="#apply" class="btn btn-primary btn-sm mt-6" data-apply-for="{{title}}">Apply<span class="sr-only"> for {{title}}</span></a>{{/if}}
-                </div>
-              </details>
-              {{/each}}
-            </div>
-          </section>
-          {{/each}}
-        </div>
-
-        {{#if site.careers.applicationsOpen}}<p class="mt-12 max-w-2xl text-sm text-muted">Do not see your role? Apply anyway: choose "Other" and tell us what you do.</p>{{/if}}
       </div>
     </section>
   </main>

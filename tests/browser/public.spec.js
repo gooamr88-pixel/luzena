@@ -375,14 +375,16 @@ describe("the menu page without a backend", () => {
 });
 
 describe("join our team, with applications open", () => {
-  it("lists all 18 roles and publishes the application form, with its privacy policy", async () => {
+  it("publishes the application form alone, with all 18 roles to choose from and its privacy policy", async () => {
     const { page, context } = await openPage(browser, `${site.url}/careers/`);
-    expect(await page.locator("details.position").count()).toBe(18);
     expect(await page.locator("form[data-apply-form]").count()).toBe(1);
     expect(await page.locator('input[type="file"]').count()).toBe(1);
     expect(await page.locator("#apply").innerText()).not.toContain("open soon");
-    // Each role offers to apply for it, and the form says what happens to the details.
-    expect(await page.locator("details.position [data-apply-for]").count()).toBe(18);
+    // The page is the form: no page header, no list of roles, no second column.
+    expect(await page.locator("main .page-hero, main details, main aside").count()).toBe(0);
+    expect(await page.locator("main h1").innerText()).toBe("Join Our Team");
+    // Every role is still offered, in the form's own list.
+    expect(await page.locator("#position optgroup option").count()).toBe(18);
     expect(await page.locator('form a[href="/privacy/"]').count()).toBe(1);
     // The page that receives applications is told to the form by the build, never the inbox.
     expect(await page.content()).not.toMatch(/recruitment|@gmail/i);
@@ -398,23 +400,6 @@ describe("join our team, with applications open", () => {
       "for 90 days after you apply", "ask us to delete your application", "+1 619-499-5779",
     ]) expect(text, expected).toContain(expected);
     expect(await page.locator("main h2").count()).toBe(7);
-    await context.close();
-  });
-
-  it("opens a role with the mouse and with the keyboard", async () => {
-    const { page, context } = await openPage(browser, `${site.url}/careers/`);
-    const first = page.locator("details.position").first();
-    expect(await first.getAttribute("open")).toBeNull();
-    await first.locator("summary").click();
-    expect(await first.getAttribute("open")).not.toBeNull();
-    // The small headings are set in capitals by CSS, so compare without regard to case.
-    expect(await first.innerText()).toMatch(/what you will do/i);
-    expect(await first.innerText()).toMatch(/what we look for/i);
-
-    const second = page.locator("details.position").nth(1);
-    await second.locator("summary").focus();
-    await page.keyboard.press("Enter");
-    expect(await second.getAttribute("open")).not.toBeNull();
     await context.close();
   });
 });

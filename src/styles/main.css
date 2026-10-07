@@ -398,6 +398,16 @@
     @apply overflow-hidden rounded-2xl border border-ink/10 bg-white shadow-lift;
   }
 
+  /* The head of the card, which on the application page is the page's own title: the
+     logo's leaf in a night disc, then the title and a line of text, centred. */
+  .form-head {
+    @apply px-5 pt-9 pb-8 text-center sm:px-9 sm:pt-11 sm:pb-10;
+  }
+
+  .form-head-mark {
+    @apply mx-auto flex size-14 items-center justify-center rounded-full bg-night;
+  }
+
   .form-part {
     @apply border-t border-ink/10 px-5 py-7 first:border-t-0 sm:px-9 sm:py-9;
   }

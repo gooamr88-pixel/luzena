@@ -190,7 +190,7 @@ export function validateContent(site, mediaDir, { profile = "production" } = {})
       errors.push("careers.applications.enabled is true but there is no privacy policy (set legal.privacyPolicyUrl or fill legal.privacy.sections)");
     }
   } else {
-    warnings.push("careers.applications.enabled is false: the Join Our Team page lists the roles but does not accept online applications");
+    warnings.push("careers.applications.enabled is false: the Join Our Team page says applications open soon and shows no form");
   }
   if (filled(site.legal?.privacyPolicyUrl)) {
     if (!/^(https:\/\/|\/)/.test(site.legal.privacyPolicyUrl)) errors.push("legal.privacyPolicyUrl must start with https:// or /");
