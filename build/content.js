@@ -135,13 +135,14 @@ export function validateContent(site, mediaDir, { profile = "production" } = {})
   // ORDER ONLINE. One value: ordering.url, which the CLOVER_ORDERING_URL build variable
   // overrides. See docs/CONFIGURATION.md.
   if (!filled(site.ordering?.url)) {
-    warnings.push("ordering.url is not set: ORDER ONLINE leads to the on-site \"ordering opens soon\" page instead of Clover");
+    warnings.push("ordering.url is not set: the Order Online page says \"ordering opens soon\" instead of leading to Clover");
   } else if (!/^https:\/\//.test(site.ordering.url)) {
     errors.push("ordering.url must start with https://");
   } else if (production && isPlaceholderUrl(site.ordering.url)) {
     errors.push(`ordering.url is a placeholder address (${site.ordering.url}); set the restaurant's real Clover ordering link or leave it empty`);
-  } else if (production && !/(^|\.)clover\.com$/i.test(new URL(site.ordering.url).hostname)) {
-    warnings.push(`ordering.url does not point to clover.com (${new URL(site.ordering.url).hostname}); check that it is the restaurant's own ordering page`);
+  } else if (production && !/(^|\.)clover(online)?\.com$/i.test(new URL(site.ordering.url).hostname)) {
+    // Clover serves a restaurant's ordering page from <restaurant>.cloveronline.com.
+    warnings.push(`ordering.url does not point to clover.com or cloveronline.com (${new URL(site.ordering.url).hostname}); check that it is the restaurant's own ordering page`);
   }
 
   if (!filled(site.logo)) warnings.push("logo is missing: the restaurant name is shown as text instead");
@@ -304,9 +305,11 @@ export function loadContent(profile, env = process.env) {
       defaultDishPhotos: Array.isArray(site.defaultDishPhotos) ? site.defaultDishPhotos.filter(filled) : [],
       hasGallery,
       orderUrl,
-      // Until Clover ordering is configured, ORDER ONLINE leads to the on-site page.
-      orderHref: orderUrl ?? "/order/",
-      orderIsExternal: orderUrl !== null,
+      // Every ORDER ONLINE button leads to the site's own Order page, and that page's
+      // ORDER NOW button leads to Clover (`orderUrl`): website -> Order Online -> Clover.
+      // With no Clover link set, the same page says that ordering opens soon.
+      orderHref: "/order/",
+      orderIsExternal: false,
       socialLinks: Object.entries(site.social ?? {})
         .filter(([, url]) => filled(url))
         .map(([network, url]) => ({ network, label: network[0].toUpperCase() + network.slice(1), url })),

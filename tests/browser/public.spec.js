@@ -288,22 +288,75 @@ describe("links and contact details", () => {
   });
 });
 
-describe("ORDER ONLINE before the Clover link exists", () => {
-  it("sends every ORDER ONLINE button to the on-site page, never to an invented address", async () => {
-    const { page, context } = await openPage(browser, `${site.url}/`);
-    const targets = await page.evaluate(() =>
-      [...document.querySelectorAll("a")].filter((a) => /order online/i.test(a.textContent)).map((a) => a.getAttribute("href")));
-    expect(targets.length).toBeGreaterThanOrEqual(3);
-    expect(new Set(targets)).toEqual(new Set(["/order/"]));
+// Website -> Order Online page -> Clover. Ordering, checkout and payment are Clover's; the
+// page is the way in and nothing on it is a cart or takes a payment.
+describe("ordering online", () => {
+  const CLOVER = "https://luzna-cafe-el-cajon.cloveronline.com/menu/all";
+
+  it("sends every ORDER ONLINE button on the site to the on-site Order page", async () => {
+    for (const path of ["/", "/menu/", "/contact/", "/locations/"]) {
+      const { page, context } = await openPage(browser, `${site.url}${path}`);
+      const targets = await page.evaluate(() =>
+        [...document.querySelectorAll("a")].filter((a) => /order online/i.test(a.textContent)).map((a) => a.getAttribute("href")));
+      expect(targets.length, path).toBeGreaterThanOrEqual(3);
+      expect(new Set(targets), path).toEqual(new Set(["/order/"]));
+      // Clover is reached from the Order page only.
+      expect(await page.locator('a[href*="cloveronline.com"]').count(), path).toBe(0);
+      await context.close();
+    }
+  });
+
+  it("leads from the Order page to the restaurant's own Clover ordering page, and builds no checkout of its own", async () => {
+    const { page, context, problems } = await openPage(browser, `${site.url}/order/`);
+    const buttons = page.locator("main a[data-order-now]");
+    expect(await buttons.count()).toBe(2);
+    for (const button of await buttons.all()) {
+      expect(await button.getAttribute("href")).toBe(CLOVER);
+      expect(await button.getAttribute("rel")).toBe("noopener");
+      expect((await button.innerText()).trim().toUpperCase()).toBe("ORDER NOW");
+    }
+    // Every link to Clover on the page is that one address.
+    const clover = await page.evaluate(() => [...document.querySelectorAll('a[href*="clover"]')].map((a) => a.href));
+    expect(new Set(clover)).toEqual(new Set([CLOVER]));
+    // No cart, no payment field, no form: those are Clover's.
+    expect(await page.locator("main form, main input, main select, main button").count()).toBe(0);
+    const text = await page.locator("main").innerText();
+    expect(text).not.toContain("opening soon");
+    expect(text).toMatch(/pay securely/i);
+    expect(text).toContain("Clover");
+    expect(text).toContain("315 El Cajon Blvd");
+    expect(await page.locator('main a[href="tel:+16194995779"]').count()).toBeGreaterThan(0);
+    expect(await page.locator('main a[href="/menu/"]').count()).toBeGreaterThan(0);
+    expect(problems).toEqual([]);
     await context.close();
   });
 
-  it("explains on the order page that ordering opens soon, and offers the phone", async () => {
+  it("keeps the header short: ORDER NOW is on the first screen of a phone and of a laptop", async () => {
+    for (const size of [{ width: 360, height: 740 }, { width: 390, height: 844 }, { width: 1280, height: 720 }]) {
+      const { page, context } = await openPage(browser, `${site.url}/order/`, size);
+      const hero = await page.locator(".page-hero").boundingBox();
+      const button = await page.locator("main a[data-order-now]").first().boundingBox();
+      expect(hero.height, `${size.width}px hero`).toBeLessThan(size.height * 0.75);
+      expect(button.y + button.height, `${size.width}px button`).toBeLessThan(size.height);
+      // A full-width button on a phone, at least 48px tall everywhere.
+      expect(button.height).toBeGreaterThanOrEqual(48);
+      if (size.width < 640) expect(button.width).toBeGreaterThan(size.width - 60);
+      await context.close();
+    }
+  });
+
+  it("answers the common questions in disclosures that open with the keyboard", async () => {
     const { page, context } = await openPage(browser, `${site.url}/order/`);
-    const text = await page.locator("main").innerText();
-    expect(text).toContain("Online ordering is opening soon.");
-    expect(await page.locator('main a[href="tel:+16194995779"]').count()).toBeGreaterThan(0);
-    expect(await page.locator('main a[href*="clover"]').count()).toBe(0);
+    const questions = page.locator("details.faq");
+    expect(await questions.count()).toBe(3);
+    // The first is open to begin with: how payment works.
+    expect(await questions.first().getAttribute("open")).not.toBeNull();
+    expect(await questions.first().innerText()).toContain("never see or store your card details");
+    const second = questions.nth(1);
+    expect(await second.getAttribute("open")).toBeNull();
+    await second.locator("summary").focus();
+    await page.keyboard.press("Enter");
+    expect(await second.getAttribute("open")).not.toBeNull();
     await context.close();
   });
 });

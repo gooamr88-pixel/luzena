@@ -41,7 +41,7 @@ Not secret. Edited in the repository; a change is published by redeploying.
 | `name`, `fullName`, `description`, `cuisine` | Identity and search description | Set |
 | `locations[]` | Address, phone, email, Maps link, `hours`, `services` (breakfast) | Set from the client's details |
 | `locations[].geo` | `{ "lat": ..., "lng": ... }` for local search | **Not set.** The Maps link did not carry coordinates. Do not guess them. |
-| `ordering.url` | The restaurant's Clover Online Ordering page | **Not set.** See section 4. |
+| `ordering.url` | The restaurant's Clover Online Ordering page | `https://luzna-cafe-el-cajon.cloveronline.com/menu/all` (given by the client 2026-10-07). See section 4. |
 | `careers.applications.enabled` | Whether the site publishes the application form | **`true`** since 2026-10-06. See section 5. |
 | `legal.privacyPolicyUrl` or `legal.privacy.sections` | The privacy policy: a link, or text for the built-in `/privacy/` page | **Not set** |
 | `hero.image`, `about.image`, `gallery[]`, `locations[].image`, `defaultDishPhotos[]` | Photos | **Placeholders** (`placeholder-*.jpg`), until real photos arrive. See section 6. |
@@ -82,7 +82,12 @@ a visitor can read and write nothing. The dashboard uses it solely to sign owner
 
 ## 4. The ORDER ONLINE link
 
-One value decides where every ORDER ONLINE button goes: `ordering.url`.
+The path a customer takes is **website -> Order Online page -> Clover**. Every ORDER ONLINE
+button on the site leads to the site's own `/order/` page. That page says how ordering works
+and its ORDER NOW buttons lead to Clover, where the menu is chosen from, the order is placed
+and the payment is taken. The site has no cart and takes no payment.
+
+One value decides where ORDER NOW goes: `ordering.url`.
 
 It can be set in either of two places. The build variable wins:
 
@@ -90,15 +95,19 @@ It can be set in either of two places. The build variable wins:
    script again; no commit needed.
 2. `ordering.url` in `content/site.json`.
 
-While it is unset, every button leads to the on-site `/order/` page, which says ordering
-opens soon and offers the phone number. Nothing links to an invented address.
+While it is unset, the `/order/` page says ordering opens soon and offers the phone number
+instead. Nothing links to an invented address.
+
+Clover's ordering page cannot be shown inside this site: it forbids being framed by other
+sites (`frame-ancestors 'self' https://*.clover.com`), so it is linked, in the same tab.
 
 Guards in the production build:
 
 - must start with `https://`
 - placeholder hosts are refused (`example.com`, `localhost`, `.test`, anything containing
   "sample" or "placeholder"), so the sample link can never be published
-- a host that is not on `clover.com` builds, but with a warning to double-check it
+- a host that is not on `clover.com` or `cloveronline.com` builds, but with a warning to
+  double-check it
 
 ## 5. Job applications: two switches and one number
 

@@ -163,6 +163,11 @@ visitor scrolls near it, and the security policy allows frames from `www.google.
 | Mobile navigation | `.mobile-nav` | A native `<dialog>`: focus is trapped and Escape closes it |
 | Home hero | `.hero`, `.glow`, `.leaf-mark` | |
 | Page header | `.page-hero` | Eyebrow, title, optional lead, on `night` with the glow and the leaf |
+| Compact page header | `.page-hero.page-hero-compact` | The same header, shorter and with a smaller title, for the two pages whose first job is one action: Order Online and Join Our Team. The action (ORDER NOW, the form) starts on the first screen, on a phone too. Order Online adds a photo beside the words from 1024 px up. |
+| Large button | `.btn-lg` with `.btn-primary` | The one action of a page: 56 px tall, capitals, letter-spaced. ORDER NOW and SEND APPLICATION. Full width on a phone. |
+| Step card | `.step-card`, `.step-number` | A numbered step: a gold numeral in a `night` disc over a title and a line of text. "How it works" on Order Online; smaller, without the card, in "What happens next" on Join Our Team. |
+| Question | `details.faq` | A question that opens to its answer: a native disclosure with the site's chevron, hairline between questions. |
+| Form card | `.form-card`, `.form-part`, `.form-part-title`, `.form-part-number`, `.form-foot` | The application form: one white card with a deeper shadow, in numbered parts divided by hairlines, the send button in a `paper` foot. The dividing line is on a wrapper, never on the `<fieldset>`: a `<legend>` is drawn on its fieldset's border and would break the line. |
 | Panel | `.panel`, `.panel-dark` | White card on light; translucent card on dark |
 | Photo frame | `.media` | Rounded, clipped, with a placeholder colour |
 | Map | `.map-frame` | The Google map's frame: the shape and corners of a photo |

@@ -51,7 +51,7 @@ export const PAGES = [
   {
     id: "order", file: "order/index.html", path: "/order/",
     title: (site) => `Order Online | ${site.fullName}`,
-    description: (site) => `Order from ${site.fullName} online. Ordering and payment are handled by Clover.`,
+    description: (site) => `Order from ${site.fullName} online: browse the menu, choose your dishes and pay securely with Clover.`,
   },
   {
     id: "privacy", file: "privacy/index.html", path: "/privacy/",

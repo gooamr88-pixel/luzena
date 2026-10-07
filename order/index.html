@@ -1,55 +1,176 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-menu-url="{{build.menuUrl}}" data-currency="{{site.currency}}" data-locale="{{site.locale}}">
 <head>
   {{> head}}
 </head>
 <body>
   {{> header}}
 
-  <main id="main">
-    <div class="page-hero">
-      <div class="container-x">
-        <p class="eyebrow">{{site.name}}</p>
-        <h1 class="h-display mt-3">Order online</h1>
-      </div>
-    </div>
-
-    <section class="section">
-      <div class="container-x grid gap-10 lg:grid-cols-[1.3fr_1fr] lg:gap-16">
-        <div class="max-w-2xl">
+  <!-- Ordering, checkout and payment are Clover's. This page is the way in: it says what
+       happens, and its ORDER NOW buttons lead to the restaurant's own Clover ordering page
+       (ordering.url in content/site.json). Nothing here is a cart or takes a payment. -->
+  <main id="main"{{#if site.defaultDishPhotos.length}} data-default-photos="{{#each site.defaultDishPhotos}}{{photoUrl this 480}} {{/each}}"{{/if}}>
+    <div class="page-hero page-hero-compact">
+      <div class="container-x grid items-center gap-10 {{#if site.hasGallery}}lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] lg:gap-16{{/if}}">
+        <div>
+          <p class="eyebrow">Fresh from our kitchen</p>
+          <h1 class="h-display mt-3">Order Online</h1>
           {{#if site.orderUrl}}
-          <p class="lead text-ink">Ordering and payment are handled by Clover, the system our restaurant runs on.</p>
-          <ol class="mt-8 space-y-5">
-            <li class="flex gap-4"><span class="font-display text-3xl text-brand" aria-hidden="true">1</span><p class="pt-1.5"><span class="font-semibold text-ink">Choose your dishes.</span> The button below opens our Clover ordering page.</p></li>
-            <li class="flex gap-4"><span class="font-display text-3xl text-brand" aria-hidden="true">2</span><p class="pt-1.5"><span class="font-semibold text-ink">Pay securely.</span> Checkout and payment happen on Clover.</p></li>
-            <li class="flex gap-4"><span class="font-display text-3xl text-brand" aria-hidden="true">3</span><p class="pt-1.5"><span class="font-semibold text-ink">We start cooking.</span> Your order goes straight to our kitchen.</p></li>
-          </ol>
-          <a href="{{site.orderUrl}}" class="btn btn-primary mt-10" rel="noopener">Start your order</a>
-          <p class="mt-4 text-sm text-muted">You will leave this website and continue on Clover.</p>
+          <p class="lead mt-4 max-w-xl">Browse the full menu, choose your dishes and pay securely online. Your order goes straight to our kitchen.</p>
+          <div class="mt-7 flex flex-col gap-3 sm:flex-row sm:items-center">
+            <a href="{{site.orderUrl}}" class="btn btn-primary btn-lg" rel="noopener" data-order-now>{{> icon name="bag"}}Order Now</a>
+            <a href="/menu/" class="btn btn-outline">{{> icon name="utensils"}}View the Menu</a>
+          </div>
+          <ul class="mt-6 flex flex-col gap-x-6 gap-y-2 text-sm sm:flex-row sm:flex-wrap">
+            <li class="flex items-center gap-2">{{> icon name="lock" class="size-4 shrink-0 text-brand"}}Secure checkout with Clover</li>
+            <li class="flex items-center gap-2">{{> icon name="leaf" class="size-4 shrink-0 text-brand"}}Made fresh to order</li>
+          </ul>
           {{else}}
-          <p class="lead text-ink">Online ordering is opening soon.</p>
-          {{#if site.primaryLocation.phoneHref}}<p class="mt-4">Until then, call us and we will take your order by phone.</p>{{else}}<p class="mt-4">Have a look at the menu in the meantime.</p>{{/if}}
-          <div class="mt-8 flex flex-col gap-3 sm:flex-row">
-            {{#if site.primaryLocation.phoneHref}}<a href="{{site.primaryLocation.phoneHref}}" class="btn btn-primary">Call {{site.primaryLocation.phone}}</a>{{/if}}
-            <a href="/menu/" class="btn btn-outline">View the Menu</a>
+          <p class="lead mt-4 max-w-xl">Online ordering is opening soon.</p>
+          <p class="mt-3 max-w-xl">{{#if site.primaryLocation.phoneHref}}Until then, call us and we will take your order by phone.{{else}}Have a look at the menu in the meantime.{{/if}}</p>
+          <div class="mt-7 flex flex-col gap-3 sm:flex-row">
+            {{#if site.primaryLocation.phoneHref}}<a href="{{site.primaryLocation.phoneHref}}" class="btn btn-primary">{{> icon name="phone"}}Call {{site.primaryLocation.phone}}</a>{{/if}}
+            <a href="/menu/" class="btn btn-outline">{{> icon name="utensils"}}View the Menu</a>
           </div>
           {{/if}}
         </div>
 
+        {{#if site.hasGallery}}
+        <!-- A dish beside the words, on screens with room for it. Phones get the words and
+             the button, so the header stays short. -->
+        <div class="relative hidden lg:block">
+          <div class="media aspect-[16/10] shadow-lift ring-1 ring-white/10">
+            {{#each (first site.gallery 1)}}{{picture image alt=alt sizes="(min-width: 1024px) 32rem, 100vw" class="size-full object-cover"}}{{/each}}
+          </div>
+          {{#if site.orderUrl}}
+          <p class="absolute bottom-4 left-4 flex items-center gap-3 rounded-lg bg-white py-2.5 pr-4 pl-3 text-night shadow-lift">
+            <span class="flex size-9 shrink-0 items-center justify-center rounded-full bg-night text-gold">{{> icon name="lock" class="size-4"}}</span>
+            <span class="text-sm leading-tight"><span class="block font-semibold">Pay securely online</span><span class="block text-night/70">Checkout by Clover</span></span>
+          </p>
+          {{/if}}
+        </div>
+        {{/if}}
+      </div>
+    </div>
+
+    {{#if site.orderUrl}}
+    <section class="section" aria-labelledby="steps-title">
+      <div class="container-x">
+        <div class="max-w-2xl">
+          <p class="eyebrow">How it works</p>
+          <h2 id="steps-title" class="h-section mt-2">From our menu to your order in three steps</h2>
+        </div>
+        <ol class="mt-8 grid gap-4 sm:mt-10 md:grid-cols-3 md:gap-6">
+          <li class="step-card">
+            <span class="step-number" aria-hidden="true">1</span>
+            <h3 class="mt-5 font-sans text-[1.1rem] font-semibold">Choose your dishes</h3>
+            <p class="mt-2 text-[0.95rem]">Order Now opens our full menu, with prices. Add what you like to your order.</p>
+          </li>
+          <li class="step-card">
+            <span class="step-number" aria-hidden="true">2</span>
+            <h3 class="mt-5 font-sans text-[1.1rem] font-semibold">Pay securely</h3>
+            <p class="mt-2 text-[0.95rem]">Checkout and payment are handled by Clover, the system our restaurant runs on.</p>
+          </li>
+          <li class="step-card">
+            <span class="step-number" aria-hidden="true">3</span>
+            <h3 class="mt-5 font-sans text-[1.1rem] font-semibold">We start cooking</h3>
+            <p class="mt-2 text-[0.95rem]">Your order arrives in our kitchen the moment you place it, and we prepare it fresh.</p>
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- Filled from the live menu by featured.js, as on the home page: the dishes the owner
+         marked as featured. It stays hidden when the menu cannot be loaded or none is marked. -->
+    <section class="pb-14 sm:pb-20" aria-labelledby="featured-title" data-featured hidden>
+      <div class="container-x">
+        <div class="flex flex-wrap items-end justify-between gap-x-6 gap-y-1">
+          <div>
+            <p class="eyebrow">On the menu</p>
+            <h2 id="featured-title" class="h-section mt-2">Most Popular Dishes</h2>
+          </div>
+          <a href="/menu/" class="arrow-link">View Full Menu{{> icon name="arrow-right"}}</a>
+        </div>
+        <ul class="snap-row mt-4 sm:mt-8 sm:grid-cols-2 lg:grid-cols-4" data-featured-list></ul>
+      </div>
+      <template data-dish-template>
+        <li class="dish-card">
+          <a href="/menu/" class="flex h-full flex-col" data-link>
+            <div class="dish-card-media" data-media>
+              <img alt="" width="480" height="330" loading="lazy" decoding="async" data-photo>
+              <span class="leaf-mark absolute inset-0 m-auto size-16 opacity-25" aria-hidden="true" data-leaf></span>
+            </div>
+            <div class="flex flex-1 flex-col p-4 sm:p-5">
+              <h3 class="font-sans text-[1.02rem] leading-snug font-semibold" data-name></h3>
+              <p class="mt-1.5 line-clamp-2 text-sm leading-snug text-muted" data-description></p>
+              <p class="mt-auto pt-3 font-semibold text-ink" data-price></p>
+            </div>
+          </a>
+        </li>
+      </template>
+    </section>
+    {{/if}}
+
+    <section class="section bg-sand" aria-labelledby="know-title">
+      <div class="container-x grid gap-10 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)] lg:gap-16">
+        <div>
+          <p class="eyebrow">Good to know</p>
+          <h2 id="know-title" class="h-section mt-2">Before you order</h2>
+          <!-- Native disclosures: they work with a keyboard and without JavaScript. -->
+          <div class="mt-7 border-t border-ink/15">
+            {{#if site.orderUrl}}
+            <details class="faq" open>
+              <summary>How do I pay?{{> icon name="chevron" class="size-5 shrink-0 text-brand"}}</summary>
+              <p>You pay online when you check out. Payment is taken by Clover on Clover's own secure pages, so we never see or store your card details.</p>
+            </details>
+            {{/if}}
+            <details class="faq">
+              <summary>Can I see the menu first?{{> icon name="chevron" class="size-5 shrink-0 text-brand"}}</summary>
+              <p>Yes. Our <a href="/menu/" class="text-link">full menu</a> is on this website{{#if site.orderUrl}}, and you will see it again, with prices, when you start your order{{/if}}.</p>
+            </details>
+            {{#if site.primaryLocation.phoneHref}}
+            <details class="faq">
+              <summary>What if I need to change something or have a question?{{> icon name="chevron" class="size-5 shrink-0 text-brand"}}</summary>
+              <p>Call us on <a href="{{site.primaryLocation.phoneHref}}" class="text-link">{{site.primaryLocation.phone}}</a> and we will help: an allergy, a change to your order, or anything else.</p>
+            </details>
+            {{/if}}
+          </div>
+        </div>
+
         {{#if site.primaryLocation}}
-        <aside class="panel self-start" aria-label="Restaurant details">
-          <h2 class="eyebrow font-sans">Find us</h2>
-          <address class="mt-4 text-lg leading-relaxed text-ink not-italic">{{site.primaryLocation.street}}<br>{{site.primaryLocation.cityLine}}</address>
-          <p class="mt-3"><a href="{{site.primaryLocation.phoneHref}}" class="text-link">{{site.primaryLocation.phone}}</a></p>
-          <h2 class="mt-8 eyebrow font-sans">Opening hours</h2>
-          <div class="mt-3">{{> hours site.primaryLocation}}</div>
+        <aside class="panel self-start bg-white" aria-labelledby="find-title">
+          <h2 id="find-title" class="eyebrow font-sans">Where your order is made</h2>
+          <div class="mt-5 space-y-4">
+            <p class="detail-row">{{> icon name="pin"}}<span><span class="block font-semibold text-ink">{{site.primaryLocation.street}}</span>{{site.primaryLocation.cityLine}}<br><a href="{{site.primaryLocation.directionsUrl}}" class="text-link text-sm" target="_blank" rel="noopener">Get directions<span class="sr-only"> (opens in a new tab)</span></a></span></p>
+            {{#if site.primaryLocation.phoneHref}}<p class="detail-row">{{> icon name="phone"}}<a href="{{site.primaryLocation.phoneHref}}" class="text-link">{{site.primaryLocation.phone}}</a></p>{{/if}}
+          </div>
+          <h3 class="mt-7 flex items-center gap-2 font-sans text-sm font-semibold text-ink">{{> icon name="clock" class="size-5 text-brand"}}Opening hours</h3>
+          <div class="mt-2">{{> hours site.primaryLocation}}</div>
         </aside>
         {{/if}}
       </div>
     </section>
+
+    {{#if site.orderUrl}}
+    <!-- The same action again, for someone who has read to the end. -->
+    <section class="on-dark relative isolate overflow-hidden bg-forest" aria-labelledby="ready-title">
+      <div class="leaf-mark absolute -right-12 -bottom-16 -z-10 size-72 opacity-[0.08] sm:right-[6%]" aria-hidden="true"></div>
+      <div class="container-x flex flex-col gap-7 py-12 sm:py-16 lg:flex-row lg:items-center lg:justify-between lg:gap-12">
+        <div class="max-w-xl">
+          <h2 id="ready-title" class="h-section">Ready when you are</h2>
+          <p class="lead mt-3">Start your order now. You will finish it on our Clover ordering page.</p>
+        </div>
+        <div class="flex shrink-0 flex-col gap-3 sm:flex-row">
+          <a href="{{site.orderUrl}}" class="btn btn-primary btn-lg" rel="noopener" data-order-now>{{> icon name="bag"}}Order Now</a>
+          {{#if site.primaryLocation.phoneHref}}<a href="{{site.primaryLocation.phoneHref}}" class="btn btn-outline">{{> icon name="phone"}}Call {{site.primaryLocation.phone}}</a>{{/if}}
+        </div>
+      </div>
+    </section>
+    {{/if}}
   </main>
 
   {{> footer}}
   <script type="module" src="/src/js/main.js"></script>
+  {{#if site.orderUrl}}<script type="module" src="/src/js/featured.js"></script>{{/if}}
 </body>
 </html>

@@ -1252,3 +1252,57 @@ change them from dashboard professionally."
 - **State at this checkpoint:** committed and pushed. **Not deployed:** the Supabase CLI on
   this machine is signed out (the access token pasted into chat on 2026-10-06 was revoked,
   as advised), so the migration and the functions wait for the client to sign in again.
+
+### 2026-10-07 Checkpoint: Order Online and Join Our Team redesigned; ordering connected to Clover
+
+The client asked for these two public pages only, and for ordering to be connected. Not to
+be touched: dashboard, Supabase, authentication, RLS, the Clover integration, the database,
+the backend. "Do not commit or deploy yet."
+
+- **The ordering link is set:** `ordering.url` in `content/site.json` is
+  `https://luzna-cafe-el-cajon.cloveronline.com/menu/all`, given by the client. BLOCKERS B-2
+  is resolved in the repository; it is live after the next deployment.
+- **The path is website -> Order Online page -> Clover**, as the client specified. Every
+  ORDER ONLINE button now leads to `/order/` (`orderHref` is always `/order/`); before, a
+  configured link would have sent the buttons straight to Clover. Only the Order page links
+  to Clover, with two ORDER NOW buttons. No cart, no payment, no form on the page.
+- **Not embedded:** Clover's page forbids framing by other sites (`frame-ancestors`), so it
+  is linked in the same tab.
+- **Order page:** compact header with ORDER NOW on the first screen (a photo beside it from
+  1024 px), three steps, the owner's featured dishes from the live menu (hidden when the menu
+  cannot be loaded), three questions as disclosures, address and hours, a closing band.
+- **Careers page:** compact header, then the form at once as one white card in four numbered
+  parts with the send button in its foot; "What happens next" and a privacy note beside it
+  on a wide screen and under it on a phone; the open positions below. Every field, id, name,
+  rule and the submission code are as they were; `src/js/careers.js` is unchanged.
+- The build accepts `cloveronline.com` as Clover's own host (it warned for anything not on
+  `clover.com`).
+- **Verified:** lint, types, content; 263 unit tests; 234 browser tests including the
+  accessibility scan and the seven widths for both pages. **Not verified:** that the Clover
+  page is live (it answers automated visitors with HTTP 406).
+- **State:** nothing of this is committed or deployed, by instruction. The photos work
+  before it is committed and pushed (`9188f58`) but its backend is not deployed: the
+  Supabase CLI on this machine is signed out.
+
+### 2026-10-07 Checkpoint: the photos backend DEPLOYED to TEST and PRODUCTION
+
+The client signed the Supabase CLI in again (an access token pasted in chat; it is in no
+file and no commit, and should be revoked and replaced). Deployed from commit `9188f58`;
+the `supabase/` folder had no uncommitted change.
+
+- **TEST** (`cgxhifkeoesvsycewwfs`), then **PRODUCTION** (`xqzpuqjrlrxyitjubkqk`), each: the
+  dry run named exactly `20261007000800_site_photos.sql`; applied; the five functions
+  deployed with `--use-api` (`public-site` is new).
+- **Checked on each by query:** 18 tables; row level security on `site_photos`, no policy;
+  `anon` and `authenticated` can neither read the table nor call its functions;
+  `service_role` can write and call.
+- **`verify:functions`:** all passed on both, including the three new checks (the public
+  endpoint's answer, what it refuses, and the dashboard routes without a session).
+  **`verify:public-access`** on PRODUCTION: 15 of 15.
+- The live endpoint answers `{"hero":null,"story":null,"gallery":[]}`: nothing chosen yet.
+- **The website is NOT yet deployed with this:** the live home page carries no
+  `data-site-url`. It needs `deploy.sh` on the VPS, which will publish `origin/main`
+  (`9188f58`: the Photos page and the photo swap). Then `npm run verify:site`.
+- **Still only on this machine, by instruction:** the Order Online and Join Our Team
+  redesign and the Clover ordering link. Not committed, so `deploy.sh` will not publish it.
+- Not tested: a signed-in owner uploading a real photo on the live dashboard.

@@ -162,11 +162,16 @@ const CHECKS = [
     return null;
   }],
   ["ORDER ONLINE goes where it should", async () => {
-    const r = await get(`${base}/`);
-    const cloverLinks = [...new Set(r.text.match(/href="https:\/\/[^"]*clover\.com[^"]*"/g) ?? [])];
-    if (expectedOrdering) return r.text.includes(`href="${expectedOrdering}"`) ? null : "the home page does not link to EXPECT_ORDERING_URL";
-    // No link configured: every button must stay on the site's own /order/ page.
-    return cloverLinks.length === 0 ? null : `unexpected ordering link: ${cloverLinks.join(", ")}`;
+    // Website -> Order Online page -> Clover: the home page's buttons stay on the site, and
+    // only the Order page links to Clover.
+    const cloverLinks = (text) => [...new Set(text.match(/href="https:\/\/[^"]*clover(?:online)?\.com[^"]*"/g) ?? [])];
+    const home = await get(`${base}/`);
+    if (!home.text.includes('href="/order/"')) return "the home page has no link to /order/";
+    if (cloverLinks(home.text).length > 0) return `the home page links straight to Clover: ${cloverLinks(home.text).join(", ")}`;
+    const order = await get(`${base}/order/`);
+    if (expectedOrdering) return order.text.includes(`href="${expectedOrdering}"`) ? null : "the Order page does not link to EXPECT_ORDERING_URL";
+    // No link expected: the Order page says ordering opens soon and names no Clover address.
+    return cloverLinks(order.text).length === 0 ? null : `unexpected ordering link: ${cloverLinks(order.text).join(", ")}`;
   }],
   ["the application form is not published", async () => {
     if (process.env.EXPECT_APPLICATIONS === "open") return "skipped";

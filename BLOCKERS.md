@@ -101,7 +101,13 @@ which is what Clover recommends for an integration that serves one merchant
   website), with the app set to: Site URL `https://luzenarestaurant.com/dashboard/`,
   Default OAuth Response **Code**, permissions Inventory read and write, and Merchant read.
 
-### B-2. Clover Online Ordering link — BLOCKING for ordering · CLIENT INPUT
+### B-2. Clover Online Ordering link — RESOLVED 2026-10-07 (not yet deployed)
+
+**Resolved:** the client gave the address, `https://luzna-cafe-el-cajon.cloveronline.com/menu/all`. It is set as
+`ordering.url` in `content/site.json`; every ORDER ONLINE button leads to the redesigned
+`/order/` page and its ORDER NOW buttons lead to Clover. Live after the next `deploy.sh`,
+unless `CLOVER_ORDERING_URL` in the server's `site.env` names a different address, which
+would win. What follows is the entry as it stood.
 
 - **Needed from you:** the address of the restaurant's Clover Online Ordering page (Clover
   merchant dashboard > Online Ordering). The restaurant has to switch online ordering on

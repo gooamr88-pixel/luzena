@@ -59,7 +59,29 @@ deployed, and the Nginx configuration has never been loaded by an Nginx.
 The browser tests need a Chromium. They use one already installed by Playwright under
 `%LOCALAPPDATA%\ms-playwright`, or the executable named in `CHROME_PATH`.
 
-## Latest run: 2026-10-07, after website photos became changeable from the dashboard
+## Latest run: 2026-10-07 (second), after the Order Online and Join Our Team pages were redesigned
+
+One command chain on one Windows machine, nothing deployed: lint, types and production
+content clean; `npm test` **263 passed** (8 files); `npm run test:browser` **234 passed**
+(3 files). The Deno checks were not run again: no function changed.
+
+New or rewritten in this run: the ordering-link rules in `tests/frontend.test.js` (every
+ORDER ONLINE button leads to `/order/`, that page to the restaurant's `cloveronline.com`
+address); "ordering online" in `tests/browser/public.spec.js` (ORDER ONLINE on four pages,
+the two ORDER NOW buttons and their address, no form or field on the page, ORDER NOW on the
+first screen at 360, 390 and 1280 px, the questions opening by keyboard); and the Careers
+layout in `tests/browser/sample.spec.js` (short header, the form on the first screen on a
+laptop and on a phone, what happens next beside it or under it, four numbered parts,
+44 px controls). Both pages are also in the per-page set: WCAG 2.2 AA scan, headings, and no
+sideways scroll at 360, 390, 430, 768, 1024, 1280 and 1440 px.
+
+**Not proven:** that the Clover ordering page itself is live. It answers this machine with
+HTTP 406, to `curl` and to a headless browser alike (Clover refuses automated visitors), so
+the address was checked for its form and its host only. Someone must open it by hand. The
+"ordering opens soon" state of the Order page is no longer in any built site, so no browser
+test covers it; the content rule that leads to it is unit-tested.
+
+## The run before: 2026-10-07, after website photos became changeable from the dashboard
 
 On one Windows machine, nothing deployed:
 

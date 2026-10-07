@@ -343,6 +343,77 @@
     mask: url("/leaf.svg") center / contain no-repeat;
   }
 
+  /* A shorter page header, for the two pages whose first job is one action: ordering and
+     applying. What the visitor came to do starts on the first screen, on a phone too. */
+  .page-hero-compact {
+    @apply pt-9 pb-10 sm:pt-12 sm:pb-12;
+  }
+
+  .page-hero-compact .h-display {
+    @apply text-[clamp(2.1rem,4.4vw,3.25rem)];
+  }
+
+  /* The one action of a page, a size up and in capitals: ORDER NOW. */
+  .btn-lg {
+    @apply min-h-14 px-8 text-base tracking-[0.1em] uppercase;
+  }
+
+  /* One of a few numbered steps, as a card. Gold on night: 7.7. */
+  .step-card {
+    @apply rounded-xl border border-ink/10 bg-white/70 p-6 shadow-card sm:p-7;
+  }
+
+  .step-number {
+    @apply flex size-11 items-center justify-center rounded-full bg-night font-display text-xl text-gold;
+  }
+
+  /* A question that opens to its answer: a native disclosure with the site's own arrow. */
+  .faq {
+    @apply border-b border-ink/15;
+  }
+
+  .faq summary {
+    @apply flex min-h-14 cursor-pointer list-none items-center justify-between gap-4 py-3 text-[1.02rem] font-semibold text-ink transition-colors hover:text-brand;
+  }
+
+  .faq summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .faq summary svg {
+    @apply transition-transform duration-200;
+  }
+
+  .faq[open] summary svg {
+    transform: rotate(180deg);
+  }
+
+  .faq > p {
+    @apply max-w-prose pr-9 pb-5 text-[0.97rem];
+  }
+
+  /* The application form: one white card, in numbered parts divided by hairlines, with its
+     send button in a tinted foot. */
+  .form-card {
+    @apply overflow-hidden rounded-2xl border border-ink/10 bg-white shadow-lift;
+  }
+
+  .form-part {
+    @apply border-t border-ink/10 px-5 py-7 first:border-t-0 sm:px-9 sm:py-9;
+  }
+
+  .form-part-title {
+    @apply flex items-center gap-3 font-display text-[1.4rem] leading-tight text-ink;
+  }
+
+  .form-part-number {
+    @apply flex size-8 shrink-0 items-center justify-center rounded-full bg-night font-sans text-sm font-semibold text-gold;
+  }
+
+  .form-foot {
+    @apply border-t border-ink/10 bg-paper px-5 py-7 sm:px-9 sm:py-8;
+  }
+
   /* Cards and panels. */
   .panel {
     @apply rounded-xl border border-ink/10 bg-white/70 p-6 shadow-card sm:p-8;

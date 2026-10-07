@@ -76,7 +76,7 @@ in `ARCHITECTURE.md`.
 | Item descriptions, photos, featured items | Dashboard |
 | The home page's main photo, the "our story" photo, the gallery | Dashboard, **Photos**. On the website within about a minute, no redeploy. |
 | Restaurant name, story, address, hours, phone, job positions, social links, privacy policy, and the photos the site starts with | `content/site.json` and `content/media/`, then redeploy |
-| The ORDER ONLINE link | `CLOVER_ORDERING_URL` in the server's `shared/site.env`, then redeploy |
+| Where ORDER NOW on the Order Online page leads (Clover) | `ordering.url` in `content/site.json`, or `CLOVER_ORDERING_URL` in the server's `shared/site.env`, which wins; then redeploy |
 | Colours and fonts | `src/styles/main.css` (see `docs/DESIGN_SYSTEM.md`) |
 
 ## What is still needed

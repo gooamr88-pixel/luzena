@@ -328,17 +328,50 @@ describe("job application form (applications switched on)", () => {
     await context.close();
   });
 
-  it("puts the form first on the page, with how it works and the open positions below it", async () => {
+  it("puts the form straight after a short header, with what happens next beside it and the open positions below", async () => {
     const { page, context } = await open((route) => route.fulfill({ status: 200, json: { ok: true } }));
-    const top = (selector) => page.locator(selector).first().evaluate((node) => node.getBoundingClientRect().top + window.scrollY);
-    const form = await top("[data-apply-form]");
-    expect(form).toBeLessThan(await top("#apply ol"));
-    expect(form).toBeLessThan(await top("#positions-title"));
-    expect(await top("#apply")).toBeLessThan(await top("details.position"));
-    expect(await page.locator("main h2").allInnerTexts()).toEqual(["Send your application", "Open positions"]);
-    // From the top of the page: straight to the form, or down to the roles.
-    expect(await page.locator('.page-hero a[href="#apply"]').count()).toBe(1);
+    const box = (selector) => page.locator(selector).first().evaluate((node) => {
+      const rect = node.getBoundingClientRect();
+      return { top: rect.top + window.scrollY, bottom: rect.bottom + window.scrollY, left: rect.left, right: rect.right };
+    });
+    expect(await page.locator(".page-hero h1").innerText()).toBe("Join Our Team");
+    // A laptop screen, 1280 x 900: the header is short and the form starts on the first screen.
+    const hero = await box(".page-hero");
+    const form = await box("[data-apply-form]");
+    expect(hero.bottom - hero.top).toBeLessThan(420);
+    expect(form.top).toBeLessThan(700);
+    // Nothing stands between the header and the form.
+    expect(form.top - hero.bottom).toBeLessThan(80);
+    expect((await box("#full_name")).top).toBeLessThan(900);
+    // What happens next is beside the form, not above it; the roles come after both.
+    const aside = await box("#apply aside");
+    expect(aside.left).toBeGreaterThan(form.right);
+    expect(form.bottom).toBeLessThan(await box("#positions-title").then((title) => title.top));
+    const headings = await page.locator("main h2").evaluateAll((nodes) => nodes.filter((node) => node.getClientRects().length > 0).map((node) => node.textContent.trim()));
+    expect(headings).toEqual(["Send your application", "What happens next", "Open positions"]);
+    // The header offers only the way past the form: the form itself is the next thing.
     expect(await page.locator('.page-hero a[href="#positions-title"]').count()).toBe(1);
+    expect(await page.locator(".page-hero .btn").count()).toBe(0);
+    // The form is in four numbered parts.
+    const parts = (await page.locator("form legend.form-part-title").allInnerTexts()).map((text) => text.replace(/\s+/g, " ").trim());
+    expect(parts).toEqual(["1 About you", "2 The role", "3 Your experience", "4 A little more"]);
+    await context.close();
+  });
+
+  it("on a phone, starts the form on the first screen and puts what happens next under it", async () => {
+    const opened = await openPage(browser, `${site.url}/careers/`, { width: 390, height: 844, allowRequestFailures: [/e2e-project\.supabase\.co/] });
+    const { page, context } = opened;
+    const top = (selector) => page.locator(selector).first().evaluate((node) => node.getBoundingClientRect().top + window.scrollY);
+    expect(await top("[data-apply-form]")).toBeLessThan(700);
+    expect(await top("#apply aside")).toBeGreaterThan(await top("[data-apply-submit]"));
+    // The send button spans the card, and every control is at least 44px tall.
+    const button = await page.locator("[data-apply-submit]").boundingBox();
+    expect(button.width).toBeGreaterThan(280);
+    const small = await page.evaluate(() =>
+      [...document.querySelectorAll("form select, form textarea, form input:not([type=checkbox]):not([type=file]):not([name=company_website]), form button, form label.choice")]
+        .filter((node) => node.getClientRects().length > 0 && node.getBoundingClientRect().height < 44).map((node) => node.id || node.textContent.trim()));
+    expect(small).toEqual([]);
+    expect(await hasHorizontalOverflow(page)).toBe(false);
     await context.close();
   });
 

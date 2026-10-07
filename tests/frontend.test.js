@@ -272,20 +272,36 @@ describe("content gate", () => {
   });
 
   describe("ORDER ONLINE link", () => {
-    it("leads to the on-site page while no Clover link is set", () => {
-      const { site } = loadContent("production", {});
-      expect(site.orderUrl).toBeNull();
+    const CLOVER = "https://luzna-cafe-el-cajon.cloveronline.com/menu/all";
+
+    // Website -> Order Online page -> Clover. The buttons across the site never skip the page.
+    it("sends every ORDER ONLINE button to the site's own page, and that page to the restaurant's Clover ordering page", () => {
+      const { site, issues } = loadContent("production", {});
+      expect(issues.errors).toEqual([]);
+      expect(site.orderUrl).toBe(CLOVER);
       expect(site.orderHref).toBe("/order/");
       expect(site.orderIsExternal).toBe(false);
+      // Clover's own address for a restaurant's ordering page raises no question.
+      expect(issues.warnings.join("\n")).not.toMatch(/ordering\.url/);
+      expect(restaurantJsonLd(site, {})["@graph"][0].potentialAction).toEqual({ "@type": "OrderAction", target: CLOVER });
     });
 
-    it("takes the link from the CLOVER_ORDERING_URL build variable without a code change", () => {
+    it("takes a different link from the CLOVER_ORDERING_URL build variable without a code change", () => {
       const url = "https://www.clover.com/online-ordering/some-restaurant";
       const { site, issues } = loadContent("production", { CLOVER_ORDERING_URL: ` ${url} ` });
       expect(issues.errors).toEqual([]);
-      expect(site.orderHref).toBe(url);
-      expect(site.orderIsExternal).toBe(true);
+      expect(site.orderUrl).toBe(url);
+      expect(site.orderHref).toBe("/order/");
       expect(restaurantJsonLd(site, {})["@graph"][0].potentialAction).toEqual({ "@type": "OrderAction", target: url });
+    });
+
+    it("says so, without blocking, when no link is set: the page then says ordering opens soon", () => {
+      const site = structuredClone(loadContent("production", {}).site);
+      site.ordering.url = null;
+      // No media folder is given, so photos are reported missing; only ordering is looked at.
+      const issues = validateContent(site, "/nowhere", { profile: "production" });
+      expect(issues.errors.join("\n")).not.toMatch(/ordering/);
+      expect(issues.warnings.join("\n")).toMatch(/ordering\.url is not set/);
     });
 
     it("refuses a placeholder or insecure link in a production build", () => {
@@ -299,6 +315,9 @@ describe("content gate", () => {
       const { issues } = loadContent("production", { CLOVER_ORDERING_URL: "https://order.some-other-service.com/luzena" });
       expect(issues.errors).toEqual([]);
       expect(issues.warnings.join("\n")).toMatch(/does not point to clover\.com/);
+      // A look-alike host is not Clover's.
+      const fake = loadContent("production", { CLOVER_ORDERING_URL: "https://luzena.notcloveronline.com/menu" });
+      expect(fake.issues.warnings.join("\n")).toMatch(/does not point to clover\.com/);
     });
 
     it("allows the stand-in link only in the sample profile", () => {
