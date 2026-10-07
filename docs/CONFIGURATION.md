@@ -166,8 +166,21 @@ shows **placeholder photos** in their place rather than the photo-less layouts:
 
 The placeholders are stock photos from the design template: **not this restaurant, and their
 licence for publication was never checked.** `content/media/README.md` lists them and says
-how to replace each one. To replace a photo: put the real file in `content/media/`, name it
-in `site.json`, write its alt text, delete the placeholder, redeploy. No template changes.
+how to replace each one.
+
+There are two ways to replace a photo:
+
+1. **In the dashboard, with no deployment** (hero, "our story", gallery): the owner opens
+   **Photos**, chooses a photo and writes its description. The website shows it within about
+   a minute. "Use the starting photo" goes back to the built one. A gallery of the owner's
+   replaces the built gallery whole (up to 24 photos; the first eight are the row on the home
+   page). This is the normal way once the restaurant has photos.
+2. **In the repository** (any photo, including the location photo, the link preview image
+   and the default dish photos, which the dashboard does not cover): put the real file in
+   `content/media/`, name it in `site.json`, write its alt text, delete the placeholder,
+   redeploy. No template changes. Doing this for the hero, story and gallery too is worth it
+   once the real photos are settled: the built photo is what a visitor gets if the backend
+   cannot be reached, and it is served in more sizes and formats than an uploaded one.
 
 The sample profile (`npm run dev`) still reads its own copies from `content/sample-media/`.
 On the server the repository is never the web root: Nginx serves only the built release, and

@@ -15,6 +15,7 @@ import { completeConnect, connectionStatus, connectWithToken, disconnect, manual
 import { removeItemImage, uploadItemImage } from "./images.ts";
 import { bulkItems, createItemHandler, DIETARY_TAGS, getItemDetail, listItems, updateItemHandler } from "./items.ts";
 import { authenticate, cloverApiError, type Permission, permissionsOf, rateLimit, requirePermission } from "./session.ts";
+import { describeSitePhoto, listSitePhotos, removeSitePhoto, reorderGallery, uploadSitePhoto } from "./site-photos.ts";
 
 const METHODS = "GET, POST, PATCH, DELETE, OPTIONS";
 const ID = "([A-Z0-9]{13})";
@@ -116,6 +117,18 @@ const ROUTES: Route[] = [
     handle: ({ deps, session }) => disconnect(deps, session) },
   { method: "POST", pattern: /^\/clover\/sync$/, permission: "menu.write", limit: ["sync", 12, 300],
     handle: ({ deps, session }) => manualSync(deps, session) },
+
+  // The website's own photos: hero, "our story", gallery.
+  { method: "GET", pattern: /^\/site\/photos$/, permission: "site.manage", limit: READ,
+    handle: ({ deps, session }) => listSitePhotos(deps, session) },
+  { method: "POST", pattern: /^\/site\/photos$/, permission: "site.manage", limit: ["upload", 60, 600],
+    handle: ({ deps, session, request }) => uploadSitePhoto(deps, session, request) },
+  { method: "POST", pattern: /^\/site\/photos\/reorder$/, permission: "site.manage", limit: WRITE,
+    handle: async (c) => reorderGallery(c.deps, c.session, await body(c)) },
+  { method: "PATCH", pattern: new RegExp(`^/site/photos/${UUID}$`), permission: "site.manage", limit: WRITE,
+    handle: async (c) => describeSitePhoto(c.deps, c.session, c.params[0], await body(c)) },
+  { method: "DELETE", pattern: new RegExp(`^/site/photos/${UUID}$`), permission: "site.manage", limit: WRITE,
+    handle: ({ deps, session, params }) => removeSitePhoto(deps, session, params[0]) },
 
   { method: "GET", pattern: /^\/applications$/, permission: "applications.read", limit: READ,
     handle: ({ deps, session, url }) => listApplications(deps, session, url) },

@@ -21,7 +21,7 @@ GitHub  ->  Hostinger VPS (Nginx, built website files only)
 ```
 
 The VPS serves files. It runs no application code and holds no secret. The backend is the
-four Supabase Edge Functions, deployed from this machine with the Supabase CLI. Vercel is
+five Supabase Edge Functions, deployed from this machine with the Supabase CLI. Vercel is
 not used.
 
 Background: `docs/CONFIGURATION.md` (every setting), `BLOCKERS.md` (what is still needed),
@@ -173,7 +173,7 @@ For each project (`<ref>` is the project reference; every command below names it
       are delivered reliably. Supabase's built-in sender is rate limited.
 - [ ] Deploy the functions (`--use-api` bundles on Supabase's side; this machine has no
       Docker):
-      `supabase functions deploy dashboard-api public-menu job-application clover-webhook --project-ref <ref> --use-api`
+      `supabase functions deploy dashboard-api public-menu public-site job-application clover-webhook --project-ref <ref> --use-api`
 - [ ] Set the secrets from this environment's own file. There is one file per environment,
       both git-ignored and both already created with a fresh `TOKEN_ENCRYPTION_KEY` and
       `IP_HASH_SALT` each (2026-10-05):
@@ -469,7 +469,7 @@ and `npm run verify:site` passes with `EXPECT_ORDERING_URL` set to that address.
 ## 11. Job applications (only after B-3 and B-4 in BLOCKERS.md)
 
 - [ ] Migration `20261006000700_job_application_workflow.sql` applied (TEST first, then
-      PRODUCTION): `supabase db push`, then `npm run verify:database` (17 tables).
+      PRODUCTION): `supabase db push`, then `npm run verify:database` (18 tables).
 - [ ] Functions redeployed: `job-application` and `dashboard-api` both changed.
 - [ ] Privacy policy published: `legal.privacyPolicyUrl` or `legal.privacy.sections` in
       `content/site.json`. It covers what the form now asks: contact details, availability,

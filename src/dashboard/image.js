@@ -10,18 +10,20 @@ const MAX_SOURCE_BYTES = 25 * 1024 * 1024;
 
 const toBlob = (canvas, type, quality) => new Promise((resolve) => canvas.toBlob(resolve, type, quality));
 
-export async function optimiseImage(file) {
+async function read(file) {
   if (!/^image\/(jpeg|png|webp)$/.test(file.type)) throw new Error("Use a JPEG, PNG or WebP photo.");
   if (file.size > MAX_SOURCE_BYTES) throw new Error("This photo is too large. Choose one under 25 MB.");
-
-  let bitmap;
   try {
-    bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+    return await createImageBitmap(file, { imageOrientation: "from-image" });
   } catch {
     throw new Error("This file could not be read as a photo.");
   }
+}
 
-  let edge = MAX_EDGE;
+// One encoded copy whose longer side is at most `maxEdge`, made smaller still until it is
+// under the upload limit. Returns the file with the size it ended up at.
+async function encode(bitmap, maxEdge, name) {
+  let edge = maxEdge;
   for (let attempt = 0; attempt < 4; attempt++) {
     const scale = Math.min(1, edge / Math.max(bitmap.width, bitmap.height));
     const canvas = document.createElement("canvas");
@@ -33,12 +35,32 @@ export async function optimiseImage(file) {
     let blob = await toBlob(canvas, "image/webp", 0.82);
     if (!blob || blob.type !== "image/webp") blob = await toBlob(canvas, "image/jpeg", 0.84);
     if (blob && blob.size <= MAX_BYTES) {
-      bitmap.close?.();
       const extension = blob.type === "image/webp" ? "webp" : "jpg";
-      return new File([blob], `photo.${extension}`, { type: blob.type });
+      return { file: new File([blob], `${name}.${extension}`, { type: blob.type }), width: canvas.width, height: canvas.height };
     }
     edge = Math.round(edge * 0.8);
   }
-  bitmap.close?.();
   throw new Error("This photo could not be reduced enough. Try a different photo.");
+}
+
+export async function optimiseImage(file) {
+  const bitmap = await read(file);
+  try {
+    return (await encode(bitmap, MAX_EDGE, "photo")).file;
+  } finally {
+    bitmap.close?.();
+  }
+}
+
+// A photo for the public website, in two sizes: a full one for large screens and a smaller
+// one that phones are given instead. When the original is already small, one size is enough.
+export async function optimiseSitePhoto(file, { edge = 1920, smallEdge = 800 } = {}) {
+  const bitmap = await read(file);
+  try {
+    const large = await encode(bitmap, edge, "photo");
+    const small = large.width > smallEdge * 1.3 ? await encode(bitmap, smallEdge, "photo-small") : null;
+    return { file: large.file, width: large.width, height: large.height, small: small?.file ?? null, smallWidth: small?.width ?? null };
+  } finally {
+    bitmap.close?.();
+  }
 }

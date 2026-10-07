@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-site-url="{{build.siteUrl}}">
 <head>
   {{> head}}
 </head>
@@ -17,7 +17,7 @@
     <section class="section">
       <div class="container-x">
         {{#if site.hasGallery}}
-        <ul class="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3" data-gallery>
+        <ul class="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3" data-gallery data-site-gallery="grid">
           {{#each site.gallery}}
           <li class="aspect-square">
             <button type="button" class="gallery-tile size-full" data-gallery-open="{{@index}}" aria-haspopup="dialog">
@@ -27,6 +27,15 @@
           </li>
           {{/each}}
         </ul>
+        <!-- One photo of the owner's own gallery, for site-media.js to fill in. -->
+        <template data-gallery-template>
+          <li class="aspect-square">
+            <button type="button" class="gallery-tile size-full" data-gallery-open aria-haspopup="dialog">
+              <picture><img alt="" loading="lazy" decoding="async" sizes="(min-width: 1024px) 24rem, 50vw"></picture>
+              <span class="sr-only">View larger</span>
+            </button>
+          </li>
+        </template>
         {{else}}
         <p class="lead max-w-xl">Photos are on their way. In the meantime, come and see for yourself.</p>
         <a href="/locations/" class="btn btn-primary mt-8">Find us</a>
@@ -65,6 +74,7 @@
 
   {{> footer}}
   <script type="module" src="/src/js/main.js"></script>
-  {{#if site.hasGallery}}<script type="module" src="/src/js/gallery.js"></script>{{/if}}
+  {{#if site.hasGallery}}<script type="module" src="/src/js/gallery.js"></script>
+  <script type="module" src="/src/js/site-media.js"></script>{{/if}}
 </body>
 </html>

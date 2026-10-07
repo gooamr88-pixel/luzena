@@ -10,6 +10,7 @@ import { jsonLdScript, restaurantJsonLd, robotsTxt, sitemapXml } from "./seo.js"
 
 const PARTIALS_DIR = resolve(ROOT, "src", "partials");
 const SAMPLE_MENU = resolve(ROOT, "content", "sample-menu.json");
+const SAMPLE_SITE = resolve(ROOT, "content", "sample-site.json");
 
 const MIME = { avif: "image/avif", webp: "image/webp", jpg: "image/jpeg", png: "image/png", svg: "image/svg+xml" };
 
@@ -76,6 +77,11 @@ export function sitePlugin({ profile, strict, supabaseUrl, demoDashboard = false
         menuUrl: sample
           ? "/sample-api/menu.json"
           : apiBase ? `${apiBase}/public-menu?restaurant=${site.restaurantSlug}` : "",
+        // Where the pages ask which photos the owner has chosen in the dashboard. Empty when
+        // there is no backend: the pages then keep the photos they were built with.
+        siteUrl: sample
+          ? "/sample-api/site.json"
+          : apiBase ? `${apiBase}/public-site?restaurant=${site.restaurantSlug}` : "",
         year: new Date().getFullYear(),
       },
     });
@@ -117,6 +123,10 @@ export function sitePlugin({ profile, strict, supabaseUrl, demoDashboard = false
           response.setHeader("content-type", "application/json");
           return response.end(readFileSync(SAMPLE_MENU));
         }
+        if (sample && url === "/sample-api/site.json") {
+          response.setHeader("content-type", "application/json");
+          return response.end(readFileSync(SAMPLE_SITE));
+        }
         next();
       });
     },
@@ -131,6 +141,7 @@ export function sitePlugin({ profile, strict, supabaseUrl, demoDashboard = false
       this.emitFile({ type: "asset", fileName: "robots.txt", source: robotsTxt(site, sample) });
       if (sample) {
         this.emitFile({ type: "asset", fileName: "sample-api/menu.json", source: readFileSync(SAMPLE_MENU) });
+        this.emitFile({ type: "asset", fileName: "sample-api/site.json", source: readFileSync(SAMPLE_SITE) });
       }
     },
   };

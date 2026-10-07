@@ -66,6 +66,31 @@ const CHECKS = [
     return r.status === 405 ? null : describe(r);
   }],
 
+  [`public-site answers with the website's photos for "${slug}"`, async () => {
+    const r = await call(`/public-site?restaurant=${slug}`, { headers: { origin } });
+    const photos = r.data?.photos;
+    if (r.status !== 200 || !photos || !Array.isArray(photos.gallery) || !("hero" in photos) || !("story" in photos)) return describe(r);
+    // Addresses a browser can load, never a path in the bucket or a row's id.
+    const shown = [photos.hero, photos.story, ...photos.gallery].filter(Boolean);
+    if (shown.some((photo) => !String(photo.src).startsWith(`${base}/storage/v1/object/public/`) || "id" in photo || "path" in photo)) {
+      return "a photo is not given as a public address only";
+    }
+    return r.headers.get("access-control-allow-origin") === origin ? null : `${origin} got no CORS header. Is it in ALLOWED_ORIGINS?`;
+  }],
+  ["public-site says nothing about an unknown restaurant, refuses POST and a foreign origin", async () => {
+    const unknown = await call("/public-site?restaurant=zz-verify-no-such-restaurant", { headers: { origin } });
+    if (unknown.status !== 404 || unknown.code !== "not_found") return describe(unknown);
+    const post = await call(`/public-site?restaurant=${slug}`, { method: "POST" });
+    if (post.status !== 405) return describe(post);
+    const foreign = await call(`/public-site?restaurant=${slug}`, { headers: { origin: FOREIGN_ORIGIN } });
+    return foreign.headers.get("access-control-allow-origin") === null ? null : "a foreign origin was granted CORS";
+  }],
+  ["dashboard-api refuses the website's photos without a session", async () => {
+    const list = await call("/dashboard-api/site/photos", { headers: { origin } });
+    const remove = await call(`/dashboard-api/site/photos/${NOBODY}`, { method: "DELETE", headers: { origin } });
+    return list.status === 401 && remove.status === 401 ? null : `${describe(list)} / ${describe(remove)}`;
+  }],
+
   ["dashboard-api refuses a request with no session", async () => {
     const r = await call("/dashboard-api/me", { headers: { origin } });
     return r.status === 401 && r.code === "unauthenticated" ? null : describe(r);

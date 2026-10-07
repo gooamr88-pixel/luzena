@@ -58,12 +58,16 @@ additional_redirect_urls = ["https://luzenarestaurant.com/dashboard/"]
 # Each function authenticates its own callers, so the gateway JWT check is off:
 #   dashboard-api    verifies the Supabase Auth JWT itself and resolves the tenant.
 #   public-menu      public read endpoint.
+#   public-site      public read endpoint (which photos the website shows).
 #   job-application  public form endpoint (origin check, rate limit, bot traps).
 #   clover-webhook   authenticated by the X-Clover-Auth shared secret.
 [functions.dashboard-api]
 verify_jwt = false
 
 [functions.public-menu]
+verify_jwt = false
+
+[functions.public-site]
 verify_jwt = false
 
 [functions.job-application]

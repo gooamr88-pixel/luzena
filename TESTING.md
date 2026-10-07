@@ -59,7 +59,24 @@ deployed, and the Nginx configuration has never been loaded by an Nginx.
 The browser tests need a Chromium. They use one already installed by Playwright under
 `%LOCALAPPDATA%\ms-playwright`, or the executable named in `CHROME_PATH`.
 
-## Latest run: 2026-10-06, after the redesign and the job application system
+## Latest run: 2026-10-07, after website photos became changeable from the dashboard
+
+On one Windows machine, nothing deployed:
+
+| Check | Result |
+|---|---|
+| Lint, types, production content | Clean; 0 required items missing |
+| Unit, SQL, API (`npm test`) | **262 passed**, 0 failed, 8 files |
+| Deno (`npm run check:deno`) | 5 functions type-check; all smoke checks pass |
+| Real browser (`npm run test:browser`) | **231 passed**, 0 failed, 3 files |
+
+`npm run verify` was started as one command and stopped at the Deno step: the computer
+went to sleep during it and one function "did not start within 2 minutes". The Deno step and
+the browser step were then run on their own, with the results above. Not run:
+`verify:database`, `verify:functions`, `verify:site` (the new migration and function were not
+yet on either project), and the Clover sandbox tests.
+
+## The run before: 2026-10-06, after the redesign and the job application system
 
 `npm run verify`, on one Windows machine, nothing deployed:
 
@@ -113,12 +130,13 @@ migrations on PGlite, which is Postgres compiled to WebAssembly.
 | `tests/dashboard.test.js` | 51 | The dashboard API end to end: the real router and handlers, real SQL, and a fake Clover. Authentication, roles, validation, write-through, conflicts, partial saves, lost responses, idempotent creates, bulk actions, categories, modifiers, photos, token refresh, OAuth, audit. |
 | `tests/public.test.js` | 28 | Public menu (including Clover being down, and its rate limit), Clover webhook, job application (both switches, the missing retention period, validation, file checks, bot traps, email failure, rate limit), deletion of applications past the retention period. |
 | `tests/applications.test.js` | new | Job applications end to end on the real handlers and SQL: a form request is stored, listed by the dashboard API at once and reported by email with a link to it; every answer is shown and nothing a browser has no use for; the CV is streamed only to a signed-in owner or manager and the download recorded; stage changes with who, when and their note; no session, a forged one, staff, and another restaurant's owner all refused; the tables and functions closed to the public roles; search, stage, position and date filters, paging; deletion with the CV and the history at the end of the retention period. |
+| `tests/site-photos.test.js` | 19 | The website's own photos on the real handlers and SQL: nothing chosen answers with empty slots; a photo set in the dashboard is in the public answer as an address, with a `srcset` when there are two sizes and never an id or a storage path; replacing removes the old files and leaves one photo in the slot; removing goes back to the built photo; the gallery's order, its limit of 24 and a reorder that names every photo once; files that are too large or not images refused; no session, staff, and another restaurant's owner refused; the table and functions closed to the public roles; the public endpoint answering before any Clover sync, its CORS, the methods it refuses and an unknown restaurant; the activity log. The endpoint's rate limit uses the same function as the menu's and is not tested separately. |
 | `tests/units.test.js` | 31 | Clover client retry rules, token parsing, normalisation of Clover data, encryption, log redaction, configuration, file sniffing, request validation. |
 | `tests/frontend.test.js` | 39 | Money parsing and formatting, opening hours, the content gate (what blocks a build and what does not), the confirmed address, phone, hours and domain, the ordering-link rules, the application switch, the sample overlay, job departments, sitemap, robots, structured data. |
 
 ### 2. Edge Functions under Deno (`npm run check:deno`)
 
-`deno check` type-checks the four entry files and everything they import. Then
+`deno check` type-checks the five entry files and everything they import. Then
 `scripts/deno-smoke.mjs` starts each function under Deno, with test values for every secret
 and **no database behind it**, and sends real HTTP requests. It checks what can be checked
 without a database: that each function starts, refuses a missing or forged session,
@@ -139,8 +157,8 @@ production Nginx configuration is generated from the same file, and a unit test 
 | File | Tests | Build | What it exercises |
 |---|---|---|---|
 | `tests/browser/public.spec.js` | 132 | **Production** build: real content, no sample data, no backend | Every public page: no script error, failed request or policy violation; one `h1`, no skipped heading level, title, language, skip link; WCAG 2.2 AA scan; no sideways scroll at 360, 390, 430, 768, 1024, 1280 and 1440 px. Canonical addresses on the confirmed domain, share image, sitemap, robots, structured data. No broken internal link. Phone, email, map and Instagram links. Address, hours and breakfast on the page and in the footer. ORDER ONLINE stays on-site while no Clover link exists. The menu's "unavailable" state. Careers with applications off: 18 roles, no form, no upload field. Skip link, focus ring, phone navigation dialog, tap-target sizes. A Google map of the address on the home and Locations pages, beside the details on a laptop and below them on a phone (the tests answer for Google with an empty page, so they do not depend on it). **The only image files in the build are the logo, the icon, the leaf, the generated share image and the placeholder photos named in the content file.** |
-| `tests/browser/sample.spec.js` | 19 | Sample build | What needs data to exist: the rendered menu (prices, out-of-stock, market price, options, category chips), the home page's category tiles and featured dishes, photo hero, gallery viewer with keyboard, and the application form: labels, validation, file-type refusal, a successful send (request intercepted and inspected), server validation errors, network failure, server failure. |
-| `tests/browser/dashboard.spec.js` | 43 | Sample build, dashboard in **demo mode** | Sign-out and sign-in, password reset, overview, item list (search, filters, sorting, stock and visibility switches, archive with confirmation, bulk actions), item editor (source labels, live preview, unsaved-changes guard, save, validation, create, duplicate, missing item), categories (reorder, undo, add, rename, hide, archive), modifiers, Clover page, activity log, WCAG 2.2 AA scan of every screen, phone layout, no sideways scroll at the same seven widths. |
+| `tests/browser/sample.spec.js` | 19 | Sample build | What needs data to exist: the rendered menu (prices, out-of-stock, market price, options, category chips), the home page's category tiles and featured dishes, photo hero, gallery viewer with keyboard, and the application form: labels, validation, file-type refusal, a successful send (request intercepted and inspected), server validation errors, network failure, server failure. **Photos chosen in the dashboard** (the test answers in the backend's place): the hero, the story photo, the home row and the whole gallery are replaced, the viewer walks the owner's photos, and the built photos stay where nothing was chosen or the answer is an error. |
+| `tests/browser/dashboard.spec.js` | 43 | Sample build, dashboard in **demo mode** | Sign-out and sign-in, password reset, overview, item list (search, filters, sorting, stock and visibility switches, archive with confirmation, bulk actions), item editor (source labels, live preview, unsaved-changes guard, save, validation, create, duplicate, missing item), categories (reorder, undo, add, rename, hide, archive), modifiers, Clover page, activity log, WCAG 2.2 AA scan of every screen, phone layout, no sideways scroll at the same seven widths. **Website photos:** the starting photos shown, a real JPEG chosen and resized in the browser (two sizes, real dimensions, nothing of the file's own name sent), description, back to the starting photo, a gallery built from several files, reordered by keyboard, described and trimmed, and a file that is not a photo refused. |
 
 **What the dashboard browser tests do and do not prove.** Demo mode replaces Supabase Auth
 and the dashboard API with an in-memory stand-in. So these tests prove the interface: what

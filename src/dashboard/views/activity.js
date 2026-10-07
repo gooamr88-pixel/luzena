@@ -12,8 +12,12 @@ const LABELS = {
   SYNC_STARTED: "Sync started", SYNC_COMPLETED: "Sync completed", SYNC_FAILED: "Sync failed",
   APPLICATION_STATUS_CHANGED: "Job application status changed", APPLICATION_CV_DOWNLOADED: "Job application CV downloaded",
   APPLICATION_DELETED: "Job application deleted",
+  SITE_PHOTO_SET: "Website photo changed", SITE_PHOTO_REMOVED: "Website photo removed",
   CLOVER_CONNECTED: "Clover connected", CLOVER_DISCONNECTED: "Clover disconnected", CLOVER_CONNECT_FAILED: "Clover connection failed",
 };
+
+// Where on the website a photo is, as the Photos page names it.
+const PHOTO_SLOTS = { hero: "Home page photo", story: "Our story photo", gallery: "Gallery photo" };
 
 export function actionLabel(action) {
   if (LABELS[action]) return LABELS[action];
@@ -54,7 +58,9 @@ export async function activityView(outlet) {
               // The log names no applicant. The link opens the application for those allowed to read it.
               : entry.entity_type === "application" && entry.entity_id && entry.action !== "APPLICATION_DELETED"
                 ? h("a", { href: `#/applications/${entry.entity_id}`, class: "hover:underline" }, "Open application")
-                : entry.entity_id ?? ""),
+                : entry.entity_type === "site_photo"
+                  ? h("a", { href: "#/photos", class: "hover:underline" }, PHOTO_SLOTS[entry.entity_id] ?? "Website photos")
+                  : entry.entity_id ?? ""),
             h("td", {}, resultBadge(entry.result)),
             h("td", { class: "text-muted" }, entry.sync_status ?? "")))))),
       hasMore && h("div", { class: "mt-4 text-center" }, more));

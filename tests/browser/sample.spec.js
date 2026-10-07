@@ -189,6 +189,102 @@ describe("gallery viewer", () => {
   });
 });
 
+// The owner's own photos, chosen in the dashboard. The pages ask the backend which photos to
+// show; here the test answers that question in the backend's place.
+describe("photos the owner has chosen in the dashboard", () => {
+  // Files that the sample build is known to contain, standing in for the owner's uploads.
+  const photo = (name, alt) => ({
+    src: `/media/${name}-800.jpg`, srcset: `/media/${name}-480.jpg 480w, /media/${name}-800.jpg 800w`,
+    width: 800, height: 600, alt,
+  });
+  const chosen = {
+    hero: photo("team", "The owner's own hero photo"),
+    story: photo("location", "The owner's own story photo"),
+    gallery: ["gallery-1", "gallery-2", "gallery-6", "team", "location", "hero", "gallery-1", "gallery-2", "gallery-6"]
+      .map((name, index) => photo(name, `Owner photo ${index + 1}`)),
+  };
+  const answerWith = (photos, status = 200) => (context) => context.route("**/sample-api/site.json", (route) =>
+    route.fulfill({ status, contentType: "application/json", body: JSON.stringify({ version: 1, photos }) }));
+
+  it("replaces the hero, the story photo and the home page's row of photos", async () => {
+    const { page, context, problems } = await openPage(browser, `${site.url}/`, { prepare: answerWith(chosen) });
+    await page.waitForSelector('[data-site-photo="hero"][data-photo-ready]');
+
+    const hero = page.locator('[data-site-photo="hero"] picture');
+    // The built photo's sources are gone: a browser would have gone on preferring them.
+    expect(await hero.locator("source").count()).toBe(0);
+    expect(await hero.locator("img").getAttribute("src")).toBe("/media/team-800.jpg");
+    expect(await hero.locator("img").getAttribute("alt")).toBe("The owner's own hero photo");
+    await page.waitForFunction(() => getComputedStyle(document.querySelector('[data-site-photo="hero"] picture img')).opacity === "1");
+
+    const story = page.locator('[data-site-photo="story"] picture');
+    expect(await story.locator("source").count()).toBe(0);
+    expect(await story.locator("img").getAttribute("src")).toBe("/media/location-800.jpg");
+
+    // Nine photos in the gallery; the home page shows the first eight, each a link to it.
+    const strip = page.locator('[data-site-gallery="strip"] > li');
+    expect(await strip.count()).toBe(8);
+    expect(await strip.first().locator("img").getAttribute("alt")).toBe("Owner photo 1");
+    expect(await strip.first().locator("a").getAttribute("href")).toBe("/gallery/");
+
+    const violations = await accessibilityViolations(page);
+    expect(violations, describeViolations(violations)).toEqual([]);
+    expect(problems).toEqual([]);
+    await context.close();
+  });
+
+  it("replaces the story photo on the About page", async () => {
+    const { page, context, problems } = await openPage(browser, `${site.url}/about/`, { prepare: answerWith(chosen) });
+    await page.waitForFunction(() => document.querySelector('[data-site-photo="story"] img')?.getAttribute("src") === "/media/location-800.jpg");
+    expect(await page.locator('[data-site-photo="story"] img').getAttribute("alt")).toBe("The owner's own story photo");
+    expect(problems).toEqual([]);
+    await context.close();
+  });
+
+  it("replaces the whole gallery, and the viewer walks through the owner's photos", async () => {
+    const { page, context, problems } = await openPage(browser, `${site.url}/gallery/`, { prepare: answerWith(chosen) });
+    await page.waitForFunction(() => document.querySelectorAll("[data-gallery-open]").length === 9);
+    const images = await page.evaluate(() => [...document.querySelectorAll("[data-gallery] img")].map((img) => ({
+      alt: img.alt, width: img.getAttribute("width"), height: img.getAttribute("height"),
+    })));
+    expect(images.every((img) => img.alt && img.width === "800" && img.height === "600")).toBe(true);
+
+    await page.locator("[data-gallery-open]").nth(8).click();
+    expect(await page.locator("[data-lightbox-count]").innerText()).toBe("Photo 9 of 9");
+    expect(await page.locator("[data-lightbox-caption]").innerText()).toBe("Owner photo 9");
+    await page.keyboard.press("ArrowRight");
+    expect(await page.locator("[data-lightbox-count]").innerText()).toBe("Photo 1 of 9");
+    expect(await page.locator("[data-lightbox-stage] img").getAttribute("src")).toBe("/media/gallery-1-800.jpg");
+
+    const violations = await accessibilityViolations(page);
+    expect(violations, describeViolations(violations)).toEqual([]);
+    expect(problems).toEqual([]);
+    await context.close();
+  });
+
+  it("keeps the photos the site was built with when only some have been chosen", async () => {
+    const { page, context } = await openPage(browser, `${site.url}/`, {
+      prepare: answerWith({ hero: null, story: photo("location", "Only the story"), gallery: [] }),
+    });
+    await page.waitForSelector('[data-site-photo="hero"][data-photo-ready]');
+    expect(await page.locator('[data-site-photo="hero"] picture source').count()).toBeGreaterThan(0);
+    expect(await page.locator('[data-site-photo="story"] img').getAttribute("alt")).toBe("Only the story");
+    expect(await page.locator('[data-site-gallery="strip"] > li').count()).toBe(6);
+    await context.close();
+  });
+
+  it("keeps every built photo, and still shows the hero, when the answer is an error", async () => {
+    const { page, context, problems } = await openPage(browser, `${site.url}/`, {
+      prepare: answerWith(null, 503), allowRequestFailures: [/sample-api\/site\.json/, /status of 503/],
+    });
+    await page.waitForSelector('[data-site-photo="hero"][data-photo-ready]');
+    expect(await page.locator('[data-site-photo="hero"] picture source').count()).toBeGreaterThan(0);
+    expect(await page.locator('[data-site-gallery="strip"] > li').count()).toBe(6);
+    expect(problems).toEqual([]);
+    await context.close();
+  });
+});
+
 describe("job application form (applications switched on)", () => {
   const API = "https://e2e-project.supabase.co/functions/v1/job-application";
 

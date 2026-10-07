@@ -18,7 +18,7 @@
     "check:content": "node scripts/check-content.js",
     "lint": "eslint .",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "check:deno": "deno check supabase/functions/dashboard-api/index.ts supabase/functions/public-menu/index.ts supabase/functions/job-application/index.ts supabase/functions/clover-webhook/index.ts && node scripts/deno-smoke.mjs",
+    "check:deno": "deno check supabase/functions/dashboard-api/index.ts supabase/functions/public-menu/index.ts supabase/functions/public-site/index.ts supabase/functions/job-application/index.ts supabase/functions/clover-webhook/index.ts && node scripts/deno-smoke.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "build:e2e": "vite build --outDir .cache/e2e/production --emptyOutDir && cross-env CONTENT_PROFILE=sample VITE_DASHBOARD_DEMO=1 VITE_SUPABASE_URL=https://e2e-project.supabase.co vite build --outDir .cache/e2e/demo --emptyOutDir",

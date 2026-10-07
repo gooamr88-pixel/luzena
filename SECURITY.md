@@ -10,7 +10,7 @@ a real browser under the production security headers. Nothing has talked to Clov
 **One part has been verified on a real Supabase project.** On 2026-10-05 the migrations were
 applied to the TEST/STAGING project (`cgxhifkeoesvsycewwfs`) and the database controls were
 checked there with `npm run verify:database`, by query and by acting as each role: row
-level security on all 17 tables, no policies, no privilege for `anon` or `authenticated` on
+level security on all 18 tables, no policies, no privilege for `anon` or `authenticated` on
 any table, sequence or function, new objects closed by default, `cvs` bucket private, no
 storage policies, and the backend's role able to do its work (30 checks). The functions are
 not deployed there yet, so the API-level controls have not been checked on real
@@ -32,7 +32,7 @@ but only the owner should have an account. Switch off "Allow new users to sign u
 
 | Area | Verdict | Evidence |
 |---|---|---|
-| Row level security | Enabled on all 17 tables, no policies, every privilege on tables, sequences and functions revoked from `anon` and `authenticated`, and new objects closed by default | `sql.test.js` "access control at the database"; `npm run verify:database` on the test project 2026-10-05 |
+| Row level security | Enabled on all 18 tables, no policies, every privilege on tables, sequences and functions revoked from `anon` and `authenticated`, and new objects closed by default | `sql.test.js` "access control at the database"; `npm run verify:database` on the test project 2026-10-05 |
 | Tenant isolation | Enforced at the API, in every SQL function, and by privileges | `sql.test.js` "tenant isolation"; `dashboard.test.js` "never serves one restaurant's items to another restaurant's owner" |
 | Authentication | Supabase Auth JWT verified on every dashboard request; no custom password code | `dashboard.test.js` "rejects a request with no session", "rejects an invalid session token"; Deno smoke "refuses a forged token" |
 | Authorisation | Role checked on the server per route; staff cannot write | `dashboard.test.js` "enforces roles on the server" |
@@ -166,6 +166,16 @@ before any Clover call. Unknown fields in a request body are rejected, so
 from bytes (JPEG, PNG, WebP; SVG refused); path built from tenant id, item id and a content
 hash. The dashboard re-encodes photos in the browser first, which also strips EXIF location
 data, but the server does not rely on that.
+
+**Website photos** (`dashboard-api`, hero, "our story" and gallery): signed-in users with
+`site.manage` only (owner and manager); the same checks as item photos, on each of the two
+sizes sent; path built from tenant id, slot and a content hash, never from the file's name;
+at most 24 gallery photos. The files are public, as the photos on a public website are. The
+public endpoint that lists them (`public-site`) is read-only, rate limited, answers only the
+site's own origin with CORS, and gives addresses, descriptions and sizes: no row id, no
+storage path, nothing about who uploaded a photo or when. The description an owner types is
+put on the page as an attribute and as text, never as markup. Proven by
+`tests/site-photos.test.js` and the "website photos" browser tests.
 
 **Not covered:** no antivirus scan. The active-content check does not see inside compressed
 PDF streams. Whoever downloads a CV from the dashboard should treat it like any file from a

@@ -257,8 +257,13 @@ Not a blocker, but now more pressing. Since 2026-10-06, by instruction, the site
 placeholder photos until the real ones arrive: the hero, "our story", the gallery, and the
 home page's category tiles and dish cards. They are stock photos from the design template.
 They do not show this restaurant or its food, and whether they may be published was never
-checked (`content/media/README.md`). Each real photo replaces one: file into
-`content/media/`, name into `content/site.json`, redeploy.
+checked (`content/media/README.md`).
+
+Since 2026-10-07 the owner can replace the hero, the "our story" photo and the gallery
+**from the dashboard's Photos page**, with no deployment (`docs/CONFIGURATION.md` section 6).
+The category tiles and dish cards take each dish's own photo from the item editor. The
+location photo, the link preview image and the default dish photos are still replaced in the
+repository: file into `content/media/`, name into `content/site.json`, redeploy.
 
 ### N-2. Approval of the written text — NON-BLOCKING · CLIENT INPUT
 

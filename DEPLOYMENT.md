@@ -24,7 +24,7 @@ GitHub (github.com/gooamr88-pixel/luzena, public by the client's decision)
 Hostinger VPS: Nginx serves the built website files for luzenarestaurant.com
    |  nothing is proxied: the visitor's browser calls the backend directly
    v
-Supabase PRODUCTION, N. California: four Edge Functions, Postgres, Storage, Auth
+Supabase PRODUCTION, N. California: five Edge Functions, Postgres, Storage, Auth
    |  only the Edge Functions hold credentials or talk to Clover
    v
 Clover PRODUCTION (only after the sandbox plan has passed)
@@ -33,7 +33,7 @@ Clover PRODUCTION (only after the sandbox plan has passed)
 | Part | Where it runs | Deployed with | From |
 |---|---|---|---|
 | Website and dashboard (static files) | Nginx on the Hostinger VPS | `deploy/deploy.sh`, on the VPS | GitHub |
-| Backend (four Edge Functions) | Supabase | `supabase functions deploy ... --project-ref <ref>` | this machine |
+| Backend (five Edge Functions) | Supabase | `supabase functions deploy ... --project-ref <ref>` | this machine |
 | Database | Supabase | `supabase db push` | this machine |
 | Test site | this machine, `http://localhost:4173` | `npm run build:staging` | this folder |
 
@@ -44,7 +44,7 @@ Three things follow from this and are worth keeping in mind:
   and the email key exist only as Supabase function secrets.
 - **The VPS runs none of our code at request time.** It serves files. If it is slow or
   down, the site is; nothing about the menu, the dashboard's data or Clover lives there.
-- **TEST and PRODUCTION behave the same**, because the backend is the same four functions
+- **TEST and PRODUCTION behave the same**, because the backend is the same five functions
   on Supabase in both.
 
 ## 0. What you need
@@ -72,7 +72,7 @@ policy. That is deliberate: it makes it impossible to publish the sample content
 
 ```bash
 supabase db push --db-url "<connection string>"      # applies supabase/migrations/
-supabase functions deploy dashboard-api public-menu job-application clover-webhook --project-ref <ref> --use-api
+supabase functions deploy dashboard-api public-menu public-site job-application clover-webhook --project-ref <ref> --use-api
 ```
 
 There are two projects, so `supabase link` is not used here: it would make one of them the
@@ -102,7 +102,7 @@ Then:
 Check: `curl "https://<ref>.supabase.co/functions/v1/public-menu?restaurant=<slug>"` returns
 HTTP 503 with "Menu temporarily unavailable" (correct before Clover is connected). A 404
 means the slug does not match. `npm run verify:functions` runs this and the rest of the
-outside checks on all four functions.
+outside checks on all five functions.
 
 ## 3. The test site
 

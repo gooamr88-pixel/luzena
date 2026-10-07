@@ -7,6 +7,7 @@
 // file talks to a real Supabase project or to Clover.
 //
 // Every test opens a fresh page, so the demo data starts from the same state each time.
+import sharp from "sharp";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   accessibilityViolations, describeViolations, hasHorizontalOverflow, launchBrowser, openPage, serveBuild, VIEWPORT_WIDTHS,
@@ -746,9 +747,192 @@ describe("job applications", () => {
   });
 });
 
+// The website's own photos. In demo mode a chosen photo is resized in the browser exactly
+// as it will be for real, and then shown from the browser's memory instead of being uploaded.
+describe("website photos", () => {
+  let wide, tall;
+  const section = (page, slot) => page.locator(`section[aria-labelledby="photos-${slot}"]`);
+  const order = (page) => page.evaluate(() =>
+    [...document.querySelectorAll('[data-move$=":earlier"]')].map((button) => button.dataset.move.split(":")[0]));
+
+  beforeAll(async () => {
+    const picture = (width, height, background) => sharp({ create: { width, height, channels: 3, background } }).jpeg().toBuffer();
+    wide = { name: "IMG_2041.jpg", mimeType: "image/jpeg", buffer: await picture(2400, 1500, "#b98a4e") };
+    tall = { name: "IMG_2042.jpg", mimeType: "image/jpeg", buffer: await picture(900, 1200, "#3e5a47") };
+  });
+
+  it("opens from the sidebar showing the photos the website started with", async () => {
+    const { page, context, problems } = await dashboard();
+    await page.locator('aside a[data-nav="#/photos"]').click();
+    await page.waitForSelector("#photo-gallery");
+    expect(await page.locator("main#main h1").innerText()).toBe("Website photos");
+    expect(await page.locator('aside a[data-nav="#/photos"]').getAttribute("aria-current")).toBe("page");
+
+    for (const slot of ["hero", "story"]) {
+      expect(await section(page, slot).locator(".d-badge").innerText()).toBe("Starting photo");
+      expect(await section(page, slot).locator(".d-photo-frame img").getAttribute("src")).toMatch(/^\/media\/.+\.jpg$/);
+      expect(await section(page, slot).getByText("Choose a photo").count()).toBe(1);
+    }
+    expect(await section(page, "gallery").innerText()).toContain("0 of 24");
+    expect(await section(page, "gallery").innerText()).toContain("showing the photos the website started with");
+    expect(await section(page, "gallery").locator(".d-photo-frame img").count()).toBe(6);
+    // Every starting photo is a file that is really there.
+    const broken = await page.evaluate(async () => {
+      const failed = [];
+      await Promise.all([...document.querySelectorAll("main#main img")].map(async (image) => {
+        image.loading = "eager";
+        await image.decode().catch(() => failed.push(image.getAttribute("src")));
+      }));
+      return failed;
+    });
+    expect(broken).toEqual([]);
+    expect(problems).toEqual([]);
+    await context.close();
+  });
+
+  it("replaces the home page photo, asks for a description, and goes back to the starting photo", async () => {
+    const { page, context, problems } = await dashboard("#/photos");
+    await page.waitForSelector("#photo-hero");
+    await page.setInputFiles("#photo-hero", wide);
+    await page.waitForSelector('section[aria-labelledby="photos-hero"] .d-badge-ok');
+
+    const hero = section(page, "hero");
+    expect(await hero.locator(".d-badge-ok").innerText()).toBe("Your photo");
+    expect(await hero.locator(".d-photo-frame img").getAttribute("src")).toMatch(/^blob:/);
+    expect(await hero.getByText("Replace photo").count()).toBe(1);
+    // The story photo is untouched.
+    expect(await section(page, "story").locator(".d-badge").innerText()).toBe("Starting photo");
+
+    // A new photo has no description yet, and says so.
+    expect(await hero.locator("label.d-label").innerText()).toMatch(/Description\s*Missing/);
+    const save = hero.getByRole("button", { name: "Save" });
+    expect(await save.isDisabled()).toBe(true);
+    await page.fill("#alt-hero", "The dining room at dusk");
+    await save.click();
+    await page.waitForFunction(() => !document.querySelector('section[aria-labelledby="photos-hero"] label.d-label .d-badge'));
+    expect(await page.inputValue("#alt-hero")).toBe("The dining room at dusk");
+    expect(await hero.locator(".d-photo-frame img").getAttribute("alt")).toBe("The dining room at dusk");
+
+    // The change is in the activity log, by where the photo is and not by a file's name.
+    await page.locator('aside a[data-nav="#/activity"]').click();
+    await page.waitForSelector("table.d-table tbody tr");
+    expect(await rows(page).first().innerText()).toMatch(/Website photo changed\s+Home page photo/);
+    await page.locator('aside a[data-nav="#/photos"]').click();
+    await page.waitForSelector("#alt-hero");
+
+    await section(page, "hero").getByRole("button", { name: "Use the starting photo" }).click();
+    expect(await dialog(page).innerText()).toContain("Go back to the starting photo?");
+    expect(await page.evaluate(() => document.activeElement.textContent)).toBe("Cancel");
+    await dialog(page).getByRole("button", { name: "Remove my photo" }).click();
+    await page.waitForFunction(() =>
+      document.querySelector('section[aria-labelledby="photos-hero"] .d-badge')?.textContent === "Starting photo");
+    expect(await section(page, "hero").locator(".d-photo-frame img").getAttribute("src")).toMatch(/^\/media\//);
+    expect(await page.locator("#alt-hero").count()).toBe(0);
+    expect(problems).toEqual([]);
+    await context.close();
+  });
+
+  it("sends a photo in two sizes with its real dimensions, and nothing of the file's own name", async () => {
+    const { page, context } = await dashboard("#/photos");
+    await page.waitForSelector("#photo-story");
+    // What the page hands to the API, read before the demo answers.
+    await page.evaluate(() => {
+      const append = FormData.prototype.append;
+      window.sent = {};
+      FormData.prototype.append = function (name, value, ...rest) {
+        window.sent[name] = value instanceof File ? { name: value.name, type: value.type, size: value.size } : value;
+        return append.call(this, name, value, ...rest);
+      };
+    });
+    await page.setInputFiles("#photo-story", wide);
+    await page.waitForSelector('section[aria-labelledby="photos-story"] .d-badge-ok');
+    const sent = await page.evaluate(() => window.sent);
+    expect(sent.slot).toBe("story");
+    // 2400 x 1500 becomes 1600 x 1000, with a 640-wide copy for phones.
+    expect([sent.width, sent.height, sent.small_width]).toEqual(["1600", "1000", "640"]);
+    expect(sent.file.name).toMatch(/^photo\.(webp|jpg)$/);
+    expect(sent.file_small.name).toMatch(/^photo-small\.(webp|jpg)$/);
+    expect(sent.file.size).toBeLessThanOrEqual(1024 * 1024);
+    expect(JSON.stringify(sent)).not.toContain("IMG_2041");
+    await context.close();
+  });
+
+  it("builds a gallery: several photos at once, reordered, described and removed", async () => {
+    const { page, context, problems } = await dashboard("#/photos");
+    await page.waitForSelector("#photo-gallery");
+    await page.setInputFiles("#photo-gallery", [wide, tall, { ...wide, name: "third.jpg" }]);
+    await page.waitForFunction(() => document.querySelectorAll('section[aria-labelledby="photos-gallery"] ol > li').length === 3);
+
+    const gallery = section(page, "gallery");
+    expect(await gallery.innerText()).toContain("3 of 24");
+    // The starting photos are no longer offered: the owner's gallery takes their place.
+    expect(await gallery.innerText()).not.toContain("started with");
+    expect(await gallery.getByRole("button", { name: "Move photo 1 earlier" }).isDisabled()).toBe(true);
+    expect(await gallery.getByRole("button", { name: "Move photo 3 later" }).isDisabled()).toBe(true);
+
+    const before = await order(page);
+    await gallery.getByRole("button", { name: "Move photo 3 earlier" }).click();
+    await page.waitForFunction((moved) => document.querySelectorAll('[data-move$=":earlier"]')[1]?.dataset.move.startsWith(moved), before[2]);
+    expect(await order(page)).toEqual([before[0], before[2], before[1]]);
+    // The keyboard stays on the photo that moved.
+    expect(await page.evaluate(() => document.activeElement.dataset.move)).toBe(`${before[2]}:earlier`);
+    await page.keyboard.press("Enter");
+    await page.waitForFunction((moved) => document.querySelector('[data-move$=":earlier"]')?.dataset.move.startsWith(moved), before[2]);
+    // It is first now, so "earlier" is switched off and the focus is on "later".
+    expect(await page.evaluate(() => document.activeElement.dataset.move)).toBe(`${before[2]}:later`);
+
+    await page.fill(`#alt-${before[2]}`, "Grilled chicken with rice");
+    await gallery.locator("ol > li").first().getByRole("button", { name: "Save" }).click();
+    await page.waitForFunction(() => document.querySelector('section[aria-labelledby="photos-gallery"] ol img').alt === "Grilled chicken with rice");
+
+    const violations = await accessibilityViolations(page);
+    expect(violations, describeViolations(violations)).toEqual([]);
+
+    await gallery.getByRole("button", { name: "Remove photo 2" }).click();
+    expect(await dialog(page).innerText()).toContain("Remove this photo from the gallery?");
+    await dialog(page).getByRole("button", { name: "Remove photo" }).click();
+    await page.waitForFunction(() => document.querySelectorAll('section[aria-labelledby="photos-gallery"] ol > li').length === 2);
+    expect(await order(page)).toEqual([before[2], before[1]]);
+    expect(await gallery.innerText()).toContain("2 of 24");
+    expect(problems).toEqual([]);
+    await context.close();
+  });
+
+  it("refuses a file that is not a photo and changes nothing", async () => {
+    const { page, context } = await dashboard("#/photos");
+    await page.waitForSelector("#photo-hero");
+    await page.setInputFiles("#photo-hero", { name: "notes.png", mimeType: "image/png", buffer: Buffer.from("This is not a photo.") });
+    await page.waitForSelector('#toasts [role="alert"]');
+    expect(await toast(page).innerText()).toBe("This file could not be read as a photo.");
+    expect(await section(page, "hero").locator(".d-badge").innerText()).toBe("Starting photo");
+    // The button is ready for another try.
+    expect(await page.locator("#photo-hero").isDisabled()).toBe(false);
+    expect(await section(page, "hero").getByText("Choose a photo").count()).toBe(1);
+    await context.close();
+  });
+
+  it("fits a phone with photos in the gallery, with controls big enough for a thumb", async () => {
+    const { page, context } = await dashboard("#/photos", { width: 360, height: 800 });
+    await page.waitForSelector("#photo-gallery");
+    await page.setInputFiles("#photo-gallery", [wide, tall]);
+    await page.waitForFunction(() => document.querySelectorAll('section[aria-labelledby="photos-gallery"] ol > li').length === 2);
+    for (const width of [360, 390, 768]) {
+      await page.setViewportSize({ width, height: 800 });
+      await page.waitForTimeout(300);
+      expect(await hasHorizontalOverflow(page), `${width}px`).toBe(false);
+    }
+    const small = await page.evaluate(() =>
+      [...document.querySelectorAll("main#main button, main#main label.d-btn, main#main input[type=text]")]
+        .filter((node) => node.getClientRects().length > 0 && node.getBoundingClientRect().height < 36).length);
+    expect(small).toBe(0);
+    await context.close();
+  });
+});
+
 describe("accessibility of each dashboard screen", () => {
   it.each([
     ["overview", "#/", 'a[href="#/items"]'],
+    ["photos", "#/photos", "#photo-gallery"],
     ["applications", "#/applications", "table.d-table tbody tr"],
     ["an application", "#/applications/00000000-0000-4000-8000-000000000004", "#application-status"],
     ["items", "#/items", "table.d-table tbody tr"],
@@ -826,6 +1010,7 @@ describe("on a phone", () => {
     ["overview", "#/"], ["items", "#/items"], ["item editor", "#/items/SAMPLEITEM005"], ["new item", "#/items/new"],
     ["categories", "#/categories"], ["modifiers", "#/modifiers"], ["Clover", "#/clover"], ["activity", "#/activity"],
     ["applications", "#/applications"], ["an application", "#/applications/00000000-0000-4000-8000-000000000004"],
+    ["photos", "#/photos"],
   ])("%s fits every screen width from 360px to 1440px without sideways scrolling", async (_name, hash) => {
     const { page, context } = await dashboard(hash, { width: 360, height: 800 });
     for (const width of VIEWPORT_WIDTHS) {

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-site-url="{{build.siteUrl}}">
 <head>
   {{> head}}
 </head>
@@ -25,7 +25,7 @@
         </div>
 
         {{#if site.about.image}}
-        <div class="media aspect-[4/5] lg:sticky lg:top-32">
+        <div class="media aspect-[4/5] lg:sticky lg:top-32" data-site-photo="story">
           {{picture site.about.image alt=site.about.imageAlt sizes="(min-width: 1024px) 36rem, 100vw" class="size-full object-cover" loading="eager"}}
         </div>
         {{else}}{{#if site.logo}}
@@ -77,5 +77,6 @@
 
   {{> footer}}
   <script type="module" src="/src/js/main.js"></script>
+  {{#if site.about.image}}<script type="module" src="/src/js/site-media.js"></script>{{/if}}
 </body>
 </html>

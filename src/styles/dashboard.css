@@ -144,6 +144,16 @@
     @apply transition-[box-shadow,border-color] duration-200 hover:border-gold hover:shadow-lift;
   }
 
+  /* A photo shown at a fixed shape (the aspect ratio is set where it is used), cropped the
+     way the website crops it. */
+  .d-photo-frame {
+    @apply overflow-hidden rounded-lg border border-line bg-sand;
+  }
+
+  .d-photo-frame > img {
+    @apply size-full object-cover;
+  }
+
   /* The heading of a card or a dialog. */
   .d-title {
     @apply text-[1.05rem] leading-snug font-semibold text-text;

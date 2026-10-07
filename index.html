@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-menu-url="{{build.menuUrl}}" data-currency="{{site.currency}}" data-locale="{{site.locale}}">
+<html lang="en" data-menu-url="{{build.menuUrl}}" data-site-url="{{build.siteUrl}}" data-currency="{{site.currency}}" data-locale="{{site.locale}}">
 <head>
   {{> head}}
 </head>
@@ -17,7 +17,7 @@
     <!-- The hero lies under the site header. With a photo it is the photo behind a dark
          scrim; without one it is the same dark block with a warm glow and the logo's leaf.
          Either way the text is white on dark. -->
-    <section class="hero on-dark" aria-labelledby="hero-title">
+    <section class="hero on-dark"{{#if site.hero.image}} data-site-photo="hero"{{/if}} aria-labelledby="hero-title">
       {{#if site.hero.image}}
       {{picture site.hero.image alt=site.hero.imageAlt sizes="100vw" class="absolute inset-0 -z-20 size-full object-cover" loading="eager" fetchpriority="high"}}
       <div class="absolute inset-0 -z-10 bg-gradient-to-r from-night/90 via-night/65 to-night/25" aria-hidden="true"></div>
@@ -99,7 +99,7 @@
     {{#if site.about.image}}
     <!-- The photo runs to the left edge of the screen; the text column stays on the page grid. -->
     <section class="mt-14 grid sm:mt-20 lg:grid-cols-2" aria-labelledby="story-title">
-      <div class="relative min-h-[17rem] overflow-hidden bg-sand-deep sm:min-h-[24rem] lg:min-h-[33rem] lg:rounded-r-2xl">
+      <div class="relative min-h-[17rem] overflow-hidden bg-sand-deep sm:min-h-[24rem] lg:min-h-[33rem] lg:rounded-r-2xl" data-site-photo="story">
         {{picture site.about.image alt=site.about.imageAlt sizes="(min-width: 1024px) 50vw, 100vw" class="absolute inset-0 size-full object-cover"}}
       </div>
       <div class="self-center px-5 py-12 sm:px-8 sm:py-16 lg:py-12 lg:pr-[max(2rem,calc(100%-35.5rem))] lg:pl-16">
@@ -152,11 +152,15 @@
             <button type="button" class="round-button" data-strip-next><span class="sr-only">More photos</span>{{> icon name="arrow-right"}}</button>
           </div>
         </div>
-        <ul class="strip mt-6 sm:mt-8" data-strip>
+        <ul class="strip mt-6 sm:mt-8" data-strip data-site-gallery="strip">
           {{#each (first site.gallery 8)}}
           <li><a href="/gallery/" class="gallery-tile h-full">{{picture image alt=alt sizes="(min-width: 1024px) 18rem, (min-width: 640px) 40vw, 72vw" class=""}}</a></li>
           {{/each}}
         </ul>
+        <!-- One photo of the owner's own gallery, for site-media.js to fill in. -->
+        <template data-gallery-template>
+          <li><a href="/gallery/" class="gallery-tile h-full"><picture><img alt="" loading="lazy" decoding="async" sizes="(min-width: 1024px) 18rem, (min-width: 640px) 40vw, 72vw"></picture></a></li>
+        </template>
         <a href="/gallery/" class="arrow-link mt-4">View All Photos{{> icon name="arrow-right"}}</a>
       </div>
     </section>
@@ -224,6 +228,7 @@
   {{> footer}}
   <script type="module" src="/src/js/main.js"></script>
   <script type="module" src="/src/js/featured.js"></script>
+  <script type="module" src="/src/js/site-media.js"></script>
   {{#if site.hasGallery}}<script type="module" src="/src/js/strip.js"></script>{{/if}}
 </body>
 </html>

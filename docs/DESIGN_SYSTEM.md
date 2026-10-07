@@ -243,6 +243,8 @@ Inside `.d-dark` (sidebar, drawer, sign-in screen) `text`, `muted`, `line`, `bra
 | Sign-in (`.d-auth`) | The public site's dark hero (glow and leaf) with the logo in white over a white card |
 | Filter pills (`.d-pills`, `.d-pill`) | A row of buttons with a count in each; the one in force is filled with `night`. Scrolls sideways on a phone. Used for the stages of job applications. |
 | Timeline (`.d-timeline`) | What happened to something, newest first: gold dots joined by a hairline. Used for an application's history. |
+| Photo frame (`.d-photo-frame`) | A photo at a fixed shape, cropped as the website crops it; the shape is an aspect-ratio class where it is used (16:9 for the hero, 4:3 elsewhere). Used on the Photos page, with a "Your photo" or "Starting photo" badge beside the heading. |
+| File button | A `label.d-btn` for a visually hidden `<input type="file">` placed just before it (`peer`), so the button reads in English in every browser and takes the focus ring. Used for "Choose a photo", "Replace photo" and "Add photos". |
 | Sidebar count (`.d-nav-count`) | A gold number beside a sidebar link: how many are waiting. Used for new applications. |
 | Stage badges | An application's stage: New (blue), Reviewing (amber), Shortlisted and Interview (`.d-badge-accent`, gold: going well, not finished), Hired (green), Rejected (plain) |
 | Also | `.d-icon-btn`, `.d-badge-*`, `.d-alert-*`, `.d-switch`, `.d-nav-link`, `.d-dialog`, `.d-drawer`, `.d-skeleton`, `.d-source` |

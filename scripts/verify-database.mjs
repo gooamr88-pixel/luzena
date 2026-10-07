@@ -15,7 +15,7 @@ import { fileURLToPath } from "node:url";
 import pg from "pg";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const EXPECTED_TABLES = 17;
+const EXPECTED_TABLES = 18;
 const migrations = readdirSync(join(ROOT, "supabase", "migrations"))
   .filter((name) => /^\d{14}_.+\.sql$/.test(name)).map((name) => name.slice(0, 14)).sort();
 

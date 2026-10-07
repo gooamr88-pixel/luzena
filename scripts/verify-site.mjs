@@ -152,6 +152,15 @@ const CHECKS = [
     const wanted = `${expectedSupabase}/functions/v1/public-menu?restaurant=${site.restaurantSlug}`;
     return url === wanted ? null : `data-menu-url is "${url}". The site was built with a different or missing VITE_SUPABASE_URL.`;
   }],
+  ["the home, about and gallery pages ask the expected project for the owner's photos", async () => {
+    const wanted = `${expectedSupabase}/functions/v1/public-site?restaurant=${site.restaurantSlug}`;
+    for (const path of ["/", "/about/", "/gallery/"]) {
+      const r = await get(`${base}${path}`);
+      const url = (r.text.match(/data-site-url="([^"]*)"/)?.[1] ?? "").replace(/&#x3D;/gi, "=").replace(/&amp;/g, "&");
+      if (url !== wanted) return `${path}: data-site-url is "${url}"`;
+    }
+    return null;
+  }],
   ["ORDER ONLINE goes where it should", async () => {
     const r = await get(`${base}/`);
     const cloverLinks = [...new Set(r.text.match(/href="https:\/\/[^"]*clover\.com[^"]*"/g) ?? [])];
@@ -210,6 +219,13 @@ const CHECKS = [
     const r = await get(`${expectedSupabase}/functions/v1/public-menu?restaurant=${site.restaurantSlug}`, { headers: { origin } });
     // 503 is right until Clover is connected: the page then says the menu is unavailable.
     return r.status === 200 || r.status === 503 ? null : `HTTP ${r.status} ${r.text.replace(/\s+/g, " ").slice(0, 100)}`;
+  }],
+  ["the backend answers with the website's photos", async () => {
+    const r = await get(`${expectedSupabase}/functions/v1/public-site?restaurant=${site.restaurantSlug}`, { headers: { origin } });
+    let photos = null;
+    try { photos = JSON.parse(r.text)?.photos; } catch { /* not JSON */ }
+    if (r.status !== 200 || !Array.isArray(photos?.gallery)) return `HTTP ${r.status} ${r.text.replace(/\s+/g, " ").slice(0, 100)}`;
+    return header(r, "access-control-allow-origin") === origin ? null : `${origin} is not in that project's ALLOWED_ORIGINS`;
   }],
   ["the dashboard API refuses a visitor who is not signed in", async () => {
     const r = await get(`${expectedSupabase}/functions/v1/dashboard-api/me`, { headers: { origin } });

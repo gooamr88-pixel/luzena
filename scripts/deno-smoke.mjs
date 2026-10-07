@@ -57,6 +57,24 @@ const FUNCTIONS = {
       return response.status === 405 ? null : `status ${response.status}`;
     }],
   ],
+  "public-site": [
+    ["answers a database outage with a safe message, so the page keeps its own photos", async () => {
+      const response = await fetch(`${base}/functions/v1/public-site?restaurant=luzena`, { headers: { origin: ORIGIN } });
+      const body = await json(response);
+      if (response.status !== 503) return `status ${response.status}`;
+      if (body?.error?.message !== "Not available.") return `body ${JSON.stringify(body)}`;
+      if (response.headers.get("access-control-allow-origin") !== ORIGIN) return "missing CORS header for the allowed origin";
+      return JSON.stringify(body).match(/127\.0\.0\.1|ECONN|stack|at /i) ? "response leaks internals" : null;
+    }],
+    ["rejects a malformed restaurant id without touching the database", async () => {
+      const response = await fetch(`${base}/functions/v1/public-site?restaurant=../x`);
+      return response.status === 404 ? null : `status ${response.status}`;
+    }],
+    ["refuses POST", async () => {
+      const response = await fetch(`${base}/functions/v1/public-site?restaurant=luzena`, { method: "POST" });
+      return response.status === 405 ? null : `status ${response.status}`;
+    }],
+  ],
   "job-application": [
     ["refuses a request with no allowed origin", async () => {
       const response = await fetch(`${base}/functions/v1/job-application`, { method: "POST", body: new FormData() });

@@ -87,8 +87,12 @@ export const launchBrowser = () => chromium.launch({ executablePath: findChromiu
 // Opens a page and records everything that should never happen on it: script errors,
 // console errors (which include Content-Security-Policy violations), failed requests and
 // error responses for sub-resources.
-export async function openPage(browser, url, { width = 1280, height = 900, allowRequestFailures = [] } = {}) {
+//
+// `prepare` is given the browser context before the page loads, for a test that answers a
+// request the page makes as it opens.
+export async function openPage(browser, url, { width = 1280, height = 900, allowRequestFailures = [], prepare } = {}) {
   const context = await browser.newContext({ viewport: { width, height } });
+  await prepare?.(context);
   // The map on the home and locations pages is Google's own page in a frame. The tests
   // answer for it with an empty page, so they check this site's markup and layout and do not
   // pass or fail with Google or with the network.

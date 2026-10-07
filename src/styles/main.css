@@ -304,6 +304,25 @@
     @apply relative isolate -mt-(--header-h) flex min-h-[min(46rem,100svh)] items-center overflow-hidden bg-night pt-(--header-h);
   }
 
+  /* The hero photo can be one the owner chose in the dashboard, which the page learns a
+     moment after it opens. It is held back until then, so nobody watches one photo turn
+     into another; site-media.js lets it in (data-photo-ready). If that script never runs,
+     the photo lets itself in after two seconds. */
+  .hero[data-site-photo] picture img {
+    opacity: 0;
+    animation: photo-reveal 0.4s ease 2s forwards;
+  }
+
+  .hero[data-site-photo][data-photo-ready] picture img {
+    opacity: 1;
+    animation: none;
+    transition: opacity 0.4s ease;
+  }
+
+  @keyframes photo-reveal {
+    to { opacity: 1; }
+  }
+
   /* Page header used by every inner page: one dark block with the site header above it. */
   .page-hero {
     @apply relative isolate overflow-hidden bg-night pt-12 pb-12 sm:pt-16 sm:pb-16;

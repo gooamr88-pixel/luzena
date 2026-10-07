@@ -12,11 +12,11 @@ labelled as such.
  PUBLIC WEBSITE (static files)              OWNER DASHBOARD (/dashboard/, static app)
     |          both served by Nginx on the Hostinger VPS, from one built folder
     |                                              |
-    |  GET public-menu                             |  Supabase Auth session (JWT)
+    |  GET public-menu, GET public-site            |  Supabase Auth session (JWT)
     |  POST job-application                        |  dashboard-api/*
     v                                              v
  +--------------------------- SUPABASE EDGE FUNCTIONS (Deno) ---------------------------+
- |  public-menu   job-application   clover-webhook   dashboard-api                      |
+ |  public-menu   public-site   job-application   clover-webhook   dashboard-api        |
  |  shared code: auth + tenant resolution, validation, Clover client, sync, audit      |
  +--------------------------------------------------------------------------------------+
         |  SQL functions only (service role)        |  HTTPS, OAuth bearer token
@@ -27,10 +27,12 @@ labelled as such.
 ```
 
 - The **public website** is static HTML built by Vite. Restaurant text, hours, address and
-  photos are compiled in from `content/site.json`. The only data loaded at runtime is the menu.
+  photos are compiled in from `content/site.json`. Two things are loaded at runtime: the menu,
+  and which photos the owner has chosen in the dashboard in place of the built ones (see
+  "Website photos" in section 5).
 - The **dashboard** is a separate single-page app under `/dashboard/`, with its own styles.
   It talks only to `dashboard-api`.
-- The **backend** is four Supabase Edge Functions. They are the only code that holds
+- The **backend** is five Supabase Edge Functions. They are the only code that holds
   credentials or talks to Clover or the database.
 - **Hosting** (decided by the client, 2026-10-05): the built website is served by Nginx on
   the client's existing Hostinger VPS, deployed from GitHub by `deploy/deploy.sh`. The VPS
@@ -192,6 +194,44 @@ with only the relevant keys present.
 | `GET /public-menu?restaurant=<slug>` | The menu customers may see. 200 with `{version, currency, synced_at, categories[]}`; 503 "Menu temporarily unavailable" before the first sync or on failure; 429 above 120 requests a minute from one address. Cacheable for 60 s. |
 | `POST /job-application` | `multipart/form-data`: `restaurant`, `submission_id`, `full_name`, `email`, `phone`, `position`, `employment_type`, `availability` (one or more), `start_when`, `experience_level`, `work_authorized`, `consent`, optional `experience`, `message` and `cv`, plus the bot-trap fields. 200, 422 with `fields`, 429, 503. Answers 503 `applications_closed` unless both `JOB_APPLICATIONS_ENABLED=true` and `JOB_APPLICATION_RETENTION_DAYS` are set. |
 | `POST /clover-webhook` | Clover's notifications. Authenticated by `X-Clover-Auth`. |
+| `GET /public-site?restaurant=<slug>` | The photos the owner has chosen for the website. 200 with `{version, photos: {hero, story, gallery[]}}`, each photo `{src, srcset, width, height, alt}`; `hero` and `story` are `null` and `gallery` is empty where nothing has been chosen. Every failure answers "Not available." (404, 429 above 120 a minute, 503). Cacheable for 60 s. Does not depend on Clover. |
+
+### Website photos: built in, replaceable from the dashboard
+
+Three sets of photos on the public site can be changed by the owner with no deployment: the
+home page's **hero** photo, the **"our story"** photo (home and About), and the **gallery**
+(the Gallery page, and its first eight photos as the row on the home page).
+
+```
+Build:     content/site.json -> photos compiled into the HTML (AVIF/WebP/JPEG, several widths)
+Owner:     dashboard "Photos" -> /dashboard-api/site/photos... -> site_photos + public bucket
+Visitor:   page opens with the built photos -> GET /public-site -> chosen photos swapped in
+```
+
+- **The built photos are the default and the fallback.** A page is complete without the
+  request: if nothing has been chosen, the answer is late (4 s limit) or it fails, the built
+  photos stay. Removing a chosen photo in the dashboard goes back to the built one.
+- **The swap** is `src/js/site-media.js`. It replaces the `<picture>` marked
+  `data-site-photo="hero|story"` and rebuilds the lists marked `data-site-gallery` from a
+  `<template>` in the page. A gallery of the owner's replaces the built gallery whole.
+- **No visible change of photo in the hero.** The hero photo is held back (`opacity: 0`)
+  until the answer is in, then faded in; the stylesheet lets it in after two seconds by
+  itself if the script never runs. The dark hero and its text are there from the first paint.
+- **Storage.** Files go to the public `menu-images` bucket under `<restaurant>/site/<slot>/`,
+  named by a hash of their content. They are public by nature. The dashboard resizes each
+  photo in the browser to two sizes (full and phone) and re-encodes it, which also drops EXIF
+  data; the server still checks size (1 MB each) and reads the real type from the bytes.
+- **Table** `site_photos`: one row per photo, `slot` in `hero | story | gallery`, at most one
+  row each for `hero` and `story` (a partial unique index), at most 24 in the gallery, with
+  `sort_order` and `alt`. A replaced or removed photo's files are deleted from the bucket.
+- **Dashboard routes** (permission `site.manage`, held by owner and manager):
+  `GET /site/photos`, `POST /site/photos` (multipart: `slot`, `alt`, `width`, `height`,
+  `small_width`, `file`, `file_small`), `PATCH /site/photos/<id>` (`{alt}`),
+  `DELETE /site/photos/<id>`, `POST /site/photos/reorder` (`{ids}`, every gallery photo once;
+  409 if the gallery changed meanwhile). Setting and removing are recorded in the activity log.
+- **Not covered:** the logo, the Open Graph image, the location photo and the default dish
+  photos are still build-time only (`content/site.json`). Dish photos have always been
+  changeable per item in the dashboard.
 
 ### Job applications: two switches and a retention period
 
@@ -281,7 +321,7 @@ Per-user rate limits apply to every route (see `dashboard/router.ts`).
 
 ## 6. Data model
 
-Defined in `supabase/migrations/`. Seventeen tables:
+Defined in `supabase/migrations/`. Eighteen tables:
 
 | Table | Holds |
 |---|---|
@@ -295,10 +335,11 @@ Defined in `supabase/migrations/`. Seventeen tables:
 | `idempotency_keys` | Outcomes of create requests |
 | `job_applications` | Applications (private): the applicant's answers, the CV's place in the private bucket, the stage, whether the notification went out |
 | `job_application_events` | What happened to each application, in order (private) |
+| `site_photos` | The website photos the owner has chosen: hero, "our story", gallery (see section 5) |
 | `rate_limits`, `integration_logs` | Operational |
 
-Deliberately not created: tables for restaurant info, locations, gallery, job positions.
-Those live in `content/site.json` and are not editable from the dashboard in this version.
+Deliberately not created: tables for restaurant info, locations, job positions. Those live in
+`content/site.json` and are not editable from the dashboard in this version.
 
 Indexes follow the dashboard's actual queries, each scoped by `restaurant_id`: items by
 `lower(name)`, by `updated_at desc`, by `price_cents`; a partial index on featured items;

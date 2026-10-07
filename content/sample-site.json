@@ -1,0 +1,9 @@
+{
+  "_readme": "SAMPLE fixture in the exact shape the public-site function returns: the photos an owner has chosen in the dashboard. Nothing is chosen here, so the sample pages keep the photos they were built with. Used only by the sample profile. Never part of a production build.",
+  "version": 1,
+  "photos": {
+    "hero": null,
+    "story": null,
+    "gallery": []
+  }
+}

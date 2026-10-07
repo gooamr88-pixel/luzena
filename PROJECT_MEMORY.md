@@ -1220,3 +1220,35 @@ everything else under it.
   the sample file was run again on its own: 23 of 23. Public and dashboard files passed in
   the first run.
 - Website only: no function or database change. Needs `deploy.sh` on the VPS.
+
+### 2026-10-07 Checkpoint: the owner changes the website's photos from the dashboard
+
+The client: "all images in landing page, img of gallery, hero, main photos: add ability to
+change them from dashboard professionally."
+
+- **What can be changed:** the home page's hero photo, the "our story" photo (home and
+  About), and the gallery (Gallery page; its first eight are the row on the home page).
+  Dish photos were already changeable per item. Still build-time only: the logo, the
+  location photo, the link preview image, the default dish photos.
+- **How:** the built photos stay in the HTML as the default and the fallback. A new public,
+  read-only function `public-site` tells the page which photos the owner has chosen;
+  `src/js/site-media.js` swaps them in. Nothing chosen, a late answer (4 s) or a failure all
+  leave the built photos. The hero photo is held back until the answer is in so nobody sees
+  it change, and lets itself in after two seconds without the script.
+- **Dashboard:** a Photos page (`#/photos`, permission `site.manage`: owner and manager).
+  "Your photo" or "Starting photo" on each; replace, describe, go back to the starting
+  photo; gallery of up to 24 with add several at once, reorder, describe, remove. Photos are
+  resized in the browser to two sizes and re-encoded; the server checks them again.
+- **Database:** migration `20261007000800_site_photos.sql`, table `site_photos` (18 tables
+  now). Files in the public `menu-images` bucket under `<restaurant>/site/<slot>/`.
+- **Decision:** a chosen gallery replaces the built gallery whole, rather than mixing the
+  owner's photos with placeholders.
+- **Verified locally:** 262 unit tests, Deno checks for five functions, 231 browser tests
+  (see `TESTING.md` for the sleep that split the run). `verify:functions` and `verify:site`
+  have new checks for the endpoint.
+- **Deployment order matters:** backend first (migration, then the five functions, TEST then
+  PRODUCTION), then `deploy.sh` on the VPS. A site deployed first only logs a failed request
+  and shows the built photos.
+- **State at this checkpoint:** committed and pushed. **Not deployed:** the Supabase CLI on
+  this machine is signed out (the access token pasted into chat on 2026-10-06 was revoked,
+  as advised), so the migration and the functions wait for the client to sign in again.

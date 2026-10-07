@@ -12,6 +12,7 @@ import { itemsView } from "./views/items.js";
 import { loginView, setPasswordView } from "./views/login.js";
 import { modifiersView } from "./views/modifiers.js";
 import { overviewView } from "./views/overview.js";
+import { photosView } from "./views/photos.js";
 
 const app = document.getElementById("app");
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -22,6 +23,7 @@ const NAV = [
   { href: "#/items", label: "Items", icon: "items", match: /^#\/items/ },
   { href: "#/categories", label: "Categories", icon: "categories", match: /^#\/categories/ },
   { href: "#/modifiers", label: "Modifiers", icon: "modifiers", match: /^#\/modifiers/ },
+  { href: "#/photos", label: "Photos", icon: "image", match: /^#\/photos/, permission: "site.manage" },
   { href: "#/applications", label: "Applications", icon: "applications", match: /^#\/applications/, permission: "applications.read", count: true },
   { href: "#/clover", label: "Clover", icon: "clover", match: /^#\/clover/ },
   { href: "#/activity", label: "Activity", icon: "activity", match: /^#\/activity/, permission: "activity.read" },
@@ -34,6 +36,7 @@ const ROUTES = [
   { pattern: /^#\/items\/([A-Z0-9]{13})$/, view: (outlet, match) => itemEditorView(outlet, match[1], null) },
   { pattern: /^#\/categories$/, view: categoriesView },
   { pattern: /^#\/modifiers$/, view: modifiersView },
+  { pattern: /^#\/photos$/, view: photosView },
   { pattern: /^#\/applications$/, view: applicationsView },
   { pattern: /^#\/applications\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/, view: applicationDetailView },
   { pattern: /^#\/clover$/, view: cloverView },

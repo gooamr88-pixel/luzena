@@ -134,6 +134,10 @@ export function installDemo(state) {
     };
   }
 
+  // The website's own photos. None chosen to begin with, as on a new site.
+  const GALLERY_LIMIT = 24;
+  const sitePhotos = { hero: null, story: null, gallery: [] };
+
   const view = (item) => ({
     ...item,
     on_website: !item.hidden && !item.web_hidden && !item.archived && !item.removed_from_clover,
@@ -196,7 +200,7 @@ export function installDemo(state) {
       return {
         user: { email: "owner@example.com" },
         restaurant: { id: "demo", name: document.documentElement.dataset.restaurantName || "Restaurant", slug: "demo", currency: sample.currency },
-        role: "owner", permissions: ["menu.read", "menu.write", "clover.manage", "activity.read", "applications.read", "applications.manage"], dietary_tags: DIETARY,
+        role: "owner", permissions: ["menu.read", "menu.write", "clover.manage", "activity.read", "applications.read", "applications.manage", "site.manage"], dietary_tags: DIETARY,
       };
     }
     if (path === "/overview") {
@@ -344,6 +348,42 @@ export function installDemo(state) {
         result: "saved", application: applicationDetail(application),
         message: changed ? "Demo: status changed in this browser tab only." : note ? "Demo: note added." : "Nothing changed.",
       };
+    }
+
+    if (path === "/site/photos" && method === "GET") return { photos: sitePhotos, limits: { gallery: GALLERY_LIMIT } };
+    if (path === "/site/photos" && method === "POST") {
+      const slot = body.get("slot");
+      if (slot === "gallery" && sitePhotos.gallery.length >= GALLERY_LIMIT) {
+        throw new ApiFailure(409, { code: "gallery_full", message: `The gallery holds ${GALLERY_LIMIT} photos. Remove one to add another.` });
+      }
+      // The chosen file is shown straight from the browser's memory. It is uploaded nowhere.
+      const small = body.get("file_small");
+      const photo = {
+        id: crypto.randomUUID(), path: URL.createObjectURL(body.get("file")), small_path: small ? URL.createObjectURL(small) : null,
+        width: Number(body.get("width")), height: Number(body.get("height")), small_width: Number(body.get("small_width")) || null,
+        alt: body.get("alt") ?? "", updated_at: stamp(),
+      };
+      if (slot === "gallery") sitePhotos.gallery.push(photo);
+      else sitePhotos[slot] = photo;
+      log("SITE_PHOTO_SET", "site_photo", slot, { slot });
+      return { result: "saved", photos: sitePhotos, message: slot === "gallery" ? "Demo: photo added in this browser tab only." : "Demo: photo set in this browser tab only." };
+    }
+    if (path === "/site/photos/reorder") {
+      sitePhotos.gallery = body.ids.map((id) => sitePhotos.gallery.find((photo) => photo.id === id));
+      return { result: "saved", photos: sitePhotos, message: "Demo: order saved." };
+    }
+    if ((match = path.match(/^\/site\/photos\/([0-9a-f-]{36})$/))) {
+      const slot = ["hero", "story"].find((name) => sitePhotos[name]?.id === match[1]);
+      const photo = slot ? sitePhotos[slot] : sitePhotos.gallery.find((entry) => entry.id === match[1]);
+      if (!photo) throw new ApiFailure(404, { code: "not_found", message: "This photo does not exist." });
+      if (method === "PATCH") {
+        photo.alt = body.alt;
+        return { result: "saved", photos: sitePhotos, message: "Demo: description saved." };
+      }
+      if (slot) sitePhotos[slot] = null;
+      else sitePhotos.gallery = sitePhotos.gallery.filter((entry) => entry !== photo);
+      log("SITE_PHOTO_REMOVED", "site_photo", photo.id, null);
+      return { result: "saved", photos: sitePhotos, message: "Demo: photo removed." };
     }
 
     if (path === "/activity") return { entries: query.get("before") ? [] : activity.slice(0, 30) };
