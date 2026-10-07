@@ -377,6 +377,34 @@ describe("job application form (applications switched on)", () => {
     await context.close();
   });
 
+  // Seen on a phone on the live site: a chosen file's name is kept on one line, and the group
+  // of questions around it would not shrink below that line, so the page grew wider than the
+  // screen and slid sideways.
+  it("keeps the page the width of a phone when a file with a long name is chosen", async () => {
+    for (const width of [320, 360, 390]) {
+      const opened = await openPage(browser, `${site.url}/careers/`, { width, height: 800, allowRequestFailures: [/e2e-project\.supabase\.co/] });
+      const { page, context } = opened;
+      await page.setInputFiles("#cv", {
+        name: "Curriculum-Vitae-Alexandria-Montgomery-Fitzgerald-2026-final-version.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.7 test"),
+      });
+      await page.waitForSelector("[data-file-chosen]:not([hidden])");
+      expect(await hasHorizontalOverflow(page), `${width}px`).toBe(false);
+      // The row stays inside the card, with the name cut short and Remove still in reach.
+      const card = await page.locator(".form-card").boundingBox();
+      const row = await page.locator("[data-file-chosen]").boundingBox();
+      const remove = await page.locator("[data-file-remove]").boundingBox();
+      expect(row.x + row.width, `${width}px row`).toBeLessThanOrEqual(card.x + card.width);
+      expect(remove.x + remove.width, `${width}px button`).toBeLessThanOrEqual(width);
+      // The name takes two lines at most; the rest of a very long one is cut off.
+      const name = page.locator("[data-file-name]");
+      expect(await name.evaluate((node) => node.scrollHeight > node.clientHeight), `${width}px name`).toBe(true);
+      expect(await name.evaluate((node) => Math.round(node.clientHeight / parseFloat(getComputedStyle(node).lineHeight))), `${width}px lines`).toBe(2);
+      // The whole name is still there for anyone who needs it.
+      expect(await name.getAttribute("title")).toMatch(/final-version\.pdf$/);
+      await context.close();
+    }
+  });
+
   it("has its own file control, in English whatever the browser's language, that shows the chosen file", async () => {
     const { page, context } = await open((route) => route.fulfill({ status: 200, json: { ok: true } }));
     // The browser's control would say "No file chosen" in the browser's own language. It is

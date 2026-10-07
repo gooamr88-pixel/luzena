@@ -100,7 +100,10 @@ function showFile() {
   fileEmpty.hidden = Boolean(file);
   fileChosen.hidden = !file;
   if (file) {
-    fileChosen.querySelector("[data-file-name]").textContent = file.name;
+    const name = fileChosen.querySelector("[data-file-name]");
+    name.textContent = file.name;
+    // A long name is cut short to fit the row; the whole of it stays available.
+    name.title = file.name;
     fileChosen.querySelector("[data-file-size]").textContent = fileSize(file.size);
   }
   // A file of the wrong kind or size is said to be so at once, not at the end of the form.

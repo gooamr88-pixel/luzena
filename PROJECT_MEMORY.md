@@ -1320,3 +1320,21 @@ below. Put the form only. But make it very professional."
 - No field, rule or request changed. `src/js/careers.js` lost only the code for the
   "Apply" buttons that were on the removed role cards.
 - The meta description no longer says "Open positions".
+
+### 2026-10-07 Checkpoint: BUG fixed, the application form slid sideways on a phone once a file was chosen
+
+Reported by the client with a screenshot of the live site on a phone: after choosing a CV,
+the page was wider than the screen.
+
+- **Cause:** a browser will not make a `<fieldset>` narrower than its widest unbroken
+  content. The chosen file's name was kept on one line, so the group of questions around it
+  grew to that line's width and took the page with it. The earlier test of the file control
+  used a short name on a laptop-sized screen, so it never saw this.
+- **Fix:** `fieldset { min-width: 0 }` in the public stylesheet's base layer. The name now
+  takes up to two lines, broken anywhere (file names often have no spaces), with the whole
+  name as its title.
+- **Test added first, and seen to fail:** a 72-character file name at 320, 360 and 390 px;
+  the page must not scroll sideways, the row must stay inside the card and Remove on screen.
+- Verified: lint; 234 browser tests. Not committed at this checkpoint.
+- The screenshot also showed the live site is still the version before the redesign: the
+  VPS has not been deployed since `2d4f8b4`.

@@ -82,6 +82,13 @@
     flex: 1 0 auto;
   }
 
+  /* A browser will not make a <fieldset> narrower than its widest unbroken content, whatever
+     its container's width: one long line inside (a chosen file's name) then pushes the whole
+     page wider than a phone's screen. This lets it shrink like any other block. */
+  fieldset {
+    min-width: 0;
+  }
+
   h1, h2, h3 {
     @apply font-display font-normal text-ink;
     text-wrap: balance;

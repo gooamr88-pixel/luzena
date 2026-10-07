@@ -167,7 +167,7 @@
                     <div class="file-drop-chosen" data-file-chosen hidden>
                       <span class="file-drop-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5M9 13h6M9 17h6"/></svg></span>
                       <span class="min-w-0 flex-1">
-                        <span class="block truncate font-semibold text-ink" data-file-name></span>
+                        <!-- Up to two lines, broken anywhere: file names often have no spaces. --><span class="line-clamp-2 leading-snug font-semibold break-all text-ink" data-file-name></span>
                         <span class="block text-sm text-muted" data-file-size></span>
                       </span>
                       <button type="button" class="btn btn-outline btn-sm" data-file-remove>Remove<span class="sr-only"> the chosen file</span></button>
