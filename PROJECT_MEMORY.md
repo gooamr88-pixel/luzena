@@ -1614,3 +1614,33 @@ The throwaway account was deleted (checked: none left, no factor left). Switchin
 sign-in on for TEST was not done. `supabase/config.toml` asks for it on every project;
 PRODUCTION has it on. Until it is on, the only real proof available is the owner's own
 first enrolment.
+
+### 2026-10-08 Checkpoint: the same round DEPLOYED to PRODUCTION (backend only); committed, NOT pushed
+
+Committed as `6c6e458` after TEST, then PRODUCTION (`xqzpuqjrlrxyitjubkqk`), in the order
+the client gave: Test, Commit, Production.
+
+- The dry run named exactly the same three migrations; applied. The five functions deployed.
+- By query: 21 tables, none without row level security, 0 policies, no table and no
+  function open to `anon` or `authenticated`, none closed to `service_role`; the 13 new
+  functions; 1 restaurant with its 9 starting labels, on 0 dishes; no old dietary tag
+  existed to carry over; no notice switched on; no connection counting refusals.
+- `verify:functions`: every check passed (2 skipped, as on TEST).
+- The live public menu, read as the website reads it: 200, 8 categories, 58 dishes, every
+  dish with a `labels` list (all empty) and still with the old `dietary` field, `notice`
+  null, no label id and no storage path in the answer.
+- `verify:site` on `https://luzenarestaurant.com`: every check passed. The website that is
+  live is still the older build; it ignores the new fields, as intended.
+
+**Not done, and why it matters:**
+
+1. **Not pushed.** `6c6e458` is on this machine only. Until it is pushed, `deploy.sh` on the
+   VPS cannot publish the Labels and Security pages, and PRODUCTION's functions run code
+   that `origin/main` does not have.
+2. **The website is not redeployed.** The owner cannot reach Labels or Security until
+   `deploy.sh` has run after the push.
+3. **Two-step sign-in has still never run against the real Supabase Auth.** On PRODUCTION
+   the first real use will be the owner's own enrolment: do it with a second browser
+   already signed in, and with someone who can remove the factor in Supabase
+   (Authentication > Users) if it goes wrong.
+4. TEST still has email sign-in switched off (TOTP is now on there).
