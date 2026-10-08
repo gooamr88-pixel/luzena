@@ -998,10 +998,314 @@ describe("website photos", () => {
   });
 });
 
+// Menu labels: the restaurant's own vocabulary, and which dishes carry which.
+describe("menu labels", () => {
+  const SPICY = "10000000-0000-4000-8000-000000000001";
+  const VEGETARIAN = "10000000-0000-4000-8000-000000000002";
+  const labelRows = (page) => page.locator('section[aria-labelledby="labels-title"] ol > li[data-label]');
+  const names = (page) => labelRows(page).locator("p.font-semibold > span.break-words").allInnerTexts();
+  const labelsPage = async (size = {}) => {
+    const opened = await dashboard("#/labels", size);
+    await opened.page.waitForSelector('section[aria-labelledby="labels-title"] ol > li[data-label]');
+    return opened;
+  };
+
+  it("lists the starting labels with their icons, on no dish, and says nothing is labelled automatically", async () => {
+    const { page, context, problems } = await labelsPage();
+    expect(await page.locator("main#main h1").innerText()).toBe("Labels and allergy notice");
+    expect(await names(page)).toEqual(["Spicy", "Vegetarian", "Vegan", "Contains Nuts", "Contains Dairy", "Contains Gluten", "Popular", "New", "Chef's Choice"]);
+    expect(await labelRows(page).locator("svg[aria-hidden=true]").first().count()).toBe(1);
+    expect((await labelRows(page).first().innerText())).toContain("On no dish yet");
+    const text = await page.locator('section[aria-labelledby="labels-title"]').innerText();
+    expect(text).toContain("A label is shown only on the dishes you tick it for.");
+    expect(text).toContain("nothing is worked out from a dish's name");
+    expect(problems).toEqual([]);
+    await context.close();
+  });
+
+  it("adds a label with a name, a description and an icon chosen from the set, and refuses a name already used", async () => {
+    const { page, context } = await labelsPage();
+    await page.getByRole("button", { name: "Add a label" }).click();
+    expect(await page.evaluate(() => document.activeElement.id)).toBe("label-name-new");
+    // The icons are a group of radio buttons, each named.
+    const choices = page.locator('[data-label-form="new"] .d-icon-choice');
+    expect(await choices.count()).toBe(18);
+    expect(await choices.locator("input").first().getAttribute("type")).toBe("radio");
+    expect(await choices.nth(12).innerText()).toBe("Seal");
+
+    await page.fill("#label-name-new", "Spicy");
+    await page.getByRole("button", { name: "Add label", exact: true }).click();
+    await page.waitForSelector('[data-label-form="new"] [role=alert]:not([hidden])');
+    expect(await page.locator('[data-label-form="new"] [role=alert]').innerText()).toBe("There is already a label with this name.");
+    // What was typed is still there to be corrected.
+    expect(await page.inputValue("#label-name-new")).toBe("Spicy");
+
+    await page.fill("#label-name-new", "Halal");
+    await page.fill("#label-description-new", "Prepared to halal standards.");
+    await choices.nth(12).click();
+    await page.getByRole("button", { name: "Add label", exact: true }).click();
+    await page.waitForFunction(() => document.querySelectorAll("li[data-label]").length === 10);
+    expect((await names(page)).at(-1)).toBe("Halal");
+    expect(await labelRows(page).last().innerText()).toContain("Prepared to halal standards.");
+    await context.close();
+  });
+
+  it("renames a label, switches it off and on, moves it with the keyboard, and deletes it after asking", async () => {
+    const { page, context, problems } = await labelsPage();
+    await labelRows(page).first().getByRole("button", { name: "Edit Spicy" }).click();
+    await page.fill(`#label-name-${SPICY}`, "Hot & Spicy");
+    await page.getByRole("button", { name: "Save label" }).click();
+    await page.waitForFunction(() => document.querySelector("li[data-label] span.break-words")?.textContent === "Hot & Spicy");
+
+    const first = labelRows(page).first();
+    await first.getByRole("switch").click();
+    await page.waitForFunction(() => document.querySelector("li[data-label] .d-badge-warn")?.textContent === "Switched off");
+    expect(await labelRows(page).first().getByRole("switch").getAttribute("aria-checked")).toBe("false");
+    await labelRows(page).first().getByRole("switch").click();
+    await page.waitForFunction(() => !document.querySelector("li[data-label] .d-badge-warn"));
+
+    expect(await page.getByRole("button", { name: "Move Hot & Spicy earlier" }).isDisabled()).toBe(true);
+    await page.getByRole("button", { name: "Move Hot & Spicy later" }).click();
+    await page.waitForFunction(() => document.querySelectorAll("li[data-label] span.break-words")[1]?.textContent === "Hot & Spicy");
+    expect((await names(page)).slice(0, 2)).toEqual(["Vegetarian", "Hot & Spicy"]);
+    expect(await page.evaluate(() => document.activeElement.dataset.move)).toBe(`${SPICY}:later`);
+
+    await page.getByRole("button", { name: "Delete Vegan" }).click();
+    expect(await dialog(page).innerText()).toContain('Delete the label "Vegan"?');
+    expect(await dialog(page).innerText()).toContain("No dish carries it.");
+    expect(await page.evaluate(() => document.activeElement.textContent)).toBe("Cancel");
+    await dialog(page).getByRole("button", { name: "Delete label" }).click();
+    await page.waitForFunction(() => document.querySelectorAll("li[data-label]").length === 8);
+    expect(await names(page)).not.toContain("Vegan");
+    expect(problems).toEqual([]);
+    await context.close();
+  });
+
+  it("lets the owner tick labels on a dish in the item editor, shows them in the preview, and keeps them when saved", async () => {
+    const { page, context, problems } = await dashboard("#/items/SAMPLEITEM005");
+    await page.waitForSelector("#name");
+    const group = page.locator("fieldset", { hasText: "Dietary and menu labels" });
+    // Nine labels, none ticked: nothing is chosen for the owner.
+    expect(await group.locator('input[type="checkbox"]').count()).toBe(9);
+    expect(await group.locator('input[type="checkbox"]:checked').count()).toBe(0);
+    expect(await group.innerText()).toContain("Nothing is ticked for you.");
+    expect(await page.locator(".preview-surface .dish-label").count()).toBe(0);
+
+    await page.check(`#label-${VEGETARIAN}`);
+    await page.check(`#label-${SPICY}`);
+    // The preview is the real rendering: icon and name, in the labels' own order.
+    expect(await page.locator(".preview-surface .dish-label").allInnerTexts()).toEqual(["Spicy", "Vegetarian"]);
+    expect(await page.locator(".preview-surface .dish-label svg").count()).toBe(2);
+    expect(await page.locator("text=You have unsaved changes.").count()).toBe(1);
+
+    await page.getByRole("button", { name: "Save changes" }).click();
+    await page.waitForSelector("text=All changes saved.");
+    await page.locator('aside a[data-nav="#/labels"]').click();
+    await page.waitForSelector("li[data-label]");
+    expect(await page.locator("li[data-label]").first().innerText()).toContain("On 1 dish");
+    // Back in the editor they are still ticked.
+    await page.evaluate(() => { location.hash = "#/items/SAMPLEITEM005"; });
+    await page.waitForSelector("#name");
+    expect(await page.isChecked(`#label-${SPICY}`)).toBe(true);
+    expect(await page.isChecked(`#label-${VEGETARIAN}`)).toBe(true);
+    expect(problems).toEqual([]);
+    await context.close();
+  });
+
+  it("writes the allergy notice, previews it as the menu will show it, and puts it on the menu only when switched on", async () => {
+    const { page, context, problems } = await labelsPage();
+    const section = page.locator('section[aria-labelledby="notice-title"]');
+    expect(await section.locator(".d-badge").first().innerText()).toBe("Not shown");
+    expect(await section.innerText()).toContain("The wording is yours to decide.");
+    expect(await section.innerText()).toContain("Nothing here is approved wording.");
+    // The example is a greyed hint in an empty box, not text that would be saved.
+    expect(await page.inputValue("#notice-text-0")).toBe("");
+    expect(await page.locator("#notice-text-0").getAttribute("placeholder")).toMatch(/^Example only:/);
+    expect(await section.locator(".preview-surface").innerText()).toContain("Nothing written yet.");
+
+    // Switched on with nothing written is refused, here, before anything is sent.
+    await page.check("#notice-enabled");
+    await section.getByRole("button", { name: "Save notice" }).click();
+    expect(await section.locator("[role=alert]:not([hidden])").last().innerText()).toBe("Write the notice before turning it on.");
+
+    await page.fill("#notice-text-0", "Test wording: tell our staff about any allergy.");
+    expect(await section.locator(".preview-surface .menu-notice p").innerText()).toBe("Test wording: tell our staff about any allergy.");
+    await section.getByRole("button", { name: "Add a language" }).click();
+    await page.fill("#notice-text-1", "نص تجريبي: أخبر الموظفين بأي حساسية.");
+    const second = section.locator(".preview-surface .menu-notice p").nth(1);
+    expect(await second.getAttribute("lang")).toBe("ar");
+    expect(await second.evaluate((p) => getComputedStyle(p).direction)).toBe("rtl");
+    // The two texts cannot be given the same language.
+    expect(await page.locator("#notice-lang-1 option").allInnerTexts()).not.toContain("English");
+
+    await section.getByRole("button", { name: "Save notice" }).click();
+    await page.waitForFunction(() => document.querySelector('section[aria-labelledby="notice-title"] .d-badge-ok')?.textContent === "On the menu");
+    expect(await page.inputValue("#notice-text-0")).toBe("Test wording: tell our staff about any allergy.");
+    const violations = await accessibilityViolations(page);
+    expect(violations, describeViolations(violations)).toEqual([]);
+    expect(problems).toEqual([]);
+    await context.close();
+  });
+});
+
+// A dish's description and its "featured" mark, as the owner sets them.
+describe("descriptions and featured dishes", () => {
+  it("saves a description and marks a dish as featured, then takes both away again", async () => {
+    const { page, context, problems } = await dashboard("#/items/SAMPLEITEM012");
+    await page.waitForSelector("#name");
+    expect(await page.inputValue("#description")).toBe("");
+    expect(await page.isChecked("#featured")).toBe(false);
+
+    await page.fill("#description", "Test wording for a description.");
+    await page.check("#featured");
+    await page.getByRole("button", { name: "Save changes" }).click();
+    await page.waitForSelector("text=All changes saved.");
+    await page.locator('aside a[data-nav="#/items"]').click();
+    await waitForRows(page, 12);
+    expect(await row(page, "Espresso").innerText()).toContain("Featured");
+
+    await row(page, "Espresso").getByRole("link", { name: "Espresso" }).click();
+    await page.waitForSelector("#name");
+    expect(await page.inputValue("#description")).toBe("Test wording for a description.");
+    await page.fill("#description", "");
+    await page.uncheck("#featured");
+    await page.getByRole("button", { name: "Save changes" }).click();
+    await page.waitForSelector("text=All changes saved.");
+    await page.locator('aside a[data-nav="#/items"]').click();
+    await waitForRows(page, 12);
+    expect(await row(page, "Espresso").innerText()).not.toContain("Featured");
+    expect(problems).toEqual([]);
+    await context.close();
+  });
+});
+
+// Two-step sign-in. The demo stands in for Supabase Auth: it accepts the code 123456.
+describe("two-step sign-in", () => {
+  const securityPage = async () => {
+    const opened = await dashboard("#/security");
+    await opened.page.waitForSelector("#two-step-title");
+    return opened;
+  };
+  const turnOn = async (page) => {
+    await page.getByRole("button", { name: "Turn on two-step sign-in" }).click();
+    await page.waitForSelector("#setup-code");
+    await page.fill("#setup-code", "123456");
+    await page.getByRole("button", { name: "Turn on", exact: true }).click();
+    await page.waitForFunction(() => document.querySelector('section[aria-labelledby="two-step-title"] .d-badge-ok')?.textContent === "On");
+  };
+
+  it("is off to begin with, and is turned on by scanning a code and proving the app works", async () => {
+    const { page, context, problems } = await securityPage();
+    const section = page.locator('section[aria-labelledby="two-step-title"]');
+    expect(await section.locator(".d-badge").innerText()).toBe("Off");
+
+    await page.getByRole("button", { name: "Turn on two-step sign-in" }).click();
+    await page.waitForSelector("#setup-code");
+    expect(await section.locator("img").getAttribute("alt")).toBe("QR code to scan with your authenticator app");
+    expect(await section.locator("img").getAttribute("src")).toMatch(/^data:image\/svg\+xml/);
+    expect(await section.locator("[data-setup-key]").innerText()).toBe("DEMO KEY 2345 6723 4567 ABCD");
+    expect(await page.locator("#setup-code").getAttribute("autocomplete")).toBe("one-time-code");
+
+    // A wrong code changes nothing; neither does something that is not a code.
+    await page.fill("#setup-code", "12ab");
+    await page.getByRole("button", { name: "Turn on", exact: true }).click();
+    expect(await section.locator("[role=alert]:not([hidden])").innerText()).toBe("Enter the six digits the app shows.");
+    await page.fill("#setup-code", "000000");
+    await page.getByRole("button", { name: "Turn on", exact: true }).click();
+    await page.waitForFunction(() => document.querySelector('section[aria-labelledby="two-step-title"] [role=alert]:not([hidden])')?.textContent.startsWith("That code was not accepted."));
+    expect(await section.locator(".d-badge").innerText()).toBe("Off");
+
+    const violations = await accessibilityViolations(page);
+    expect(violations, describeViolations(violations)).toEqual([]);
+
+    await page.fill("#setup-code", "123456");
+    await page.getByRole("button", { name: "Turn on", exact: true }).click();
+    await page.waitForFunction(() => document.querySelector('section[aria-labelledby="two-step-title"] .d-badge-ok')?.textContent === "On");
+    // The key is gone from the page: it is shown the once.
+    expect(await page.locator("[data-setup-key]").count()).toBe(0);
+    expect(await page.locator("main#main").innerText()).not.toContain("DEMO KEY");
+    // And nothing of it was kept in the browser.
+    const kept = await page.evaluate(() => JSON.stringify([{ ...window.localStorage }, { ...window.sessionStorage }, document.cookie]));
+    expect(kept).not.toMatch(/DEMO KEY|otpauth/);
+    expect(problems).toEqual([]);
+    await context.close();
+  });
+
+  it("asks for the code after the password at the next sign-in, and shows nothing of the dashboard until it is right", async () => {
+    const { page, context } = await securityPage();
+    await turnOn(page);
+    await page.getByRole("button", { name: "Sign out" }).click();
+    await page.waitForSelector("#password");
+    await page.fill("#email", "owner@example.com");
+    await page.fill("#password", "a-long-demo-password");
+    await page.getByRole("button", { name: "Sign in" }).click();
+
+    await page.waitForSelector("#code");
+    expect(await page.locator("h1").innerText()).toBe("Enter your code");
+    expect(await page.locator("aside").count()).toBe(0);
+    expect(await page.locator("main#main").count()).toBe(0);
+    expect(await page.locator("#code").getAttribute("autocomplete")).toBe("one-time-code");
+    expect(await page.locator("#code").getAttribute("inputmode")).toBe("numeric");
+    // An address typed by hand gets no further.
+    await page.evaluate(() => { location.hash = "#/applications"; });
+    await page.waitForTimeout(400);
+    expect(await page.locator("h1").innerText()).toBe("Enter your code");
+
+    const violations = await accessibilityViolations(page);
+    expect(violations, describeViolations(violations)).toEqual([]);
+
+    await page.fill("#code", "999999");
+    await page.getByRole("button", { name: "Verify" }).click();
+    await page.waitForSelector("[role=alert]:not([hidden])");
+    expect(await page.locator("[role=alert]:not([hidden])").innerText()).toMatch(/^That code was not accepted\./);
+    expect(await page.inputValue("#code")).toBe("");
+    expect(await page.locator("aside").count()).toBe(0);
+
+    await page.fill("#code", "123456");
+    await page.getByRole("button", { name: "Verify" }).click();
+    await page.waitForSelector("aside nav");
+    expect(await page.locator("main#main h1").count()).toBe(1);
+    await context.close();
+  });
+
+  it("lets the owner sign out from the code step, and turn two-step sign-in off again after asking", async () => {
+    const { page, context } = await securityPage();
+    await turnOn(page);
+    await page.getByRole("button", { name: "Sign out" }).click();
+    await page.waitForSelector("#password");
+    await page.fill("#email", "owner@example.com");
+    await page.fill("#password", "a-long-demo-password");
+    await page.getByRole("button", { name: "Sign in" }).click();
+    await page.waitForSelector("#code");
+    // Signing out from here goes back to the password, not into the dashboard.
+    await page.getByRole("button", { name: "Sign out" }).click();
+    await page.waitForSelector("#password");
+    expect(await page.locator("h1").innerText()).toBe("Sign in");
+
+    await page.fill("#email", "owner@example.com");
+    await page.fill("#password", "a-long-demo-password");
+    await page.getByRole("button", { name: "Sign in" }).click();
+    await page.waitForSelector("#code");
+    await page.fill("#code", "123456");
+    await page.getByRole("button", { name: "Verify" }).click();
+    await page.waitForSelector("aside nav");
+    await page.locator('aside a[data-nav="#/security"]').click();
+    await page.waitForSelector("#two-step-title");
+    await page.getByRole("button", { name: "Turn off two-step sign-in" }).click();
+    expect(await dialog(page).innerText()).toContain("Turn off two-step sign-in?");
+    expect(await page.evaluate(() => document.activeElement.textContent)).toBe("Cancel");
+    await dialog(page).getByRole("button", { name: "Turn off" }).click();
+    await page.waitForFunction(() => document.querySelector('section[aria-labelledby="two-step-title"] .d-badge')?.textContent === "Off");
+    await context.close();
+  });
+});
+
 describe("accessibility of each dashboard screen", () => {
   it.each([
     ["overview", "#/", 'a[href="#/items"]'],
     ["photos", "#/photos", "#photo-gallery"],
+    ["labels and allergy notice", "#/labels", "li[data-label]"],
+    ["security", "#/security", "#two-step-title"],
     ["applications", "#/applications", "table.d-table tbody tr"],
     ["an application", "#/applications/00000000-0000-4000-8000-000000000004", "#application-status"],
     ["items", "#/items", "table.d-table tbody tr"],
@@ -1079,7 +1383,7 @@ describe("on a phone", () => {
     ["overview", "#/"], ["items", "#/items"], ["item editor", "#/items/SAMPLEITEM005"], ["new item", "#/items/new"],
     ["categories", "#/categories"], ["modifiers", "#/modifiers"], ["Clover", "#/clover"], ["activity", "#/activity"],
     ["applications", "#/applications"], ["an application", "#/applications/00000000-0000-4000-8000-000000000004"],
-    ["photos", "#/photos"],
+    ["photos", "#/photos"], ["labels", "#/labels"], ["security", "#/security"],
   ])("%s fits every screen width from 360px to 1440px without sideways scrolling", async (_name, hash) => {
     const { page, context } = await dashboard(hash, { width: 360, height: 800 });
     for (const width of VIEWPORT_WIDTHS) {

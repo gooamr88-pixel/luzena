@@ -45,6 +45,7 @@ export async function handlePublicMenu(request: Request, deps: Deps, storagePubl
 
     const menu = await deps.db.rpc<{
       synced_at: string | null;
+      notice?: { lang: string; text: string }[] | null;
       categories: { id: string; name: string; image_path?: string | null; items: PublicItem[] }[];
       uncategorized: PublicItem[];
     }>("public_menu", { p_restaurant: restaurant.id });
@@ -82,6 +83,8 @@ export async function handlePublicMenu(request: Request, deps: Deps, storagePubl
       version: 1,
       currency: restaurant.currency,
       synced_at: menu.synced_at,
+      // The allergy notice for the foot of the menu, when the owner has turned it on.
+      notice: menu.notice ?? null,
       categories,
     }, {
       ...cors,

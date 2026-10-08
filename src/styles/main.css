@@ -592,6 +592,64 @@
     @apply opacity-60;
   }
 
+  /* MENU LABELS. What the restaurant says about a dish: an icon and a word, in a quiet row
+     under the description. They come last in a dish's hierarchy (photo, name, description,
+     price, then these), so they are small, uncoloured and unboxed: the icon in the site's
+     bronze, the word in body ink. No badge, no fill, no second colour. Body on paper: 9.1. */
+  .dish-labels {
+    @apply mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1.5;
+  }
+
+  .dish-label-list {
+    @apply flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1.5;
+  }
+
+  .dish-label {
+    @apply inline-flex max-w-full items-center gap-1.5 text-[0.82rem] leading-snug font-medium break-words text-body;
+  }
+
+  .dish-label svg {
+    @apply shrink-0 text-brand;
+  }
+
+  /* The rest of a long list, folded away behind "+2 more": a native disclosure, so it opens
+     with a tap, a click or the keyboard, and needs no script. Opened, it takes a row of its
+     own under the first labels. */
+  .dish-labels-more summary {
+    @apply inline-flex min-h-6 cursor-pointer list-none items-center rounded-sm text-[0.82rem] font-semibold text-brand underline decoration-brand/40 underline-offset-4 transition-colors hover:text-brand-dark;
+  }
+
+  .dish-labels-more summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .dish-labels-more[open] {
+    @apply basis-full;
+  }
+
+  .dish-labels-more[open] summary {
+    @apply sr-only;
+  }
+
+  /* THE ALLERGY NOTICE, at the foot of the menu. Set like the last lines of a printed menu:
+     a short gold rule, a small label, and the restaurant's own words in body ink, centred
+     and narrow. It is a note, not an alert: no box, no icon, no warning colour. */
+  .menu-notice {
+    @apply mx-auto mt-16 max-w-2xl border-t border-ink/10 pt-10 text-center sm:mt-20 sm:pt-12;
+  }
+
+  .menu-notice-rule {
+    @apply mx-auto mb-5 block h-0.5 w-10 bg-gold;
+  }
+
+  .menu-notice-title {
+    @apply font-sans text-xs font-semibold tracking-[0.2em] text-brand uppercase;
+  }
+
+  .menu-notice-text {
+    @apply mt-4 text-[0.95rem] leading-relaxed whitespace-pre-line text-body;
+  }
+
   .tag {
     @apply inline-flex items-center rounded-sm border border-olive/35 px-2 py-0.5 text-[0.66rem] font-semibold tracking-[0.08em] text-olive-dark uppercase;
   }

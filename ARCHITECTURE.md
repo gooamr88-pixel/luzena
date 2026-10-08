@@ -248,6 +248,75 @@ Visitor:   page opens with the built photos -> GET /public-site -> chosen photos
   photos are still build-time only (`content/site.json`). Dish photos have always been
   changeable per item in the dashboard.
 
+### Menu labels and the allergy notice
+
+What a restaurant says about its dishes, and its allergy notice, are its own: kept per
+restaurant, changed in the dashboard, and unknown to Clover.
+
+- **Labels are data, not code.** A label is a row in `menu_labels`: a name, an icon key, an
+  optional description, whether it is in use, and its place in the order. Which dishes carry
+  which is `menu_item_labels`. A new restaurant is given nine to start with (a vocabulary
+  only, on no dish). Adding "Kosher" or "Seasonal" later is the owner adding a row.
+- **Nothing puts a label on a dish except a person.** No default, no synchronisation, and no
+  reading of a dish's name. A dish arrives from Clover with none.
+- **Icons** are one small family in `src/js/lib/label-icons.js`, drawn like the site's other
+  icons. A label names its icon by key; the backend only accepts keys in the set
+  (`LABEL_ICONS` in `_shared/dashboard/labels.ts`), and a test keeps the two lists the same.
+  A new icon is its drawing in one file and its key in the other.
+- **To the website** labels travel inside `public-menu`: each item has
+  `labels: [{name, icon, description}]`, only the ones in use, in the restaurant's order. No
+  extra request. The old fixed `dietary` list is still in the answer for a website built
+  before this; a page that finds `labels` shows those and not the old list.
+- **The allergy notice** is `site_settings.allergy_notice`: a list of `{lang, text}`. It is
+  in `public-menu` as `notice` only while it is switched on and not empty.
+- **Clover** is not told about any of this and synchronisation does not read or write these
+  tables. A dish that Clover drops keeps its labels on its retained row.
+- **One restaurant and another:** every row carries `restaurant_id`; a dish's label is tied
+  to the same restaurant by a foreign key on `(restaurant_id, label_id)`, so another
+  restaurant's label cannot be stored on a dish even by faulty code.
+
+| Method and path | Permission | Notes |
+|---|---|---|
+| `GET /labels` | menu.read | The labels with how many dishes carry each, and the icon keys on offer. |
+| `POST /labels` | menu.write | `{name, icon, description?}`. 409 `duplicate`, 409 `labels_full` at 40. |
+| `PATCH /labels/{uuid}` | menu.write | Any of `name, icon, description, active`. |
+| `DELETE /labels/{uuid}` | menu.write | Deletes it and takes it off every dish. |
+| `POST /labels/reorder` | menu.write | `{ids}`, every label once; 409 if they changed meanwhile. |
+| `PATCH /items/{id}` | menu.write | `website.label_ids`: exactly the labels this dish carries (12 at most). |
+| `GET`, `PUT /site/notice` | site.manage | `{enabled, entries: [{lang, text}]`. Refuses to be switched on empty. |
+
+### Two-step sign-in
+
+Supabase Auth's own multi-factor sign-in (an authenticator app, TOTP). This system adds no
+authentication of its own and keeps no secret: the dashboard calls Supabase's client to
+enrol, and Supabase checks every code.
+
+- **Dashboard:** *Security* turns it on (scan a QR code, prove it with a code) and off. At
+  sign-in an account that has it on is asked for the code after the password, and nothing
+  of the dashboard is drawn until it is given.
+- **Backend:** on every request `authenticate` reads two facts Supabase states about the
+  session, whether the account has a verified factor and the session's level (`aal1` or
+  `aal2`, see `_shared/auth-level.ts`), and answers 403 `mfa_required` to a session that has
+  the password but not the code. So a stolen password alone opens nothing.
+- It is each account's own choice; an account that has not turned it on signs in as before.
+
+### Clover: when a token is rejected
+
+One "unauthorized" answer from Clover is not treated as the end of a connection.
+
+1. The request is tried once more: with a refreshed token for an OAuth connection, with the
+   same token after 1.5 s for a merchant API token (which cannot be refreshed). Clover did
+   not process a request it answered 401, so the repeat cannot duplicate a write.
+2. A second 401 is one failed attempt. It is counted on the connection
+   (`auth_failures`, `auth_failing_since`), the sync or the save fails with
+   `clover_unauthorized`, and the stored token is left alone.
+3. For two minutes after a rejection, visitors to the website do not set off another attempt.
+4. The connection is marked `needs_reauth` only when there have been 3 such attempts in a row
+   over at least 10 minutes. From then nothing is sent to Clover until the owner enters a new
+   token. Clover refusing to *refresh* an OAuth token is still final at once: that is Clover
+   saying the authorisation is gone.
+5. The first request Clover accepts clears the count.
+
 ### Job applications: two switches and a retention period
 
 Online applications are off until three things are true, and each is checked where it
@@ -272,7 +341,9 @@ application arrives or an owner opens the dashboard (those two still trigger it 
 The same hourly pass calls `housekeeping()`, which clears rows that are only of use for a
 while: rate-limit counters over two days old, idempotency keys over a week, sync history
 over 30 days, integration logs over 90 days, abandoned connection attempts. The audit log is
-kept. A day with no visitor at all runs nothing; `DEPLOYMENT_CHECKLIST.md` says how to add a
+kept. It also deletes the photo of a category that Clover has not had for 30 days, when
+nothing else shows the same file (`purgeOrphanedCategoryPhotos`): the file first, then the
+row's reference, so a pass that is interrupted is finished by the next. A day with no visitor at all runs nothing; `DEPLOYMENT_CHECKLIST.md` says how to add a
 schedule if the privacy policy needs a guaranteed day.
 
 ### Job applications: the path one takes
@@ -346,7 +417,7 @@ Per-user rate limits apply to every route (see `dashboard/router.ts`).
 
 ## 6. Data model
 
-Defined in `supabase/migrations/`. Eighteen tables:
+Defined in `supabase/migrations/`. Twenty-one tables:
 
 | Table | Holds |
 |---|---|
@@ -361,6 +432,8 @@ Defined in `supabase/migrations/`. Eighteen tables:
 | `job_applications` | Applications (private): the applicant's answers, the CV's place in the private bucket, the stage, whether the notification went out |
 | `job_application_events` | What happened to each application, in order (private) |
 | `site_photos` | The website photos the owner has chosen: hero, "our story", gallery (see section 5) |
+| `menu_labels`, `menu_item_labels` | The restaurant's own labels (name, icon, description, in use, order) and which dishes carry which |
+| `site_settings` | One row per restaurant: the allergy notice (on or off, its text per language) |
 | `rate_limits`, `integration_logs` | Operational |
 
 Deliberately not created: tables for restaurant info, locations, job positions. Those live in

@@ -5,9 +5,9 @@
 // The markup of a tile and of a card lives in the page, in <template> elements; this file
 // only fills in the text, the link and the photo, so nothing from the API becomes markup.
 import { priceLabel } from "./lib/format.js";
+import { MAX_HOME_CATEGORIES } from "./lib/home.js";
 import { fetchMenu, menuSettings } from "./lib/menu-api.js";
 
-const MAX_CATEGORIES = 6;
 const MAX_DISHES = 4;
 
 // Photos for a category or a dish that has none of its own (`defaultDishPhotos` in the
@@ -87,7 +87,7 @@ function showCategories(categories) {
   const template = document.querySelector("[data-category-template]");
   // A single category is not a choice; the menu page covers it.
   if (!section || !template || categories.length < 2) return;
-  part(section, "categories-list").append(...categories.slice(0, MAX_CATEGORIES).map((category, index) => categoryTile(template, category, index)));
+  part(section, "categories-list").append(...categories.slice(0, MAX_HOME_CATEGORIES).map((category, index) => categoryTile(template, category, index)));
   section.hidden = false;
 }
 

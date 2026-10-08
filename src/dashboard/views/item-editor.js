@@ -4,7 +4,8 @@
 // For Clover fields it also sends the values the editor loaded, so the server can refuse
 // the save if Clover changed in the meantime. Nothing is shown as saved until the server
 // confirms it.
-import { centsToInput, dietaryLabel, formatDateTime, formatPrice, parsePriceToCents } from "../../js/lib/format.js";
+import { centsToInput, formatDateTime, formatPrice, parsePriceToCents } from "../../js/lib/format.js";
+import { labelIcon } from "../../js/lib/label-icons.js";
 import { menuItemElement } from "../../js/lib/menu-item.js";
 import { api, explain, newIdempotencyKey } from "../api.js";
 import { optimiseImage } from "../image.js";
@@ -13,7 +14,7 @@ import { append, badge, clear, confirmDialog, errorBlock, h, loadingBlock, pageH
 import { imageUrl } from "./items.js";
 
 const CLOVER_KEYS = ["name", "price_cents", "available", "hidden", "category_ids", "modifier_group_ids"];
-const WEBSITE_KEYS = ["description", "featured", "web_hidden", "dietary"];
+const WEBSITE_KEYS = ["description", "featured", "web_hidden", "label_ids"];
 const FIELD_LABELS = {
   name: "Name", price_cents: "Price", available: "In stock", hidden: "Hidden in Clover",
   category_ids: "Categories", modifier_group_ids: "Modifier groups",
@@ -33,7 +34,8 @@ const snapshot = (item) => ({
   description: item?.description ?? "",
   featured: item?.featured ?? false,
   web_hidden: item?.web_hidden ?? false,
-  dietary: item?.dietary ?? [],
+  // The restaurant's own labels on this dish (see views/labels.js), by id.
+  label_ids: item?.label_ids ?? [],
 });
 
 export async function itemEditorView(outlet, itemId, duplicateFrom) {
@@ -44,12 +46,15 @@ export async function itemEditorView(outlet, itemId, duplicateFrom) {
   let item = null;
   let categories;
   let groups;
+  let labels;
   try {
-    const [categoryData, groupData, itemData] = await Promise.all([
+    const [categoryData, groupData, labelData, itemData] = await Promise.all([
       api("GET", "/categories"),
       api("GET", "/modifier-groups"),
+      api("GET", "/labels"),
       itemId || duplicateFrom ? api("GET", `/items/${itemId ?? duplicateFrom}`) : null,
     ]);
+    labels = labelData.labels;
     categories = categoryData.categories.filter((c) => !c.removed_from_clover && !c.archived);
     groups = groupData.modifier_groups;
     item = itemData?.item ?? null;
@@ -129,7 +134,8 @@ export async function itemEditorView(outlet, itemId, duplicateFrom) {
       price_type: item?.price_type ?? "FIXED",
       unit_name: item?.unit_name ?? null,
       available: draft.available,
-      dietary: draft.dietary,
+      // As on the website: the labels ticked here that are switched on, in the labels' order.
+      labels: labels.filter((label) => label.active && draft.label_ids.includes(label.id)),
       image_url: imageUrl(item && !isNew ? item.image_path : null),
       modifier_groups: groups.filter((g) => draft.modifier_group_ids.includes(g.id)),
     }, { currency: currency(), locale: state.locale }));
@@ -323,7 +329,9 @@ export async function itemEditorView(outlet, itemId, duplicateFrom) {
   const fieldBlock = (id, label, where, input, ...extra) =>
     h("div", {}, h("label", { class: "d-label", for: id }, label, source(where)), input, extra);
 
-  const dietaryTags = state.me.dietary_tags ?? [];
+  // The labels this dish can be given: every one that is in use, and any that is switched
+  // off but already on this dish, so that it can be seen and taken off.
+  const offered = labels.filter((label) => label.active || draft.label_ids.includes(label.id));
   // On phones the save bar is fixed to the bottom of the screen, so the form needs room
   // underneath it (pb-28) for the last section to scroll clear.
   const form = h("form", { class: "grid items-start gap-5 pb-28 lg:grid-cols-[minmax(0,1fr)_22rem] lg:pb-0", novalidate: true },
@@ -351,11 +359,19 @@ export async function itemEditorView(outlet, itemId, duplicateFrom) {
       section("Website presentation",
         checkbox("featured", h("span", { class: "flex flex-wrap items-center gap-2 font-semibold" }, "Feature on the home page", source("Website")), draft.featured,
           (on) => { draft.featured = on; }, { disabled: !writable, hint: "The first four featured items are shown on the home page." }),
-        h("fieldset", {}, h("legend", { class: "d-label" }, "Dietary labels", source("Website")),
-          h("div", { class: "grid gap-2 sm:grid-cols-2" }, dietaryTags.map((tag) =>
-            checkbox(`diet-${tag}`, dietaryLabel(tag), draft.dietary.includes(tag), (on) => {
-              draft.dietary = on ? [...draft.dietary, tag] : draft.dietary.filter((entry) => entry !== tag);
-            }, { disabled: !writable }))))),
+        h("fieldset", {}, h("legend", { class: "d-label" }, "Dietary and menu labels", source("Website")),
+          offered.length === 0
+            ? h("p", { class: "text-sm text-muted" }, "There are no labels yet.")
+            : h("div", { class: "grid gap-2 sm:grid-cols-2" }, offered.map((label) =>
+                checkbox(`label-${label.id}`,
+                  h("span", { class: "inline-flex items-center gap-2" },
+                    h("span", { class: "shrink-0 text-brand" }, labelIcon(label.icon, 16)), label.name,
+                    !label.active && h("span", { class: "text-[0.82rem] text-muted" }, "(switched off)")),
+                  draft.label_ids.includes(label.id), (on) => {
+                    draft.label_ids = on ? [...draft.label_ids, label.id] : draft.label_ids.filter((id) => id !== label.id);
+                  }, { disabled: !writable, hint: label.description ?? undefined }))),
+          h("p", { class: "d-hint" }, "Tick only what is true of this dish as your kitchen makes it. Nothing is ticked for you. ",
+            h("a", { href: "#/labels", class: "font-medium text-brand underline hover:text-brand-dark" }, "Manage labels")))),
       section("Advanced",
         checkbox("hidden", h("span", { class: "flex flex-wrap items-center gap-2 font-semibold" }, "Hide in Clover", source("Clover")), draft.hidden,
           (on) => { draft.hidden = on; }, { disabled: readOnly, hint: "Hides the item from the Clover register as well as from the website. Use \"Show on the website\" above to hide it from the website only." }),

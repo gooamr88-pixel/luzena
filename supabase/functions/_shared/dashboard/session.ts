@@ -31,6 +31,14 @@ export async function authenticate(request: Request, deps: Deps, requestId: stri
   const user = await deps.auth.getUser(token);
   if (!user) throw new ApiError(401, "unauthenticated", "Your session has expired. Sign in again.");
 
+  // An account that has turned two-step sign-in on is only let in by a session that has
+  // done both steps. A password alone, however it was come by, opens nothing here. The
+  // dashboard answers this by asking for the code; 403, not 401, because the session itself
+  // is good and must not be thrown away.
+  if (user.twoStep && user.level !== "aal2") {
+    throw new ApiError(403, "mfa_required", "Enter the code from your authenticator app to continue.");
+  }
+
   const memberships = await deps.db.rpc<Membership[]>("user_memberships", { p_user: user.id });
   if (memberships.length === 0) {
     throw new ApiError(403, "no_restaurant", "This account is not linked to a restaurant.");

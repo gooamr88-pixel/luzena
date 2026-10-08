@@ -2,6 +2,7 @@
 // and the photo of each menu category on the home page. Each starts as a photo the website
 // chooses by itself; the owner replaces it here, and the public pages show the change
 // within about a minute, with no deployment.
+import { MAX_HOME_CATEGORIES } from "../../js/lib/home.js";
 import { api } from "../api.js";
 import { optimiseImage, optimiseSitePhoto } from "../image.js";
 import { state } from "../state.js";
@@ -12,9 +13,8 @@ const starting = document.documentElement.dataset;
 const startingGallery = (starting.defaultGallery ?? "").split(/\s+/).filter(Boolean);
 // The photos a category or a dish without one of its own is given, in the website's order.
 const startingDishes = (starting.defaultDishPhotos ?? "").split(/\s+/).filter(Boolean);
-// How many category tiles the home page shows (MAX_CATEGORIES in src/js/featured.js), and
-// the longer side a tile's photo needs: a tile is never wider than about 300 px on screen.
-const HOME_CATEGORIES = 6;
+// The longer side a category tile's photo needs: a tile is never wider than about 300 px on
+// screen. How many tiles the home page shows is MAX_HOME_CATEGORIES, shared with the page.
 const CATEGORY_EDGE = 960;
 
 // A stored photo's address. Paths in the bucket get the bucket's address in front; the demo
@@ -237,14 +237,14 @@ export async function photosView(outlet) {
       const hasDishes = (category.on_website_count ?? category.item_count) > 0;
       const eligible = !category.web_hidden && hasDishes;
       const position = eligible ? place++ : null;
-      const onHome = position !== null && position < HOME_CATEGORIES;
+      const onHome = position !== null && position < MAX_HOME_CATEGORIES;
       const own = category.image_path;
       const borrowed = category.dish_image_path;
       const fallback = startingDishes.length > 0 ? startingDishes[(position ?? 0) % startingDishes.length] : null;
       const shown = own ? address(own) : borrowed ? address(borrowed) : fallback;
       const why = category.web_hidden ? "Hidden on the website"
         : !hasDishes ? "No dishes on the website"
-        : !onHome ? "Not among the first six" : null;
+        : !onHome ? `Not among the first ${MAX_HOME_CATEGORIES}` : null;
 
       const [input, choose] = picker(`photo-category-${category.id}`, own ? "Replace" : "Choose a photo", {
         primary: !own,
@@ -299,7 +299,7 @@ export async function photosView(outlet) {
     return h("section", { class: "d-card p-5 sm:p-6", "aria-labelledby": "photos-categories" },
       h("h2", { id: "photos-categories", class: "d-title" }, "Menu categories"),
       h("p", { class: "mt-1 max-w-3xl text-sm text-muted" },
-        "The category tiles on the home page. A category without a photo of its own shows the photo of one of its dishes, or one of the website's starting photos. The home page shows the first six categories that have dishes on the website; their order is set on the ",
+        `The category tiles on the home page. A category without a photo of its own shows the photo of one of its dishes, or one of the website's starting photos. The home page shows the first ${MAX_HOME_CATEGORIES} categories that have dishes on the website; their order is set on the `,
         h("a", { href: "#/categories", class: "font-medium text-brand hover:underline" }, "Categories page"), "."),
       listed.length === 0
         ? h("div", { class: "d-alert d-alert-info mt-5" }, "There are no categories yet. They come from Clover, once it is connected and the menu has been imported.")

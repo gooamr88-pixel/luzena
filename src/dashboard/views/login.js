@@ -118,3 +118,43 @@ export function setPasswordView(app) {
   shell(app, "Set a new password", null, form);
   password.input.focus();
 }
+
+// The second step of signing in, for an account that has two-step sign-in on: the password
+// was right, and now the code from the authenticator app is asked for. Supabase Auth checks
+// the code; a right one raises the session to the level the backend requires. Until then
+// nothing of the dashboard is drawn, and the backend would refuse this session anyway.
+export function secondStepView(app, onVerified) {
+  const code = field("code", "Code from your authenticator app", {
+    type: "text", inputmode: "numeric", autocomplete: "one-time-code", maxlength: 6,
+  });
+  code.input.classList.add("text-center", "font-mono", "text-lg", "tracking-[0.3em]");
+  const message = h("div", { class: "d-alert d-alert-bad", role: "alert", hidden: true });
+  const submit = h("button", { type: "submit", class: "d-btn d-btn-primary w-full" }, "Verify");
+  const form = h("form", { class: "mt-6 space-y-4", novalidate: true }, message, code.node, submit,
+    h("button", { type: "button", class: "d-btn d-btn-quiet d-btn-sm w-full", onClick: () => state.supabase.auth.signOut() }, "Sign out"));
+
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    message.hidden = true;
+    const fail = (text) => {
+      message.textContent = text;
+      message.hidden = false;
+      code.input.value = "";
+      code.input.focus();
+    };
+    const entered = code.input.value.replace(/\s+/g, "");
+    if (!/^[0-9]{6}$/.test(entered)) return fail("Enter the six digits the app shows.");
+    withBusy(submit, "Checking...", async () => {
+      const mfa = state.supabase.auth.mfa;
+      const factors = await mfa.listFactors();
+      const factor = (factors.data?.totp ?? [])[0];
+      if (factors.error || !factor) return fail("The code could not be checked. Check your connection and try again.");
+      const { error } = await mfa.challengeAndVerify({ factorId: factor.id, code: entered });
+      // One message whatever the reason, as for a wrong password.
+      if (error) return fail("That code was not accepted. Codes change every 30 seconds: enter the one showing now.");
+      await onVerified();
+    });
+  });
+  shell(app, "Enter your code", "Two-step sign-in is on for this account. Open your authenticator app and enter the six-digit code it shows for this website.", form);
+  code.input.focus();
+}

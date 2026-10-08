@@ -168,6 +168,7 @@ shows **placeholder photos** in their place rather than the photo-less layouts:
 | Home hero | `placeholder-hero.jpg` | The same dark hero with a warm glow and the logo's leaf |
 | Home "our story", About | `placeholder-story.jpg` | Home: the "what to expect" points on a forest green panel. About: the logo, in white, on a forest green panel. |
 | Gallery page, home photo strip | `placeholder-gallery-1` to `-5` | Page hidden from navigation and search; strip left out |
+| Dish labels and the allergy notice | Nothing until the owner sets them: Dashboard > **Labels**. Never filled in by the build or by synchronisation. | Nothing shown |
 | Home category tiles | The category's own photo from the dashboard (**Photos > Menu categories**), else the photo of one of its dishes, else one of `defaultDishPhotos` | Green tiles |
 | Home popular dishes | The dish's own photo from the dashboard, else one of `defaultDishPhotos` | Text-only cards |
 | Location | The Google map. `placeholder-location.jpg` is set but only shows if the map is removed. | The opening hours, day by day |
@@ -245,3 +246,49 @@ with `CLOVER_SANDBOX_REFRESH_TOKEN`. See `CLOVER_SANDBOX_TEST_PLAN.md`.
 `.env`, `.env.local`, `.env.*` (anything but the `.example` files), and
 `supabase/functions/.env`. `.gitignore` already excludes them. Before the first commit, run
 `git status` and confirm none of them is listed.
+
+## 10. Two-step sign-in (done by hand, by the account's owner)
+
+There are two different accounts, and each has to be protected by the person who owns it.
+Nothing here can be switched on from code.
+
+### 10.1 The Supabase account (whoever administers the projects)
+
+This is the account that can read the database, the stored CVs and every secret. It is not
+part of this website and no code here can change it.
+
+1. Sign in at <https://supabase.com/dashboard>.
+2. Open **Account** (the avatar, top right) > **Account preferences** > **Security**
+   (<https://supabase.com/dashboard/account/security>).
+3. Under **Multi-factor authentication**, choose **Add new app**, scan the QR code with an
+   authenticator app (Google Authenticator, Microsoft Authenticator, 1Password, Authy) and
+   enter the code it shows. Add a second app or device as a spare if you can.
+4. If more than one person administers the projects, each does this for their own account,
+   and the organisation can require it: **Organization settings** > **Security** >
+   *Require MFA to access organization*.
+
+Use an authenticator app, not text messages. GitHub (which holds the code and decides what
+is deployed) and Hostinger (which serves the site) deserve the same: each has its own
+two-factor setting under its account's security page.
+
+### 10.2 The restaurant owner's dashboard login
+
+1. **Check the project allows it.** Supabase dashboard > the project > **Authentication** >
+   **Sign In / Providers** > **Multi-Factor**: *TOTP (App Authenticator)* must be **Enabled**.
+   Read on 2026-10-08: **PRODUCTION has it enabled; TEST has it disabled** (enable it there
+   to try this on TEST). Leave *Phone* off.
+2. **Turn it on for the account.** The owner signs in to `/dashboard/`, opens **Security**,
+   chooses *Turn on two-step sign-in*, scans the code with an authenticator app and enters
+   the six digits. From then on every sign-in asks for a code, and the backend refuses that
+   account's sessions without one.
+3. **Recommended:** in the same Supabase screen (Authentication > Emails), switch on the
+   notifications *MFA factor enrolled* and *MFA factor unenrolled*, so the owner is emailed
+   if a method is ever added or removed. Both were off on 2026-10-08.
+
+**If the owner loses the phone:** Supabase dashboard > the project > **Authentication** >
+**Users** > the user > remove the MFA factor. The owner then signs in with the password and
+sets two-step sign-in up again. There is deliberately no other way round it.
+
+**Not yet proven against the real service.** The screens and the backend check are tested
+against stand-ins. The first real enrolment, on TEST and then on PRODUCTION, is the test:
+do it while signed in on a second browser too, so that a mistake cannot lock the account out.

@@ -10,7 +10,7 @@ a real browser under the production security headers. Nothing has talked to Clov
 **One part has been verified on a real Supabase project.** On 2026-10-05 the migrations were
 applied to the TEST/STAGING project (`cgxhifkeoesvsycewwfs`) and the database controls were
 checked there with `npm run verify:database`, by query and by acting as each role: row
-level security on all 18 tables, no policies, no privilege for `anon` or `authenticated` on
+level security on all 21 tables, no policies, no privilege for `anon` or `authenticated` on
 any table, sequence or function, new objects closed by default, `cvs` bucket private, no
 storage policies, and the backend's role able to do its work (30 checks). The functions are
 not deployed there yet, so the API-level controls have not been checked on real
@@ -32,7 +32,7 @@ but only the owner should have an account. Switch off "Allow new users to sign u
 
 | Area | Verdict | Evidence |
 |---|---|---|
-| Row level security | Enabled on all 18 tables, no policies, every privilege on tables, sequences and functions revoked from `anon` and `authenticated`, and new objects closed by default | `sql.test.js` "access control at the database"; `npm run verify:database` on the test project 2026-10-05 |
+| Row level security | Enabled on all 21 tables, no policies, every privilege on tables, sequences and functions revoked from `anon` and `authenticated`, and new objects closed by default | `sql.test.js` "access control at the database"; `npm run verify:database` on the test project 2026-10-05 |
 | Tenant isolation | Enforced at the API, in every SQL function, and by privileges | `sql.test.js` "tenant isolation"; `dashboard.test.js` "never serves one restaurant's items to another restaurant's owner" |
 | Authentication | Supabase Auth JWT verified on every dashboard request; no custom password code | `dashboard.test.js` "rejects a request with no session", "rejects an invalid session token"; Deno smoke "refuses a forged token" |
 | Authorisation | Role checked on the server per route; staff cannot write | `dashboard.test.js` "enforces roles on the server" |
@@ -176,6 +176,23 @@ site's own origin with CORS, and gives addresses, descriptions and sizes: no row
 storage path, nothing about who uploaded a photo or when. The description an owner types is
 put on the page as an attribute and as text, never as markup. Proven by
 `tests/site-photos.test.js` and the "website photos" browser tests.
+
+**Two-step sign-in** is Supabase Auth's own (an authenticator app). Nothing about a factor,
+its secret, its id or a code, is stored by this system, sent to its backend, written to its
+logs or kept in the browser; the setup key is shown once, by Supabase, on the Security page.
+The backend refuses every route (403 `mfa_required`) to a session of an account that has it
+on and has given only the password. Proven by `tests/two-step.test.js` and the "two-step
+sign-in" browser tests, **against stand-ins for Supabase Auth: it has not been tried against
+the real service**, which needs a deployment and an owner to enrol. What must be done by
+hand is in `docs/CONFIGURATION.md` section 10.
+
+**Menu labels and the allergy notice** are safety-relevant wording that only the
+restaurant may write. No code path assigns a label to a dish or composes a notice. Names,
+descriptions and the notice are stored as plain text and put on the page as text, never as
+markup; an icon is a key checked against a fixed set, never a file or a path. Each
+restaurant's labels and notice are reachable only through functions bound to that
+restaurant, and a foreign key stops another restaurant's label being put on a dish. Proven
+by `tests/labels.test.js`.
 
 **Category photos** (`dashboard-api`): as item photos, with the `site.manage` permission.
 The category is looked up as this restaurant's before anything is stored, so no file is

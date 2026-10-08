@@ -9,10 +9,12 @@ import { categoriesView } from "./views/categories.js";
 import { cloverView, completeCloverReturn } from "./views/clover.js";
 import { itemEditorView } from "./views/item-editor.js";
 import { itemsView } from "./views/items.js";
-import { loginView, setPasswordView } from "./views/login.js";
+import { labelsView } from "./views/labels.js";
+import { loginView, secondStepView, setPasswordView } from "./views/login.js";
 import { modifiersView } from "./views/modifiers.js";
 import { overviewView } from "./views/overview.js";
 import { photosView } from "./views/photos.js";
+import { securityView } from "./views/security.js";
 
 const app = document.getElementById("app");
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -23,10 +25,12 @@ const NAV = [
   { href: "#/items", label: "Items", icon: "items", match: /^#\/items/ },
   { href: "#/categories", label: "Categories", icon: "categories", match: /^#\/categories/ },
   { href: "#/modifiers", label: "Modifiers", icon: "modifiers", match: /^#\/modifiers/ },
+  { href: "#/labels", label: "Labels", icon: "tag", match: /^#\/labels/ },
   { href: "#/photos", label: "Photos", icon: "image", match: /^#\/photos/, permission: "site.manage" },
   { href: "#/applications", label: "Applications", icon: "applications", match: /^#\/applications/, permission: "applications.read", count: true },
   { href: "#/clover", label: "Clover", icon: "clover", match: /^#\/clover/ },
   { href: "#/activity", label: "Activity", icon: "activity", match: /^#\/activity/, permission: "activity.read" },
+  { href: "#/security", label: "Security", icon: "lock", match: /^#\/security/ },
 ];
 
 const ROUTES = [
@@ -36,11 +40,13 @@ const ROUTES = [
   { pattern: /^#\/items\/([A-Z0-9]{13})$/, view: (outlet, match) => itemEditorView(outlet, match[1], null) },
   { pattern: /^#\/categories$/, view: categoriesView },
   { pattern: /^#\/modifiers$/, view: modifiersView },
+  { pattern: /^#\/labels$/, view: labelsView },
   { pattern: /^#\/photos$/, view: photosView },
   { pattern: /^#\/applications$/, view: applicationsView },
   { pattern: /^#\/applications\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/, view: applicationDetailView },
   { pattern: /^#\/clover$/, view: cloverView },
   { pattern: /^#\/activity$/, view: activityView },
+  { pattern: /^#\/security$/, view: securityView },
 ];
 
 let outlet = null;
@@ -166,12 +172,28 @@ async function route() {
   window.scrollTo(0, 0);
 }
 
+// Whether this session still owes the second step of signing in: the account has two-step
+// sign-in on and only the password has been given. Asked of Supabase Auth. If the question
+// cannot be answered the dashboard goes on, and the backend, which checks the same thing
+// on every request, refuses the session and brings the owner to the code step that way.
+async function owesSecondStep() {
+  try {
+    const { data, error } = await state.supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+    return !error && data.nextLevel === "aal2" && data.currentLevel !== "aal2";
+  } catch {
+    return false;
+  }
+}
+
 async function startSession() {
   clear(app);
   append(app, h("div", { class: "mx-auto max-w-3xl p-6" }, loadingBlock("Loading your restaurant")));
+  if (await owesSecondStep()) return secondStepView(app, startSession);
   try {
     state.me = await api("GET", "/me");
   } catch (failure) {
+    // The backend says the same thing in its own words.
+    if (failure instanceof ApiFailure && failure.code === "mfa_required") return secondStepView(app, startSession);
     clear(app);
     const signOut = h("button", { type: "button", class: "d-btn", onClick: () => state.supabase.auth.signOut() }, "Sign out");
     if (failure instanceof ApiFailure && failure.status === 401) return;

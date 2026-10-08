@@ -24,6 +24,19 @@ type CloverConfig = NonNullable<Env["clover"]>;
 const REFRESH_MARGIN_MS = 120_000;
 const REFRESH_LOCK_SECONDS = 30;
 
+// What "unauthorized" from Clover costs.
+//
+// One such answer is not proof that a token is dead: Clover has been seen to give it for a
+// token that worked a moment later. So the request is tried once more, after a short wait.
+// If Clover says it again, that is one failed attempt, and it is counted. The connection is
+// marked as needing a new token only when Clover has gone on saying it: this many attempts
+// in a row, spread over at least this long. Bounded on every side: one extra request per
+// attempt, visitors cannot set off an attempt more often than every two minutes while it
+// lasts (sync_due in the database), and after the mark nothing is sent to Clover at all.
+const UNAUTHORIZED_RETRY_WAIT_MS = 1500;
+const AUTH_FAILURES_BEFORE_REAUTH = 3;
+const AUTH_FAILING_SECONDS_BEFORE_REAUTH = 600;
+
 export function requireClover(env: Env): { clover: CloverConfig; key: string } {
   if (!env.clover || !env.tokenEncryptionKey) {
     throw new CloverError("not_configured", "Clover app credentials or encryption key are missing");
@@ -149,12 +162,18 @@ interface ConnectionSecret {
   access_token_enc: string;
   refresh_token_enc: string;
   access_token_expires_at: string;
+  auth_failures?: number;
 }
 
 interface Credentials {
   token: string;
   merchantId: string;
   baseUrl: string;
+  // Clover has rejected this connection on earlier attempts and none has succeeded since.
+  failing: boolean;
+  // The token Clover just rejected, handed back because there is no other: a merchant's
+  // API token cannot be refreshed.
+  sameToken?: boolean;
 }
 
 const readSecret = (deps: Deps, restaurantId: string) =>
@@ -175,7 +194,7 @@ async function getCredentials(deps: Deps, restaurantId: string, rejectedToken: s
     const token = await decryptSecret(row.access_token_enc, key);
     // A token Clover just rejected is not usable even if its expiry looks fine.
     if (token === rejectedToken) return null;
-    return { token, merchantId: row.merchant_id, baseUrl: CLOVER_HOSTS[row.environment].api };
+    return { token, merchantId: row.merchant_id, baseUrl: CLOVER_HOSTS[row.environment].api, failing: (row.auth_failures ?? 0) > 0 };
   };
 
   for (let attempt = 0; attempt < 6; attempt++) {
@@ -206,11 +225,14 @@ async function getCredentials(deps: Deps, restaurantId: string, rejectedToken: s
 
     const refreshToken = await decryptSecret(current.refresh_token_enc, key);
     if (refreshToken === API_TOKEN_MARKER) {
-      // A merchant API token cannot be refreshed. Getting here means Clover rejected it
-      // (revoked or deleted in the merchant dashboard): the owner has to enter a new one.
-      deps.log.error("clover_api_token_rejected", { restaurant_id: restaurantId });
-      await deps.db.rpc("clover_mark_needs_reauth", { p_restaurant: restaurantId, p_error_code: "token_rejected" });
-      throw new CloverError("needs_reauth", "Clover rejected the merchant API token");
+      // A merchant API token cannot be refreshed, so there is no newer token to try. Getting
+      // here means Clover rejected this one, once. It is handed back for one more try of
+      // the same request; openClover counts the rejection if Clover repeats it.
+      await deps.db.rpc("clover_refresh_release", { p_restaurant: restaurantId });
+      return {
+        token: await decryptSecret(current.access_token_enc, key), merchantId: current.merchant_id,
+        baseUrl: CLOVER_HOSTS[current.environment].api, failing: (current.auth_failures ?? 0) > 0, sameToken: true,
+      };
     }
 
     try {
@@ -224,7 +246,10 @@ async function getCredentials(deps: Deps, restaurantId: string, rejectedToken: s
         p_refresh_exp: sealed.refreshExp,
       });
       deps.log.info("clover_token_refreshed", { restaurant_id: restaurantId });
-      return { token: tokens.accessToken, merchantId: current.merchant_id, baseUrl: CLOVER_HOSTS[current.environment].api };
+      return {
+        token: tokens.accessToken, merchantId: current.merchant_id, baseUrl: CLOVER_HOSTS[current.environment].api,
+        failing: (current.auth_failures ?? 0) > 0,
+      };
     } catch (error) {
       const kind = error instanceof CloverError ? error.kind : "unavailable";
       deps.log.error("clover_token_refresh_failed", { restaurant_id: restaurantId, kind });
@@ -240,21 +265,69 @@ async function getCredentials(deps: Deps, restaurantId: string, rejectedToken: s
   throw new CloverError("unavailable", "Timed out waiting for a Clover token refresh");
 }
 
-// An API handle bound to one restaurant. A 401 triggers one refresh and one repeat of that
-// single request; Clover did not process a request it answered with 401, so repeating it
-// cannot duplicate a write.
+// Clover has rejected the same request twice. That is one failed attempt: it is counted,
+// and the connection is marked as needing a new token only when the count and the time say
+// Clover means it. Returns the error to throw. No token is logged: only how many attempts.
+async function unauthorizedAgain(deps: Deps, restaurantId: string, correlationId: string): Promise<CloverError> {
+  let outcome: { failures: number; needs_reauth: boolean } | null = null;
+  try {
+    outcome = await deps.db.rpc<{ failures: number; needs_reauth: boolean } | null>("clover_auth_failed", {
+      p_restaurant: restaurantId, p_threshold: AUTH_FAILURES_BEFORE_REAUTH, p_min_seconds: AUTH_FAILING_SECONDS_BEFORE_REAUTH,
+    });
+  } catch (error) {
+    // The rejection could not be counted. It is still only one failed attempt.
+    deps.log.error("clover_auth_failure_not_recorded", { restaurant_id: restaurantId, error_message: String(error) });
+  }
+  if (outcome?.needs_reauth) {
+    deps.log.error("clover_token_rejected", { restaurant_id: restaurantId, correlation_id: correlationId, consecutive_failures: outcome.failures });
+    return new CloverError("needs_reauth", "Clover kept rejecting the token", { status: 401 });
+  }
+  deps.log.warn("clover_unauthorized", {
+    restaurant_id: restaurantId, correlation_id: correlationId, consecutive_failures: outcome?.failures ?? null,
+    marks_after: AUTH_FAILURES_BEFORE_REAUTH, over_seconds: AUTH_FAILING_SECONDS_BEFORE_REAUTH,
+  });
+  return new CloverError("unauthorized", "Clover rejected the access token", { status: 401 });
+}
+
+// An API handle bound to one restaurant.
+//
+// A 401 leads to one repeat of that single request: with a refreshed token where there is
+// one to refresh, otherwise with the same token after a short wait. Clover did not process
+// a request it answered with 401, so repeating it cannot duplicate a write. A second 401
+// is a failed attempt (see unauthorizedAgain); the first request Clover accepts afterwards
+// clears the count.
 export async function openClover(deps: Deps, restaurantId: string, correlationId: string): Promise<CloverApi> {
   let credentials = await getCredentials(deps, restaurantId, null);
+  let failing = credentials.failing;
+  const accepted = async () => {
+    if (!failing) return;
+    failing = false;
+    await deps.db.rpc("clover_auth_ok", { p_restaurant: restaurantId })
+      .catch((error) => deps.log.error("clover_auth_ok_not_recorded", { restaurant_id: restaurantId, error_message: String(error) }));
+    deps.log.info("clover_accepted_again", { restaurant_id: restaurantId, correlation_id: correlationId });
+  };
   return {
     merchantId: credentials.merchantId,
     async request(call: CloverCall) {
+      let result: unknown;
       try {
-        return await cloverFetch(deps, credentials.baseUrl, credentials.token, call, correlationId);
+        result = await cloverFetch(deps, credentials.baseUrl, credentials.token, call, correlationId);
       } catch (error) {
         if (!(error instanceof CloverError) || error.kind !== "unauthorized") throw error;
+        // Throws "needs_reauth" by itself when Clover refuses to refresh an OAuth token:
+        // that is Clover saying outright that the authorisation is gone.
         credentials = await getCredentials(deps, restaurantId, credentials.token);
-        return await cloverFetch(deps, credentials.baseUrl, credentials.token, call, correlationId);
+        if (credentials.sameToken) await deps.sleep(UNAUTHORIZED_RETRY_WAIT_MS);
+        try {
+          result = await cloverFetch(deps, credentials.baseUrl, credentials.token, call, correlationId);
+        } catch (again) {
+          if (!(again instanceof CloverError) || again.kind !== "unauthorized") throw again;
+          failing = true;
+          throw await unauthorizedAgain(deps, restaurantId, correlationId);
+        }
       }
+      await accepted();
+      return result;
     },
   };
 }

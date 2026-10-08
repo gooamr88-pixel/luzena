@@ -26,7 +26,7 @@ export function installDemo(state) {
       id: item.id, name: item.name, price_cents: item.price_cents, price_type: item.price_type, unit_name: item.unit_name,
       hidden: false, available: item.available, modified_time: Date.now(), removed_from_clover: false,
       description: item.description, image_path: null, featured: item.featured, web_hidden: false,
-      dietary: item.dietary, archived: false, synced_at: stamp(4), updated_at: stamp(30 + index * 95),
+      dietary: [], label_ids: [], archived: false, synced_at: stamp(4), updated_at: stamp(30 + index * 95),
       categories: [{ id: category.id, name: category.name }],
       modifier_groups: item.modifier_groups.map((group) => ({ id: group.id, name: group.name })),
     });
@@ -134,6 +134,15 @@ export function installDemo(state) {
     };
   }
 
+  // Menu labels: a new restaurant's starting nine, on no dish. And the allergy notice: off.
+  const LABEL_ICONS = ["flame", "leaf", "sprout", "nut", "milk", "wheat", "egg", "fish", "shell", "star", "sparkle", "chef-hat", "seal", "heart", "sun", "clock", "drop", "cup"];
+  let labels = [["Spicy", "flame"], ["Vegetarian", "leaf"], ["Vegan", "sprout"], ["Contains Nuts", "nut"], ["Contains Dairy", "milk"],
+    ["Contains Gluten", "wheat"], ["Popular", "star"], ["New", "sparkle"], ["Chef's Choice", "chef-hat"]]
+    .map(([name, icon], index) => ({ id: `10000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`, name, icon, description: null, active: true, sort_order: index + 1, updated_at: stamp(900) }));
+  const labelList = () => labels.map((label) => ({ ...label, item_count: items.filter((item) => item.label_ids.includes(label.id)).length }));
+  let notice = { enabled: false, entries: [], updated_at: null };
+  const NOTICE_LANGUAGES = ["en", "ar", "es", "fr", "tr", "zh"];
+
   // The website's own photos. None chosen to begin with, as on a new site.
   const GALLERY_LIMIT = 24;
   const sitePhotos = { hero: null, story: null, gallery: [] };
@@ -164,7 +173,7 @@ export function installDemo(state) {
     if (clover.category_ids) item.categories = categories.filter((c) => clover.category_ids.includes(c.id)).map((c) => ({ id: c.id, name: c.name }));
     if (clover.modifier_group_ids) item.modifier_groups = [...groups.values()].filter((g) => clover.modifier_group_ids.includes(g.id)).map((g) => ({ id: g.id, name: g.name }));
     const website = body.website ?? {};
-    for (const key of ["description", "featured", "web_hidden", "dietary", "archived"]) if (key in website) item[key] = website[key];
+    for (const key of ["description", "featured", "web_hidden", "dietary", "label_ids", "archived"]) if (key in website) item[key] = website[key];
     item.updated_at = stamp();
     return item;
   }
@@ -195,6 +204,9 @@ export function installDemo(state) {
 
   async function demoApi(method, fullPath, body) {
     await new Promise((resolve) => setTimeout(resolve, 180));
+    if (factors.some((factor) => factor.status === "verified") && level !== "aal2") {
+      throw new ApiFailure(403, { code: "mfa_required", message: "Enter the code from your authenticator app to continue." });
+    }
     const [path, queryString = ""] = fullPath.split("?");
     const query = new URLSearchParams(queryString);
     let match;
@@ -227,7 +239,7 @@ export function installDemo(state) {
       const item = applyItem({
         id: newId("DEMOITEM"), price_type: "FIXED", unit_name: null, hidden: false, available: true,
         modified_time: Date.now(), removed_from_clover: false, description: null, image_path: null,
-        featured: false, web_hidden: false, dietary: [], archived: false, synced_at: stamp(), categories: [], modifier_groups: [],
+        featured: false, web_hidden: false, dietary: [], label_ids: [], archived: false, synced_at: stamp(), categories: [], modifier_groups: [],
       }, body);
       items.push(item);
       log("ITEM_CREATED", "item", item.id, body, "success", "SYNCED");
@@ -364,6 +376,46 @@ export function installDemo(state) {
       };
     }
 
+    if (path === "/labels" && method === "GET") return { labels: labelList(), icons: LABEL_ICONS, limits: { labels: 40, per_item: 12 } };
+    if (path === "/labels" && method === "POST") {
+      if (labels.some((label) => label.name.toLowerCase() === body.name.toLowerCase())) {
+        throw new ApiFailure(409, { code: "duplicate", message: "There is already a label with this name." });
+      }
+      const label = { id: crypto.randomUUID(), name: body.name, icon: body.icon, description: body.description ?? null, active: true, sort_order: labels.length + 1, updated_at: stamp() };
+      labels.push(label);
+      log("LABEL_CREATED", "label", label.id, { name: label.name });
+      return { result: "saved", labels: labelList(), id: label.id, message: "Demo: label added in this browser tab only." };
+    }
+    if (path === "/labels/reorder") {
+      labels = body.ids.map((id) => labels.find((label) => label.id === id));
+      return { result: "saved", labels: labelList(), message: "Demo: order saved." };
+    }
+    if ((match = path.match(/^\/labels\/([0-9a-f-]{36})$/))) {
+      const label = labels.find((entry) => entry.id === match[1]);
+      if (!label) throw new ApiFailure(404, { code: "not_found", message: "This label does not exist." });
+      if (method === "DELETE") {
+        const dishes = items.filter((item) => item.label_ids.includes(label.id));
+        for (const item of dishes) item.label_ids = item.label_ids.filter((id) => id !== label.id);
+        labels = labels.filter((entry) => entry !== label);
+        log("LABEL_DELETED", "label", label.id, null);
+        return { result: "saved", labels: labelList(), message: dishes.length === 0 ? "Demo: label deleted." : `Demo: label deleted and taken off ${dishes.length} ${dishes.length === 1 ? "dish" : "dishes"}.` };
+      }
+      if (body.name && labels.some((entry) => entry !== label && entry.name.toLowerCase() === body.name.toLowerCase())) {
+        throw new ApiFailure(409, { code: "duplicate", message: "There is already a label with this name." });
+      }
+      Object.assign(label, body, { updated_at: stamp() });
+      log("LABEL_UPDATED", "label", label.id, body);
+      return { result: "saved", labels: labelList(), message: body.active === false ? "Demo: label switched off." : body.active === true ? "Demo: label switched on." : "Demo: label saved." };
+    }
+    if (path === "/site/notice" && method === "GET") return { notice, languages: NOTICE_LANGUAGES, limits: { text: 600 } };
+    if (path === "/site/notice" && method === "PUT") {
+      const entries = body.entries.filter((entry) => entry.text !== "");
+      if (body.enabled && entries.length === 0) throw new ApiFailure(422, { code: "validation_failed", message: "Write the notice before turning it on." });
+      notice = { enabled: body.enabled, entries, updated_at: stamp() };
+      log("ALLERGY_NOTICE_UPDATED", "site_settings", "allergy_notice", { enabled: body.enabled });
+      return { result: "saved", notice, message: body.enabled ? "Demo: notice saved in this browser tab only." : "Demo: notice saved, switched off." };
+    }
+
     if (path === "/site/photos" && method === "GET") return { photos: sitePhotos, limits: { gallery: GALLERY_LIMIT } };
     if (path === "/site/photos" && method === "POST") {
       const slot = body.get("slot");
@@ -409,13 +461,55 @@ export function installDemo(state) {
   let listener = () => {};
   const session = { access_token: "demo", user: { id: "demo-user" } };
   let signedIn = true;
+
+  // Two-step sign-in, as far as the screens need it. A stand-in for Supabase Auth's own:
+  // nothing here is a real secret, and the only code it accepts is 123456.
+  const DEMO_CODE = "123456";
+  const QR = "data:image/svg+xml;utf-8," + encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 21 21" shape-rendering="crispEdges"><rect width="21" height="21" fill="#fff"/>'
+    + '<path fill="#18120f" d="M1 1h7v7H1zM13 1h7v7h-7zM1 13h7v7H1zM10 1h1v3h-1zM10 6h2v2h-2zM9 10h3v1H9zM13 10h2v2h-2zM17 10h3v1h-3zM10 13h2v3h-2zM14 14h3v2h-3zM18 13h2v2h-2zM13 18h3v2h-3zM18 17h2v3h-2z"/>'
+    + '<path fill="#fff" d="M2 2h5v5H2zM14 2h5v5h-5zM2 14h5v5H2z"/><path fill="#18120f" d="M3 3h3v3H3zM15 3h3v3h-3zM3 15h3v3H3z"/></svg>');
+  let factors = [];
+  let level = "aal1";
+  const refused = (message) => ({ data: null, error: { message } });
+  const mfa = {
+    listFactors: async () => ({
+      data: { all: factors.map((factor) => ({ ...factor })), totp: factors.filter((factor) => factor.status === "verified").map((factor) => ({ ...factor })) },
+      error: null,
+    }),
+    enroll: async ({ friendlyName }) => {
+      const factor = { id: crypto.randomUUID(), factor_type: "totp", friendly_name: friendlyName, status: "unverified", created_at: stamp() };
+      factors.push(factor);
+      return { data: { id: factor.id, type: "totp", totp: { qr_code: QR, secret: "DEMO KEY 2345 6723 4567 ABCD", uri: "otpauth://totp/demo" } }, error: null };
+    },
+    challengeAndVerify: async ({ factorId, code }) => {
+      const factor = factors.find((entry) => entry.id === factorId);
+      if (!factor || code !== DEMO_CODE) return refused("Invalid TOTP code entered");
+      factor.status = "verified";
+      level = "aal2";
+      return { data: { user: session.user }, error: null };
+    },
+    unenroll: async ({ factorId }) => {
+      const factor = factors.find((entry) => entry.id === factorId);
+      // As Supabase does: a factor that is in use is only removed by a session that used it.
+      if (factor?.status === "verified" && level !== "aal2") return refused("AAL2 required");
+      factors = factors.filter((entry) => entry.id !== factorId);
+      return { data: { id: factorId }, error: null };
+    },
+    getAuthenticatorAssuranceLevel: async () => ({
+      data: { currentLevel: signedIn ? level : null, nextLevel: factors.some((factor) => factor.status === "verified") ? "aal2" : "aal1" },
+      error: null,
+    }),
+  };
   state.supabase = {
     auth: {
       onAuthStateChange(callback) { listener = callback; callback(signedIn ? "SIGNED_IN" : "SIGNED_OUT", signedIn ? session : null); },
       getSession: async () => ({ data: { session: signedIn ? session : null } }),
       refreshSession: async () => ({ data: { session: signedIn ? session : null } }),
-      signInWithPassword: async () => { signedIn = true; listener("SIGNED_IN", session); return { error: null }; },
-      signOut: async () => { signedIn = false; listener("SIGNED_OUT", null); },
+      // A new sign-in starts at the password alone, as a real one does.
+      signInWithPassword: async () => { signedIn = true; level = "aal1"; listener("SIGNED_IN", session); return { error: null }; },
+      signOut: async () => { signedIn = false; level = "aal1"; listener("SIGNED_OUT", null); },
+      mfa,
       resetPasswordForEmail: async () => ({ error: null }),
       updateUser: async () => ({ error: null }),
     },

@@ -1,6 +1,7 @@
 // Production wiring. This is the only file that touches Deno globals and the Supabase
 // client; everything else is plain TypeScript that also runs under Node for tests.
 import { createClient } from "npm:@supabase/supabase-js@2.117.2";
+import { hasVerifiedFactor, sessionLevel } from "./auth-level.ts";
 import { createResendSender } from "./email.ts";
 import { loadEnv } from "./env.ts";
 import { createLogger } from "./log.ts";
@@ -66,7 +67,13 @@ export function createDeps(): { deps: Deps; storagePublicBase: string } {
       async getUser(jwt) {
         const { data, error } = await client.auth.getUser(jwt);
         if (error || !data.user) return null;
-        return { id: data.user.id, email: data.user.email ?? null };
+        // Supabase Auth has just verified this token, so what it says about itself can be
+        // read. Whether the account has two-step sign-in on comes from Supabase's own
+        // record of the account, not from the token.
+        return {
+          id: data.user.id, email: data.user.email ?? null,
+          twoStep: hasVerifiedFactor(data.user.factors), level: sessionLevel(jwt),
+        };
       },
     },
     email: resendKey && env.emailFrom ? createResendSender(resendKey, env.emailFrom, fetch) : null,

@@ -14,6 +14,8 @@ const LABELS = {
   APPLICATION_DELETED: "Job application deleted",
   SITE_PHOTO_SET: "Website photo changed", SITE_PHOTO_REMOVED: "Website photo removed",
   CATEGORY_IMAGE_UPDATED: "Category photo changed", CATEGORY_IMAGE_REMOVED: "Category photo removed",
+  LABEL_CREATED: "Menu label added", LABEL_UPDATED: "Menu label changed", LABEL_DELETED: "Menu label deleted",
+  ALLERGY_NOTICE_UPDATED: "Allergy notice changed",
   CLOVER_CONNECTED: "Clover connected", CLOVER_DISCONNECTED: "Clover disconnected", CLOVER_CONNECT_FAILED: "Clover connection failed",
 };
 

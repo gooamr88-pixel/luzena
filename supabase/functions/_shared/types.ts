@@ -15,6 +15,11 @@ export interface FileStore {
 export interface AuthUser {
   id: string;
   email: string | null;
+  // Two-step sign-in, as Supabase Auth reports it (see auth-level.ts). `twoStep` is whether
+  // the account has it turned on; `level` is how this session signed in. Both are absent
+  // for an account that has never been asked: that is the same as off, and aal1.
+  twoStep?: boolean;
+  level?: "aal1" | "aal2";
 }
 
 export interface AuthVerifier {

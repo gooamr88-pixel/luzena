@@ -100,8 +100,12 @@ export async function createHarness(envOverrides = {}) {
     return { status: response.status, body: text ? JSON.parse(text) : null, headers: response.headers };
   };
 
+  // How an account signs in, as Supabase Auth would report it: whether it has two-step
+  // sign-in on, and whether this session gave the code.
+  const signedInWith = (user, security) => Object.assign(users.get(user.token), security);
+
   return {
-    pg, db, deps, clover, logs, stored, sent, state, addUser, connect, api,
+    pg, db, deps, clover, logs, stored, sent, state, addUser, connect, api, signedInWith,
     createRestaurant: (slug) => createRestaurant(pg, slug),
     settle: async () => { while (background.length > 0) await background.shift(); },
   };

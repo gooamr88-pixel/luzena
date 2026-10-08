@@ -1504,3 +1504,113 @@ Still open, none of it new code to write without a decision:
 
 **The website is not deployed with any of this**: the live home page still says "See Open
 Positions". `deploy.sh` on the VPS publishes the motion, the fixes and the category tiles.
+
+### 2026-10-08 Checkpoint: six open items closed; menu labels and the allergy notice. NOTHING DEPLOYED
+
+Two requests from the client in one round, both with "do not deploy". Everything below is
+in the working tree and in the tests. **None of it is applied to TEST or PRODUCTION, and
+none of it is on the live website.**
+
+**A. The six items left open by the audit.**
+
+1. **Two-step sign-in.** Built on Supabase Auth's own MFA (TOTP); no secret of it is stored
+   by this application. Dashboard > **Security** (`views/security.js`) enrols an
+   authenticator app (QR code, setup key, six digits) and removes it after asking. After
+   the password, an account that has one is asked for the code (`secondStepView` in
+   `views/login.js`). The backend enforces it: `authenticate` in `dashboard/session.ts`
+   answers `403 mfa_required` to a session below `aal2` when the account has a verified
+   factor (`_shared/auth-level.ts`). Read from the projects on 2026-10-08: TOTP is enabled
+   on PRODUCTION, disabled on TEST; the "factor added / removed" emails are off on both.
+   **Proven against stand-ins only**, never against the real Supabase Auth. The Supabase
+   account itself (the one that administers the projects) can only be protected by its
+   owner, by hand: `docs/CONFIGURATION.md` section 10.
+2. **Dish descriptions** already existed end to end (`web_description`). Added: 9 backend
+   tests, a browser test, and `dir="auto"` so Arabic reads right to left.
+3. **Featured dishes** already existed end to end (`web_featured`). Added: 8 backend tests
+   and browser tests. No dish is featured by the code; the home page leaves the row out
+   when none is.
+4. **Clover "unauthorized".** One `401` is asked again once (after 1.5 s for a merchant
+   token, after a refresh for OAuth). A second is counted in
+   `clover_connections.auth_failures` and that attempt fails with "try again in a few
+   minutes"; the connection stays connected. It is marked `needs_reauth` only when at least
+   3 attempts have failed and Clover has been refusing for 10 minutes; any accepted request
+   clears the count. Visitors do not set off a synchronisation within 2 minutes of a
+   refusal. Migration `20261008001100_clover_auth_failures.sql`. No token in any log line
+   (tested).
+5. **Photos of categories Clover has removed** are deleted by the hourly pass 30 days after
+   the category went (`ORPHANED_PHOTO_GRACE_DAYS` in `public/retention.ts`), only when the
+   path is inside that category's own folder and nothing else shows the file. Migration
+   `20261008001200_orphaned_category_photos.sql`.
+6. **The "six categories" rule** is `MAX_HOME_CATEGORIES` in `src/js/lib/home.js`, imported
+   by `featured.js` and the dashboard's Photos page. A test fails if it is written again.
+
+**B. Menu labels and the allergy notice.**
+
+- Migration `20261008001300_menu_labels_and_notice.sql`: tables `menu_labels`,
+  `menu_item_labels`, `site_settings` (21 tables in all), RLS on with no policy, closed to
+  `anon` and `authenticated`. Every restaurant gets nine starting labels, **attached to no
+  dish**. Dietary tags a restaurant already had (`web_dietary`) are copied over as labels on
+  the same dishes; the old column and the old `dietary` field of the API are left in place,
+  so the website that is live today keeps working until it is redeployed.
+- Dashboard > **Labels** (`views/labels.js`): add, rename, describe, choose one of 18
+  icons, switch off, reorder, delete; and the allergy notice (on/off, one text per
+  language out of en, ar, es, fr, tr, zh, live preview). The item editor has a "Dietary and
+  menu labels" group of tick boxes. Nothing is ever ticked by the code.
+- Public menu: `labels` on each dish (name, icon key, description; active only; in the
+  owner's order) and `notice` when switched on. Drawn by `src/js/lib/menu-item.js` as a
+  small line icon and the name; more than four fold into "+N more". Icons are path data
+  from Lucide (ISC), in `src/js/lib/label-icons.js`; no emoji anywhere. The notice is an
+  `aside` at the foot of the menu (`src/js/lib/menu-notice.js`), not styled as an error.
+- Synchronisation never reads or writes labels or the notice (tested).
+- **The wording of the notice is the restaurant's to write.** The example in the brief is
+  shown only as placeholder text in the dashboard; nothing here is approved wording, and
+  the dashboard says so.
+
+**Verified locally (2026-10-08):** lint, types, content clean; `npm test` **384 passed**
+(14 files); Deno type check and smoke checks passed; `npm run test:browser`
+**282 passed (3 files: public 151, sample 49, dashboard 82)**. Detail in `TESTING.md`.
+
+**To put it live, in this order, when the client says so:**
+
+1. `supabase db push --dry-run`, then `supabase db push`, on TEST: it must name exactly
+   `..1100`, `..1200`, `..1300`. Then the five functions. Then the same on PRODUCTION.
+   No new secret and no new environment variable.
+2. `deploy.sh` on the VPS for the website (which also publishes everything since
+   `6ce935e`).
+3. The backend can go first safely: the new fields are additions and the live website
+   ignores them. The website must not go first: its dashboard would call routes that do
+   not exist yet.
+
+**Still for people, not code:** two-step sign-in on the Supabase, GitHub and Hostinger
+accounts; the owner enrolling in Dashboard > Security (first on TEST, with TOTP switched on
+there); the notice's wording and which dishes carry which label; descriptions and featured
+dishes; and the items carried over from the checkpoint above (notification email on
+PRODUCTION, the access token to revoke, the photos' licence).
+
+### 2026-10-08 Checkpoint: the round above DEPLOYED to TEST; two-step sign-in still unproven there
+
+The client: "Test, Commit, Production", with the access token given earlier (passed to each
+command in its environment; not stored on this machine again).
+
+**TEST (`cgxhifkeoesvsycewwfs`):**
+
+- The dry run named exactly `..1100_clover_auth_failures`, `..1200_orphaned_category_photos`
+  and `..1300_menu_labels_and_notice`; applied. This is the first time these migrations ran
+  on a real Postgres.
+- The five functions deployed.
+- By query: 21 tables, none without row level security, 0 policies, no table and no
+  function open to `anon` or `authenticated`, none closed to `service_role`; the three new
+  columns on `clover_connections`; the 13 new functions; 1 restaurant with its 9 starting
+  labels, on 0 dishes; no notice switched on.
+- `verify:functions`: every check passed (2 skipped: they need the public key and an
+  owner's login).
+- TOTP was switched on for the project (`mfa_totp_enroll_enabled`, `mfa_totp_verify_enabled`).
+
+**Two-step sign-in was NOT proven against the real Supabase Auth.** The attempt (a
+throwaway account: enrol, wrong code, right code, the backend's answer at each level, turn
+off, delete) stopped at its first sign-in: **email sign-in is switched off on TEST**
+("Email logins are disabled"), which is also why nobody can sign in to a dashboard there.
+The throwaway account was deleted (checked: none left, no factor left). Switching email
+sign-in on for TEST was not done. `supabase/config.toml` asks for it on every project;
+PRODUCTION has it on. Until it is on, the only real proof available is the owner's own
+first enrolment.

@@ -8,7 +8,8 @@ import { normalizeItem } from "../clover/normalize.ts";
 import { ApiError, json } from "../http.ts";
 import { applyRawItems, refreshItem } from "../sync.ts";
 import type { Deps, Session } from "../types.ts";
-import { cloverId, parseBody, v } from "../validate.ts";
+import { cloverId, parseBody, uuid, v } from "../validate.ts";
+import { MAX_LABELS_PER_ITEM, setItemLabels } from "./labels.ts";
 import { assertOwned, audit, cloverApiError, idempotent, sameSet } from "./session.ts";
 
 export const DIETARY_TAGS = ["vegetarian", "vegan", "gluten-free", "dairy-free", "nut-free", "halal", "spicy"] as const;
@@ -27,6 +28,8 @@ const websiteSchema = v.object({
   featured: v.optional(v.bool()),
   web_hidden: v.optional(v.bool()),
   dietary: v.optional(v.array(v.oneOf(DIETARY_TAGS), { max: DIETARY_TAGS.length, unique: true })),
+  // The restaurant's own labels on this dish (see labels.ts): exactly these, by id.
+  label_ids: v.optional(v.array(uuid, { max: MAX_LABELS_PER_ITEM, unique: true })),
   archived: v.optional(v.bool()),
 });
 const updateSchema = v.object({
@@ -306,6 +309,7 @@ export async function updateItemHandler(deps: Deps, session: Session, itemId: st
       p_restaurant: restaurantId, p_item: itemId, p_patch: input.website,
     });
     websiteChanged = saved !== null;
+    if (input.website?.label_ids !== undefined) await setItemLabels(deps, session, itemId, input.website.label_ids);
   }
 
   const partial = outcome.failedParts.length > 0;
@@ -392,6 +396,7 @@ export async function createItemHandler(deps: Deps, session: Session, request: R
     // here is shown unless the form said otherwise, so visibility is always written.
     const website = { web_hidden: false, ...(input.website ?? {}) };
     await deps.db.rpc("web_update_item", { p_restaurant: restaurantId, p_item: itemId, p_patch: website });
+    if (input.website?.label_ids !== undefined) await setItemLabels(deps, session, itemId, input.website.label_ids);
     const partial = outcome.failedParts.length > 0;
     await audit(deps, session, {
       ...base, entityId: itemId, newValues: input,

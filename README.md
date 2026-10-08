@@ -74,6 +74,8 @@ in `ARCHITECTURE.md`.
 |---|---|
 | Menu items, prices, availability, categories, modifiers | Dashboard (writes to Clover), or Clover itself |
 | Item descriptions, photos, featured items | Dashboard |
+| Dish labels (dietary and descriptive, with icons) and the allergy notice at the foot of the menu | Dashboard, **Labels**. Each restaurant's own; never set automatically. |
+| Two-step sign-in for a dashboard account | Dashboard, **Security** (see `docs/CONFIGURATION.md` section 10) |
 | The home page's main photo, the "our story" photo, the gallery, the photo of each menu category | Dashboard, **Photos**. On the website within about a minute, no redeploy. |
 | Restaurant name, story, address, hours, phone, job positions, social links, privacy policy, and the photos the site starts with | `content/site.json` and `content/media/`, then redeploy |
 | Where ORDER NOW on the Order Online page leads (Clover) | `ordering.url` in `content/site.json`, or `CLOVER_ORDERING_URL` in the server's `shared/site.env`, which wins; then redeploy |

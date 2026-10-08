@@ -59,7 +59,72 @@ deployed, and the Nginx configuration has never been loaded by an Nginx.
 The browser tests need a Chromium. They use one already installed by Playwright under
 `%LOCALAPPDATA%\ms-playwright`, or the executable named in `CHROME_PATH`.
 
-## Latest run: 2026-10-07 (third), after motion was added to the public site
+## Latest run: 2026-10-08, after two-step sign-in, the Clover "unauthorized" rule, menu labels and the allergy notice
+
+One Windows machine, **nothing deployed**: the three new migrations exist only in the
+working tree and in the test database.
+
+| Check | Result |
+|---|---|
+| `npm run lint` | clean |
+| `npm run typecheck` | clean |
+| `npm run check:content` | clean |
+| `npm test` | **384 passed**, 0 failed (14 files) |
+| `npm run check:deno` | type check clean; the five functions start and answer |
+| `npm run test:browser` | **282 passed**, 0 failed (3 files: public 151, sample 49, dashboard 82) |
+
+The unit and browser totals are from one uninterrupted run each. The Deno checks ran before
+the last two edits, which touched test files only.
+
+New since the run before: **93 unit tests** (85 in five new files, 8 more in
+`tests/token-connect.test.js`; their rows are in the table below) and **30 browser tests**,
+in these groups and in the per-screen checks named last:
+
+- `sample.spec.js`, "menu labels and the allergy notice" (7): a label is a small line icon
+  and its name under the description, in the site's colours; its description is read to a
+  screen reader and shown on hover; more than four fold into "+N more", opened by keyboard;
+  an icon the page does not know is shown as the name alone; a menu from before labels
+  still shows its old dietary tags; the notice is at the foot of the menu with each language
+  marked; no notice when the restaurant has none; label names and notice wording that
+  contain markup are shown as text.
+- `sample.spec.js`, "descriptions and featured dishes on the public pages" (3): a
+  description is shown as text, Arabic right to left, and nothing where there is none; the
+  home page leaves the featured row out when no dish is featured; it features exactly the
+  dishes marked.
+- `dashboard.spec.js`, "menu labels" (5): the starting labels and the statement that
+  nothing is labelled automatically; add, with a refusal of a name already used; rename,
+  switch off and on, move by keyboard, delete after asking; tick labels on a dish, see them
+  in the preview, keep them when saved; write the notice, preview it, and see it on the menu
+  only when switched on.
+- `dashboard.spec.js`, "descriptions and featured dishes" (1) and "two-step sign-in" (3):
+  turning it on by scanning a code and proving the app works; the code asked for after the
+  password, with nothing of the dashboard shown until it is right; signing out from the
+  code step, and turning it off after asking.
+- The Labels and Security pages are in the dashboard's WCAG 2.2 AA scan and its
+  seven-width sideways-scroll check.
+
+**Not proven by this run:**
+
+- **Two-step sign-in against the real Supabase Auth.** Enrolment, the QR code, the code
+  check and the session level are Supabase's; the tests put a stand-in in their place
+  (the demo accepts `123456`). The backend rule is tested with sessions the test itself
+  labels `aal1` or `aal2`.
+- **Clover's real behaviour.** The retry and the count are tested against the fake Clover
+  answering `401`. How often the real Clover answers `401` to a good token is not known.
+- **The migrations on a real Postgres** were not part of this run. They were applied to the
+  TEST project afterwards, the same day, and checked there by query (`PROJECT_MEMORY.md`).
+- **How the labels look** was checked in still screenshots (`.visual/labels/`) at 390 and
+  1280 px, in Chromium only, and by nobody at the restaurant.
+- **Whether the allergy notice's wording is right.** No test can say; it is the
+  restaurant's to write.
+
+## The run before: 2026-10-08 (first), after category photos became changeable from the dashboard
+
+Lint, types and content clean; `npm test` **291 passed** (9 files); Deno checks passed;
+`npm run test:browser` **252 passed** (3 files). Deployed to TEST and PRODUCTION afterwards
+and checked there (`PROJECT_MEMORY.md`, checkpoint of that day).
+
+## The run before: 2026-10-07 (third), after motion was added to the public site
 
 Lint and types clean; `npm run test:browser` **248 passed** (3 files). The unit tests were
 not run again: nothing they cover changed.
@@ -165,14 +230,20 @@ migrations on PGlite, which is Postgres compiled to WebAssembly.
 
 | File | Tests | What it exercises |
 |---|---|---|
-| `tests/sql.test.js` | 33 | The migrations and SQL functions directly, on a database that starts with Supabase's real default privileges: privileges on tables, sequences and functions, RLS, tenant isolation, listing filters and sorting, the public menu's visibility rules, sync preserving website data, locks, rate limiting, idempotency, OAuth state. |
-| `tests/dashboard.test.js` | 51 | The dashboard API end to end: the real router and handlers, real SQL, and a fake Clover. Authentication, roles, validation, write-through, conflicts, partial saves, lost responses, idempotent creates, bulk actions, categories, modifiers, photos, token refresh, OAuth, audit. |
-| `tests/public.test.js` | 28 | Public menu (including Clover being down, and its rate limit), Clover webhook, job application (both switches, the missing retention period, validation, file checks, bot traps, email failure, rate limit), deletion of applications past the retention period. |
-| `tests/applications.test.js` | new | Job applications end to end on the real handlers and SQL: a form request is stored, listed by the dashboard API at once and reported by email with a link to it; every answer is shown and nothing a browser has no use for; the CV is streamed only to a signed-in owner or manager and the download recorded; stage changes with who, when and their note; no session, a forged one, staff, and another restaurant's owner all refused; the tables and functions closed to the public roles; search, stage, position and date filters, paging; deletion with the CV and the history at the end of the retention period. |
+| `tests/sql.test.js` | 38 | The migrations and SQL functions directly, on a database that starts with Supabase's real default privileges: privileges on tables, sequences and functions, RLS, tenant isolation, listing filters and sorting, the public menu's visibility rules, sync preserving website data, locks, rate limiting, idempotency, OAuth state. |
+| `tests/dashboard.test.js` | 53 | The dashboard API end to end: the real router and handlers, real SQL, and a fake Clover. Authentication, roles, validation, write-through, conflicts, partial saves, lost responses, idempotent creates, bulk actions, categories, modifiers, photos, token refresh, OAuth, audit. |
+| `tests/public.test.js` | 38 | Public menu (including Clover being down, and its rate limit), Clover webhook, job application (both switches, the missing retention period, validation, file checks, bot traps, email failure, rate limit), deletion of applications past the retention period. |
+| `tests/applications.test.js` | 23 | Job applications end to end on the real handlers and SQL: a form request is stored, listed by the dashboard API at once and reported by email with a link to it; every answer is shown and nothing a browser has no use for; the CV is streamed only to a signed-in owner or manager and the download recorded; stage changes with who, when and their note; no session, a forged one, staff, and another restaurant's owner all refused; the tables and functions closed to the public roles; search, stage, position and date filters, paging; deletion with the CV and the history at the end of the retention period. |
 | `tests/category-photos.test.js` | 14 | A category's photo on the real handlers and SQL with the fake Clover: none chosen answers `image_url: null`; the dashboard is told which dish photo the website borrows; a chosen photo is stored under a server-made path and reaches the public menu as an address only; replacing removes the old file, the same photo again keeps it, a failed save leaves nothing; it survives a synchronisation; removing goes back to the automatic photo; what is not an image, too large, missing, or for a category that does not exist is refused; staff, no session and another restaurant's owner are refused; the function is closed to the public roles; the activity log. |
 | `tests/site-photos.test.js` | 21 | The website's own photos on the real handlers and SQL: nothing chosen answers with empty slots; a photo set in the dashboard is in the public answer as an address, with a `srcset` when there are two sizes and never an id or a storage path; replacing removes the old files and leaves one photo in the slot; removing goes back to the built photo; the gallery's order, its limit of 24 and a reorder that names every photo once; files that are too large or not images refused; no session, staff, and another restaurant's owner refused; the table and functions closed to the public roles; the public endpoint answering before any Clover sync, its CORS, the methods it refuses and an unknown restaurant; the activity log. The endpoint's rate limit uses the same function as the menu's and is not tested separately. |
-| `tests/units.test.js` | 31 | Clover client retry rules, token parsing, normalisation of Clover data, encryption, log redaction, configuration, file sniffing, request validation. |
-| `tests/frontend.test.js` | 39 | Money parsing and formatting, opening hours, the content gate (what blocks a build and what does not), the confirmed address, phone, hours and domain, the ordering-link rules, the application switch, the sample overlay, job departments, sitemap, robots, structured data. |
+| `tests/token-connect.test.js` | 26 | Connecting Clover with a merchant API token, and what happens when Clover stops accepting it. One `401` is asked again once and, if the second answer is good, nothing is recorded. Two in a row are counted, the owner is told to try again, and the connection stays connected. Many rejections within a few minutes do not mark it either: only when at least three attempts have failed and Clover has kept rejecting the token for ten minutes is the connection marked as needing a new token, and the published menu stays up. A good answer in between clears the count; a new token resumes, with every website choice kept. A write is not applied twice by the retry. While Clover is refusing, visitors do not set off a synchronisation for two minutes. No token, in clear or encrypted, is in any log line or any answer. |
+| `tests/descriptions-featured.test.js` | 17 | A dish's description and its "featured" mark on the real handlers and SQL. A description is optional, is saved, is in the dashboard's answer and the public menu's, keeps Arabic, English and line breaks exactly, is trimmed, is refused when too long, and can be emptied again; none is made up for a dish that arrives from Clover. Markup in a description is stored and returned as the same characters (the page draws it as text; that is checked in the browser tests). No dish is featured until the owner says so; the mark is set for one dish or several, removed again, accepts only true or false, reaches the public menu for that dish only, and is not shown while the dish is hidden, archived or gone from Clover. A synchronisation, including a rename and a new price in Clover, changes neither. Only the restaurant's own owner or manager may change them. |
+| `tests/orphaned-photos.test.js` | 18 | Cleaning up the photo of a category that Clover no longer has. Nothing is touched before 30 days; a category that is only hidden or archived on the website keeps its photo, however old; a category that comes back to Clover keeps it. After 30 days the file is removed and the record forgotten. A file that another category, a dish or a website photo still points to is never removed; nor is a path outside the category's own folder. A second and a third pass do nothing more; a file that cannot be removed leaves the record for a later pass, and a pass cut short after removing the file is finished by the next; one restaurant's removed category never affects another's photos. It runs inside the hourly upkeep, and its functions are closed to the public roles. |
+| `tests/two-step.test.js` | 10 | Two-step sign-in at the backend. The level of a session is read from its `aal` claim; anything unreadable counts as the lower level. An account without a verified authenticator works as before. An account with one is refused (`403 mfa_required`) on every route until the session has passed the second step, and works afterwards. An authenticator counts only once it has been verified. The refusal says nothing about the account or its factor, a session Supabase does not vouch for is refused with or without a code, and nothing about codes or factors is logged. **Supabase Auth itself is replaced by a stand-in here**: enrolment, the code check and the QR code are Supabase's and are not exercised. |
+| `tests/labels.test.js` | 36 | Menu labels and the allergy notice on the real handlers and SQL. A new restaurant gets nine starting labels and no dish carries any of them. Create, rename, change icon, describe, switch off, reorder, delete; a name used twice, an icon that does not exist, more labels than the limit and more on one dish than its limit are refused; a starting label the owner deleted is not given back. A dish's labels are saved, replaced, emptied; the public menu lists only active ones, in the owner's order, with name, icon key and description and never an id. A synchronisation leaves them exactly as they were, and keeps them for a dish Clover has dropped until it comes back; saving a dish's other website choices leaves them alone; a dish's name decides nothing (a "Vegetable Pasta" is not vegan until someone says so). Dietary tags a restaurant already had are carried over as labels on the same dishes. Deleting a label takes it off every dish. Another restaurant's label cannot be read, changed or attached. The notice: off by default, absent from the public menu when off or empty, one text per language, a language named twice or not in the list refused, length limited. The three tables and every function are closed to the public roles. Activity log entries, which name the languages of a notice and not its text. |
+| `tests/shared-rules.test.js` | 4 | Rules more than one file must agree on. The number of category tiles on the home page is one constant, imported by the page that draws them and the dashboard page that explains them, and written nowhere else in `src`. The 18 label icons each have a name for the owner and a drawing that is SVG path data only: no emoji, no image file, no colour of its own, nothing fetched. |
+| `tests/units.test.js` | 35 | Clover client retry rules, token parsing, normalisation of Clover data, encryption, log redaction, configuration, file sniffing, request validation. |
+| `tests/frontend.test.js` | 51 | Money parsing and formatting, opening hours, the content gate (what blocks a build and what does not), the confirmed address, phone, hours and domain, the ordering-link rules, the application switch, the sample overlay, job departments, sitemap, robots, structured data. |
 
 ### 2. Edge Functions under Deno (`npm run check:deno`)
 
@@ -196,9 +267,9 @@ production Nginx configuration is generated from the same file, and a unit test 
 
 | File | Tests | Build | What it exercises |
 |---|---|---|---|
-| `tests/browser/public.spec.js` | 132 | **Production** build: real content, no sample data, no backend | Every public page: no script error, failed request or policy violation; one `h1`, no skipped heading level, title, language, skip link; WCAG 2.2 AA scan; no sideways scroll at 360, 390, 430, 768, 1024, 1280 and 1440 px. Canonical addresses on the confirmed domain, share image, sitemap, robots, structured data. No broken internal link. Phone, email, map and Instagram links. Address, hours and breakfast on the page and in the footer. ORDER ONLINE stays on-site while no Clover link exists. The menu's "unavailable" state. Careers with applications off: 18 roles, no form, no upload field. Skip link, focus ring, phone navigation dialog, tap-target sizes. A Google map of the address on the home and Locations pages, beside the details on a laptop and below them on a phone (the tests answer for Google with an empty page, so they do not depend on it). **The only image files in the build are the logo, the icon, the leaf, the generated share image and the placeholder photos named in the content file.** |
-| `tests/browser/sample.spec.js` | 19 | Sample build | What needs data to exist: the rendered menu (prices, out-of-stock, market price, options, category chips), the home page's category tiles and featured dishes, photo hero, gallery viewer with keyboard, and the application form: labels, validation, file-type refusal, a successful send (request intercepted and inspected), server validation errors, network failure, server failure. **Photos chosen in the dashboard** (the test answers in the backend's place): the hero, the story photo, the home row and the whole gallery are replaced, the viewer walks the owner's photos, and the built photos stay where nothing was chosen or the answer is an error. |
-| `tests/browser/dashboard.spec.js` | 43 | Sample build, dashboard in **demo mode** | Sign-out and sign-in, password reset, overview, item list (search, filters, sorting, stock and visibility switches, archive with confirmation, bulk actions), item editor (source labels, live preview, unsaved-changes guard, save, validation, create, duplicate, missing item), categories (reorder, undo, add, rename, hide, archive), modifiers, Clover page, activity log, WCAG 2.2 AA scan of every screen, phone layout, no sideways scroll at the same seven widths. **Website photos:** the starting photos shown, a real JPEG chosen and resized in the browser (two sizes, real dimensions, nothing of the file's own name sent), description, back to the starting photo, a gallery built from several files, reordered by keyboard, described and trimmed, and a file that is not a photo refused. |
+| `tests/browser/public.spec.js` | 151 | **Production** build: real content, no sample data, no backend | Every public page: no script error, failed request or policy violation; one `h1`, no skipped heading level, title, language, skip link; WCAG 2.2 AA scan; no sideways scroll at 360, 390, 430, 768, 1024, 1280 and 1440 px. Canonical addresses on the confirmed domain, share image, sitemap, robots, structured data. No broken internal link. Phone, email, map and Instagram links. Address, hours and breakfast on the page and in the footer. ORDER ONLINE stays on-site while no Clover link exists. The menu's "unavailable" state. Careers with applications off: 18 roles, no form, no upload field. Skip link, focus ring, phone navigation dialog, tap-target sizes. A Google map of the address on the home and Locations pages, beside the details on a laptop and below them on a phone (the tests answer for Google with an empty page, so they do not depend on it). **The only image files in the build are the logo, the icon, the leaf, the generated share image and the placeholder photos named in the content file.** |
+| `tests/browser/sample.spec.js` | 49 | Sample build | What needs data to exist: the rendered menu (prices, out-of-stock, market price, options, category chips), the home page's category tiles and featured dishes, photo hero, gallery viewer with keyboard, and the application form: labels, validation, file-type refusal, a successful send (request intercepted and inspected), server validation errors, network failure, server failure. **Photos chosen in the dashboard** (the test answers in the backend's place): the hero, the story photo, the home row and the whole gallery are replaced, the viewer walks the owner's photos, and the built photos stay where nothing was chosen or the answer is an error. **Menu labels, the allergy notice, descriptions and featured dishes as a visitor sees them**: listed under the latest run above. |
+| `tests/browser/dashboard.spec.js` | 82 | Sample build, dashboard in **demo mode** | Sign-out and sign-in, password reset, overview, item list (search, filters, sorting, stock and visibility switches, archive with confirmation, bulk actions), item editor (source labels, live preview, unsaved-changes guard, save, validation, create, duplicate, missing item), categories (reorder, undo, add, rename, hide, archive), modifiers, Clover page, activity log, WCAG 2.2 AA scan of every screen, phone layout, no sideways scroll at the same seven widths. **Website photos:** the starting photos shown, a real JPEG chosen and resized in the browser (two sizes, real dimensions, nothing of the file's own name sent), description, back to the starting photo, a gallery built from several files, reordered by keyboard, described and trimmed, and a file that is not a photo refused. **Menu labels, the allergy notice, descriptions, featured dishes and two-step sign-in**: listed under the latest run above. |
 
 **What the dashboard browser tests do and do not prove.** Demo mode replaces Supabase Auth
 and the dashboard API with an in-memory stand-in. So these tests prove the interface: what
@@ -300,6 +371,7 @@ the real Clover API behaves as documented. No test that has been run talks to Cl
 | Uploading to and reading from Storage | The buckets exist on the real project and are checked (private CVs, no policies); no file has been stored yet | First photo upload and first application after the functions are deployed |
 | Supabase Auth itself (sign-in, reset emails, sessions) | Third-party service; API tests substitute a token-to-user map, browser tests a stand-in | Sign in on the test project |
 | The dashboard against the real API in a browser | Needs a Supabase project | After the test deployment |
+| Two-step sign-in against the real Supabase Auth: enrolling an authenticator, the QR code, a real six-digit code, the `aal2` session it produces, removing the authenticator | The tests replace Supabase Auth with a stand-in (API tests: a session with a level; browser tests: the demo, which accepts `123456`). TOTP is switched off on the TEST project | Switch TOTP on for TEST, deploy there, enrol a throwaway account, sign out and in. `docs/CONFIGURATION.md` section 10 |
 | Email delivery through Resend | No account | Send one real application on the test deployment |
 | Accessibility with a screen reader | Needs a person | NVDA or VoiceOver pass over the public pages and the dashboard |
 | Browsers other than Chromium | Only Chromium is installed | Open the deployed site in Safari (iPhone) and Firefox |

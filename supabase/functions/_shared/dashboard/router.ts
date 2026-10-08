@@ -14,10 +14,11 @@ import {
 import { completeConnect, connectionStatus, connectWithToken, disconnect, manualSync, startConnect } from "./connection.ts";
 import { removeCategoryImage, removeItemImage, uploadCategoryImage, uploadItemImage } from "./images.ts";
 import { bulkItems, createItemHandler, DIETARY_TAGS, getItemDetail, listItems, updateItemHandler } from "./items.ts";
+import { createLabel, deleteLabel, getNotice, listLabels, reorderLabels, setNotice, updateLabel } from "./labels.ts";
 import { authenticate, cloverApiError, type Permission, permissionsOf, rateLimit, requirePermission } from "./session.ts";
 import { describeSitePhoto, listSitePhotos, removeSitePhoto, reorderGallery, uploadSitePhoto } from "./site-photos.ts";
 
-const METHODS = "GET, POST, PATCH, DELETE, OPTIONS";
+const METHODS = "GET, POST, PUT, PATCH, DELETE, OPTIONS";
 const ID = "([A-Z0-9]{13})";
 // Applications are identified by a UUID, in lower case as the database prints it.
 const UUID = "([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})";
@@ -123,6 +124,24 @@ const ROUTES: Route[] = [
     handle: ({ deps, session }) => disconnect(deps, session) },
   { method: "POST", pattern: /^\/clover\/sync$/, permission: "menu.write", limit: ["sync", 12, 300],
     handle: ({ deps, session }) => manualSync(deps, session) },
+
+  // Menu labels: the restaurant's own dietary and descriptive attributes. Anyone who can
+  // see the menu can see them; changing them is changing the menu.
+  { method: "GET", pattern: /^\/labels$/, permission: "menu.read", limit: READ,
+    handle: ({ deps, session }) => listLabels(deps, session) },
+  { method: "POST", pattern: /^\/labels$/, permission: "menu.write", limit: WRITE,
+    handle: async (c) => createLabel(c.deps, c.session, await body(c)) },
+  { method: "POST", pattern: /^\/labels\/reorder$/, permission: "menu.write", limit: WRITE,
+    handle: async (c) => reorderLabels(c.deps, c.session, await body(c)) },
+  { method: "PATCH", pattern: new RegExp(`^/labels/${UUID}$`), permission: "menu.write", limit: WRITE,
+    handle: async (c) => updateLabel(c.deps, c.session, c.params[0], await body(c)) },
+  { method: "DELETE", pattern: new RegExp(`^/labels/${UUID}$`), permission: "menu.write", limit: WRITE,
+    handle: ({ deps, session, params }) => deleteLabel(deps, session, params[0]) },
+  // The allergy notice at the foot of the public menu.
+  { method: "GET", pattern: /^\/site\/notice$/, permission: "site.manage", limit: READ,
+    handle: ({ deps, session }) => getNotice(deps, session) },
+  { method: "PUT", pattern: /^\/site\/notice$/, permission: "site.manage", limit: WRITE,
+    handle: async (c) => setNotice(c.deps, c.session, await body(c)) },
 
   // The website's own photos: hero, "our story", gallery.
   { method: "GET", pattern: /^\/site\/photos$/, permission: "site.manage", limit: READ,

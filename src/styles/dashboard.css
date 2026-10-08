@@ -411,4 +411,25 @@
   .menu-item-unavailable img { @apply opacity-60; }
   .tag { @apply inline-flex items-center rounded-sm border border-olive/35 px-2 py-0.5 text-[0.66rem] font-semibold tracking-[0.08em] text-olive-dark uppercase; }
   .tag-muted { @apply border-danger/40 text-danger; }
+
+  /* Menu labels and the allergy notice inside the preview: the public site's own rules
+     (main.css), so that the preview is what a customer sees. */
+  .dish-labels { @apply mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1.5; }
+  .dish-label-list { @apply flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1.5; }
+  .dish-label { @apply inline-flex max-w-full items-center gap-1.5 text-[0.82rem] leading-snug font-medium break-words text-body; }
+  .dish-label svg { @apply shrink-0 text-brand; }
+  .dish-labels-more summary { @apply inline-flex min-h-6 cursor-pointer list-none items-center rounded-sm text-[0.82rem] font-semibold text-brand underline decoration-brand/40 underline-offset-4; }
+  .dish-labels-more summary::-webkit-details-marker { display: none; }
+  .dish-labels-more[open] { @apply basis-full; }
+  .dish-labels-more[open] summary { @apply sr-only; }
+  .menu-notice { @apply mx-auto max-w-2xl py-4 text-center; }
+  .menu-notice-rule { @apply mx-auto mb-5 block h-0.5 w-10 bg-gold; }
+  .menu-notice-title { @apply font-sans text-xs font-semibold tracking-[0.2em] text-brand uppercase; }
+  .menu-notice-text { @apply mt-4 text-[0.95rem] leading-relaxed whitespace-pre-line text-body; }
+
+  /* Choosing a label's icon: a row of tiles, one of them chosen. Each is a radio button
+     whose tile is the target; the chosen one is outlined in the accent, and the keyboard's
+     focus ring is drawn on the tile. */
+  .d-icon-choices { @apply flex flex-wrap gap-2; }
+  .d-icon-choice { @apply flex size-11 cursor-pointer items-center justify-center rounded-lg border border-line-strong bg-surface text-muted transition-colors hover:border-brand hover:text-brand has-[:checked]:border-brand has-[:checked]:bg-[#fbf5ea] has-[:checked]:text-brand has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-focus; }
 }

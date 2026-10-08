@@ -469,7 +469,7 @@ and `npm run verify:site` passes with `EXPECT_ORDERING_URL` set to that address.
 ## 11. Job applications (only after B-3 and B-4 in BLOCKERS.md)
 
 - [ ] Migration `20261006000700_job_application_workflow.sql` applied (TEST first, then
-      PRODUCTION): `supabase db push`, then `npm run verify:database` (18 tables).
+      PRODUCTION): `supabase db push`, then `npm run verify:database` (21 tables).
 - [ ] Functions redeployed: `job-application` and `dashboard-api` both changed.
 - [ ] Privacy policy published: `legal.privacyPolicyUrl` or `legal.privacy.sections` in
       `content/site.json`. It covers what the form now asks: contact details, availability,

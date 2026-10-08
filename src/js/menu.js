@@ -3,6 +3,7 @@ import { clear, h } from "./lib/dom.js";
 import { formatDateTime } from "./lib/format.js";
 import { fetchMenu, menuSettings } from "./lib/menu-api.js";
 import { menuItemElement } from "./lib/menu-item.js";
+import { menuNoticeElement } from "./lib/menu-notice.js";
 
 const root = document.querySelector("[data-menu]");
 const nav = document.querySelector("[data-menu-nav]");
@@ -49,6 +50,9 @@ function render(menu) {
         category.items.map((item) => menuItemElement(item, settings))),
     ));
   });
+  // The restaurant's allergy notice, when it has turned one on: the last thing on the menu.
+  const notice = menuNoticeElement(menu.notice);
+  if (notice) root.append(notice);
   root.setAttribute("aria-busy", "false");
   trackCurrentCategory(categories);
   // A link from the home page names a category (/menu/#menu-ID). The category did not exist

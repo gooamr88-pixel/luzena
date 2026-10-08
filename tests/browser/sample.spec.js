@@ -74,7 +74,8 @@ describe("menu page with a menu", () => {
 
   it("lists options behind a disclosure and shows their extra charge", async () => {
     const ribeye = opened.page.locator(".menu-item", { hasText: "Grilled Ribeye" });
-    await ribeye.locator("summary").click();
+    // The dish has two disclosures now: its options, and the rest of a long list of labels.
+    await ribeye.locator("summary", { hasText: "Options" }).click();
     const text = await ribeye.innerText();
     // The group's name is set in capitals by the stylesheet.
     expect(text).toMatch(/doneness/i);
@@ -650,6 +651,256 @@ describe("job application form (applications switched on)", () => {
   it("fits a phone screen", async () => {
     const { page, context } = await openPage(browser, `${site.url}/careers/`, { width: 360, height: 800 });
     expect(await hasHorizontalOverflow(page)).toBe(false);
+    await context.close();
+  });
+});
+
+// What the restaurant says about a dish, and its allergy notice. The sample menu carries
+// labels and a notice (sample wording, marked as such); where a test needs something the
+// sample does not have, it hands the page a menu of its own.
+describe("menu labels and the allergy notice", () => {
+  const sampleMenu = () => JSON.parse(readFileSync(join(ROOT, "content", "sample-menu.json"), "utf8"));
+  const withMenu = (menu) => ({
+    prepare: (context) => context.route("**/sample-api/menu.json", (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(menu) })),
+  });
+  const dish = (page, name) => page.locator(".menu-item", { hasText: name });
+  const menuPage = async (options = {}) => {
+    const opened = await openPage(browser, `${site.url}/menu/`, options);
+    await opened.page.waitForSelector(".menu-item");
+    return opened;
+  };
+
+  it("shows a dish's labels as a small icon and its name, under the description, in the site's own colours", async () => {
+    const { page, context, problems } = await menuPage();
+    const soup = dish(page, "Roasted Tomato Soup");
+    expect(await soup.locator(".dish-label").allInnerTexts()).toEqual(["Vegetarian", "Popular"]);
+
+    // Every label everywhere: an icon drawn like the site's other icons, hidden from screen
+    // readers, and a name in words beside it. The icon is never the only thing said.
+    const labels = await page.locator(".dish-label").evaluateAll((items) => items.map((item) => {
+      const svg = item.querySelector("svg");
+      return {
+        text: item.querySelector("span").textContent.trim(), hidden: svg?.getAttribute("aria-hidden"), stroke: svg?.getAttribute("stroke-width"),
+        fill: svg?.getAttribute("fill"), size: svg?.getBoundingClientRect().width, paths: svg?.querySelectorAll("path").length ?? 0,
+      };
+    }));
+    expect(labels.length).toBeGreaterThan(10);
+    expect(labels.every((label) => label.text.length > 0)).toBe(true);
+    expect(labels.every((label) => label.hidden === "true" && label.stroke === "1.6" && label.fill === "none" && label.size === 15 && label.paths > 0)).toBe(true);
+    // No emoji, no picture file: nothing but text and line drawings.
+    expect(await page.locator(".dish-label img").count()).toBe(0);
+    expect(await page.locator(".dish-labels").first().innerText()).not.toMatch(/\p{Extended_Pictographic}/u);
+
+    // The order on the dish: name, description, then the labels. And the labels are the
+    // quietest of the three: smaller than the description, in body ink, the icon in bronze.
+    const order = await soup.evaluate((item) => {
+      const top = (selector) => item.querySelector(selector).getBoundingClientRect().top;
+      const style = (selector) => getComputedStyle(item.querySelector(selector));
+      return {
+        name: top(".menu-item-name"), description: top("p"), labels: top(".dish-labels"),
+        nameSize: parseFloat(style(".menu-item-name").fontSize), descriptionSize: parseFloat(style("p").fontSize), labelSize: parseFloat(style(".dish-label").fontSize),
+        labelColour: style(".dish-label").color, iconColour: style(".dish-label svg").color, background: style(".dish-label").backgroundColor,
+      };
+    });
+    expect(order.name).toBeLessThan(order.description);
+    expect(order.description).toBeLessThan(order.labels);
+    expect(order.labelSize).toBeLessThan(order.descriptionSize);
+    expect(order.labelSize).toBeLessThan(order.nameSize);
+    expect(order.labelSize).toBeGreaterThanOrEqual(13);
+    expect(order.labelColour).toBe("rgb(75, 64, 59)");
+    expect(order.iconColour).toBe("rgb(131, 95, 32)");
+    expect(order.background).toBe("rgba(0, 0, 0, 0)");
+
+    // The old fixed dietary tags are not drawn a second time beside the labels.
+    expect(await page.locator(".menu-item .tag:not(.tag-muted)").count()).toBe(0);
+    // A dish with no label has no empty row for them.
+    expect(await dish(page, "Espresso").locator(".dish-labels").count()).toBe(0);
+
+    const violations = await accessibilityViolations(page);
+    expect(violations, describeViolations(violations)).toEqual([]);
+    expect(problems).toEqual([]);
+    await context.close();
+  });
+
+  it("reads a label's description to a screen reader, and shows it when the label is pointed at", async () => {
+    const { page, context } = await menuPage();
+    const choice = dish(page, "Grilled Ribeye").locator(".dish-label", { hasText: "Chef's Choice" });
+    expect(await choice.getAttribute("title")).toBe("Sample description. The kitchen's own pick.");
+    expect(await choice.locator(".sr-only").innerText()).toBe(": Sample description. The kitchen's own pick.");
+    // The list says what it is.
+    expect(await dish(page, "Grilled Ribeye").locator("ul.dish-label-list").first().getAttribute("aria-label")).toBe("Dietary and menu labels");
+    await context.close();
+  });
+
+  it("folds a long list away after four labels, and opens it with the keyboard", async () => {
+    const { page, context } = await menuPage();
+    const ribeye = dish(page, "Grilled Ribeye");
+    const more = ribeye.locator("details.dish-labels-more");
+    expect(await ribeye.locator(".dish-labels > ul > .dish-label").count()).toBe(4);
+    expect(await more.locator("summary").innerText()).toMatch(/^\+2 more/);
+    expect(await more.getAttribute("open")).toBeNull();
+    expect(await more.locator(".dish-label").first().isVisible()).toBe(false);
+
+    await more.locator("summary").focus();
+    await page.keyboard.press("Enter");
+    expect(await more.getAttribute("open")).not.toBeNull();
+    expect(await ribeye.locator(".dish-label").count()).toBe(6);
+    expect(await ribeye.locator(".dish-label", { hasText: "A sample label with a rather long name" }).isVisible()).toBe(true);
+    await context.close();
+  });
+
+  it.each([320, 360, 390, 768, 1280])("keeps the labels, a long one among them, inside the page at %ipx", async (width) => {
+    const { page, context } = await menuPage({ width, height: 800 });
+    await page.locator("details.dish-labels-more summary").click();
+    expect(await hasHorizontalOverflow(page), `${width}px`).toBe(false);
+    const outside = await page.evaluate(() => [...document.querySelectorAll(".dish-label")].filter((label) => {
+      const box = label.getBoundingClientRect();
+      const item = label.closest(".menu-item").getBoundingClientRect();
+      return box.width > 0 && (box.right > item.right + 1 || box.left < item.left - 1);
+    }).length);
+    expect(outside, `${width}px`).toBe(0);
+    // Labels do not overlap one another.
+    const overlapping = await page.evaluate(() => {
+      const boxes = [...document.querySelectorAll(".menu-item:has(.dish-labels-more) .dish-label")].map((label) => label.getBoundingClientRect()).filter((box) => box.width > 0);
+      return boxes.some((a, i) => boxes.some((b, j) => i < j && a.left < b.right - 1 && b.left < a.right - 1 && a.top < b.bottom - 1 && b.top < a.bottom - 1));
+    });
+    expect(overlapping, `${width}px`).toBe(false);
+    await context.close();
+  });
+
+  it("shows a label as its name alone when the page has no drawing for its icon, and never as markup", async () => {
+    const menu = sampleMenu();
+    menu.categories[0].items[0].labels = [
+      { name: "From a newer version", icon: "an-icon-this-page-does-not-have", description: null },
+      { name: "<img src=x onerror=alert(1)><b>Bold</b>", icon: "<script>", description: "<i>x</i>" },
+    ];
+    const { page, context, problems } = await menuPage(withMenu(menu));
+    const soup = dish(page, "Roasted Tomato Soup");
+    // The name, as the characters it is. (The description is read out after it, as text too.)
+    expect(await soup.locator(".dish-label > span.min-w-0").allInnerTexts()).toEqual(["From a newer version", "<img src=x onerror=alert(1)><b>Bold</b>"]);
+    expect(await soup.locator(".dish-label .sr-only").innerText()).toBe(": <i>x</i>");
+    expect(await soup.locator(".dish-label svg").count()).toBe(0);
+    expect(await soup.locator(".dish-label img, .dish-label b, .dish-label script").count()).toBe(0);
+    expect(problems).toEqual([]);
+    await context.close();
+  });
+
+  it("still shows the old dietary tags of a menu from before labels existed", async () => {
+    const menu = sampleMenu();
+    for (const category of menu.categories) for (const item of category.items) delete item.labels;
+    const { page, context } = await menuPage(withMenu(menu));
+    expect(await dish(page, "Roasted Tomato Soup").locator(".tag").allInnerTexts()).toEqual(["VEGETARIAN"].map((text) => expect.stringMatching(new RegExp(text, "i"))));
+    expect(await page.locator(".dish-labels").count()).toBe(0);
+    await context.close();
+  });
+
+  it("puts the allergy notice at the foot of the menu, each language marked as what it is", async () => {
+    const { page, context, problems } = await menuPage();
+    const notice = page.locator("[data-menu] > .menu-notice");
+    expect(await notice.count()).toBe(1);
+    // It is the last thing on the menu, after the last dish.
+    expect(await page.evaluate(() => document.querySelector("[data-menu]").lastElementChild.classList.contains("menu-notice"))).toBe(true);
+    expect(await notice.locator("h2").innerText()).toMatch(/allergies & dietary requirements/i);
+    const texts = await notice.locator("p").evaluateAll((paragraphs) => paragraphs.map((p) => ({ lang: p.lang, direction: getComputedStyle(p).direction, text: p.textContent })));
+    expect(texts.map((text) => [text.lang, text.direction])).toEqual([["en", "ltr"], ["ar", "rtl"]]);
+    expect(texts[0].text).toContain("Sample notice.");
+    // A note in the menu's own voice, not an alert: no alert role, no warning colour, no box.
+    const look = await notice.evaluate((element) => {
+      const style = getComputedStyle(element);
+      const text = getComputedStyle(element.querySelector("p"));
+      return { role: element.getAttribute("role"), background: style.backgroundColor, colour: text.color, align: style.textAlign };
+    });
+    expect(look).toEqual({ role: null, background: "rgba(0, 0, 0, 0)", colour: "rgb(75, 64, 59)", align: "center" });
+    expect(await page.locator("[role=alert], [role=alertdialog]").count()).toBe(0);
+    const violations = await accessibilityViolations(page);
+    expect(violations, describeViolations(violations)).toEqual([]);
+    expect(problems).toEqual([]);
+    await context.close();
+  });
+
+  it("shows no notice when the restaurant has none, and shows its wording as text, never as markup", async () => {
+    const none = sampleMenu();
+    none.notice = null;
+    const first = await menuPage(withMenu(none));
+    expect(await first.page.locator(".menu-notice").count()).toBe(0);
+    await first.context.close();
+
+    const hostile = sampleMenu();
+    hostile.notice = [{ lang: "en", text: "<script>window.hacked = true</script><b>Bold</b> & plain.\nSecond line." }];
+    const second = await menuPage(withMenu(hostile));
+    const paragraph = second.page.locator(".menu-notice p");
+    expect(await paragraph.innerText()).toContain("<script>window.hacked = true</script><b>Bold</b> & plain.");
+    expect(await second.page.locator(".menu-notice b, .menu-notice script").count()).toBe(0);
+    expect(await second.page.evaluate(() => window.hacked)).toBeUndefined();
+    expect(second.problems).toEqual([]);
+    await second.context.close();
+  });
+
+  it.each([320, 390])("fits the notice on a %ipx phone", async (width) => {
+    const { page, context } = await menuPage({ width, height: 800 });
+    await page.locator(".menu-notice").scrollIntoViewIfNeeded();
+    expect(await hasHorizontalOverflow(page)).toBe(false);
+    const box = await page.locator(".menu-notice").boundingBox();
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(width);
+    expect(parseFloat(await page.locator(".menu-notice p").first().evaluate((p) => getComputedStyle(p).fontSize))).toBeGreaterThanOrEqual(14);
+    await context.close();
+  });
+});
+
+// A dish's description and the featured dishes, as a customer sees them.
+describe("descriptions and featured dishes on the public pages", () => {
+  const sampleMenu = () => JSON.parse(readFileSync(join(ROOT, "content", "sample-menu.json"), "utf8"));
+  const withMenu = (menu) => ({
+    prepare: (context) => context.route("**/sample-api/menu.json", (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(menu) })),
+  });
+
+  it("shows a description as the text it is, Arabic right to left, and nothing at all where there is none", async () => {
+    const menu = sampleMenu();
+    const [first, second, third] = menu.categories[0].items;
+    first.description = `<img src=x onerror="window.hacked = true"><script>window.hacked = true</script> Plain & simple.`;
+    second.description = "شاورما دجاج مشوية تقدم مع صلصة الثوم";
+    third.description = null;
+    const { page, context, problems } = await openPage(browser, `${site.url}/menu/`, withMenu(menu));
+    await page.waitForSelector(".menu-item");
+    const items = page.locator("[data-menu] section").first().locator(".menu-item");
+
+    expect(await items.nth(0).locator("p").first().innerText()).toContain("<img src=x");
+    expect(await items.nth(0).locator("img, script").count()).toBe(0);
+    expect(await page.evaluate(() => window.hacked)).toBeUndefined();
+    const arabic = items.nth(1).locator("p").first();
+    expect(await arabic.getAttribute("dir")).toBe("auto");
+    expect(await arabic.evaluate((p) => getComputedStyle(p).direction)).toBe("rtl");
+    // No description: the dish is drawn without one, name and price as ever.
+    expect(await items.nth(2).locator(".menu-item-name").innerText()).toBe(third.name);
+    expect(await items.nth(2).locator("p[dir]").count()).toBe(0);
+    expect(problems).toEqual([]);
+    await context.close();
+  });
+
+  it("leaves the featured row off the home page when no dish is featured, and shows the rest of the page", async () => {
+    const menu = sampleMenu();
+    for (const category of menu.categories) for (const item of category.items) item.featured = false;
+    const { page, context, problems } = await openPage(browser, `${site.url}/`, withMenu(menu));
+    await page.waitForSelector("[data-categories]:not([hidden]) .category-tile");
+    expect(await page.locator("[data-featured]").isHidden()).toBe(true);
+    expect(await page.locator(".dish-card").count()).toBe(0);
+    expect(await page.locator(".category-tile").count()).toBe(4);
+    expect(problems).toEqual([]);
+    await context.close();
+  });
+
+  it("features exactly the dishes the owner marked, in the menu's order, however many there are", async () => {
+    const menu = sampleMenu();
+    const all = menu.categories.flatMap((category) => category.items);
+    for (const item of all) item.featured = false;
+    all[1].featured = true;
+    all[6].featured = true;
+    const { page, context } = await openPage(browser, `${site.url}/`, withMenu(menu));
+    await page.waitForSelector("[data-featured]:not([hidden]) .dish-card");
+    expect(await page.locator(".dish-card h3").allInnerTexts()).toEqual([all[1].name, all[6].name]);
     await context.close();
   });
 });

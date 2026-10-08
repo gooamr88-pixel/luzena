@@ -34,7 +34,7 @@ export const CLOVER_MESSAGES: Record<CloverErrorKind, string> = {
   not_configured: "Clover is not set up for this website yet.",
   not_connected: "Clover is not connected. Connect Clover to manage the menu.",
   needs_reauth: "The Clover connection has expired. Reconnect Clover to continue.",
-  unauthorized: "Clover rejected the connection. Reconnect Clover to continue.",
+  unauthorized: "Clover did not accept the connection just now. Nothing was changed. Try again in a few minutes; if it keeps happening, enter a new Clover token.",
   forbidden: "Clover refused this action. The app may be missing the inventory permission.",
   not_found: "Clover could not find this record. It may have been deleted in Clover.",
   bad_request: "Clover did not accept this change.",

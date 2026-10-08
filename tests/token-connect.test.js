@@ -180,28 +180,169 @@ describe("a successful connection", () => {
   });
 });
 
+// "Unauthorized" from Clover. One such answer is not proof that the token is dead, so it
+// costs one request tried again, or at worst one failed attempt. Only when Clover goes on
+// saying it, over several attempts and some minutes, is the owner asked for a new token.
+describe("when Clover answers unauthorized", () => {
+  const UNAUTHORIZED = { mode: "status", status: 401 };
+  const anyRead = { method: "GET", path: /^\/v3\/merchants\// };
+  const syncRuns = async () => (await h.pg.query("select count(*)::int as n from public.sync_runs where restaurant_id = $1", [alpha])).rows[0].n;
+  const connection = async () => (await h.api(owner, "GET", "/clover")).body.connection;
+
+  describe("once, for a token that is good", () => {
+    it("tries the request once more and carries on: the sync succeeds, and runs once", async () => {
+      const runsBefore = await syncRuns();
+      const callsBefore = h.clover.calls.length;
+      const logsBefore = h.logs.length;
+      h.clover.fault({ ...anyRead, ...UNAUTHORIZED, times: 1 });
+
+      const sync = await h.api(owner, "POST", "/clover/sync");
+      expect(sync.status).toBe(200);
+      expect(sync.body.result).toBe("synced");
+      // One synchronisation, not two: the request was repeated, not the sync.
+      expect(await syncRuns()).toBe(runsBefore + 1);
+      const calls = h.clover.calls.slice(callsBefore).map((call) => `${call.method} ${call.path}${call.query}`);
+      expect(calls[0]).toBe(calls[1]);
+      expect(new Set(calls.slice(1)).size).toBe(calls.length - 1);
+
+      // The connection is untouched: active, the token still stored, nothing counted.
+      const stored = await row(alpha);
+      expect(stored.status).toBe("active");
+      expect(stored.auth_failures).toBe(0);
+      expect(stored.access_token_enc).toMatch(/^v1\./);
+      expect((await connection()).status).toBe("active");
+      // It is on record that it happened, without the token.
+      const logged = h.logs.slice(logsBefore);
+      expect(logged.some((entry) => entry.event === "clover_http_error" && entry.status === 401)).toBe(true);
+      expect(JSON.stringify(logged)).not.toContain(h.clover.accessToken);
+    });
+
+    it("does not write twice: a change the owner saves is applied to Clover once", async () => {
+      const price = h.clover.items.get(steak).price;
+      const postsBefore = h.clover.calls.filter((call) => call.method === "POST").length;
+      h.clover.fault({ method: "POST", path: /\/items\//, ...UNAUTHORIZED, times: 1 });
+
+      const write = await h.api(owner, "PATCH", `/items/${steak}`, { clover: { price_cents: price + 100 }, expected: { price_cents: price } });
+      expect(write.status).toBe(200);
+      expect(h.clover.items.get(steak).price).toBe(price + 100);
+      // Two requests reached Clover: the one it rejected, which changed nothing, and the one it applied.
+      expect(h.clover.calls.filter((call) => call.method === "POST").length - postsBefore).toBe(2);
+      expect((await row(alpha)).auth_failures).toBe(0);
+
+      const back = await h.api(owner, "PATCH", `/items/${steak}`, { clover: { price_cents: price }, expected: { price_cents: price + 100 } });
+      expect(back.status).toBe(200);
+    });
+  });
+
+  describe("twice in a row, for the same request", () => {
+    it("fails that attempt, counts it, and leaves the connection and the token alone", async () => {
+      const runsBefore = await syncRuns();
+      const logsBefore = h.logs.length;
+      h.clover.fault({ ...anyRead, ...UNAUTHORIZED, times: 2 });
+
+      const sync = await h.api(owner, "POST", "/clover/sync");
+      expect(sync.status).toBe(502);
+      expect(sync.body.error.code).toBe("clover_unauthorized");
+      // One attempt, recorded as failed. Not repeated by itself.
+      expect(await syncRuns()).toBe(runsBefore + 1);
+
+      const stored = await row(alpha);
+      expect(stored.status).toBe("active");
+      expect(stored.auth_failures).toBe(1);
+      expect(stored.auth_failing_since).not.toBeNull();
+      expect(stored.access_token_enc).toMatch(/^v1\./);
+      expect((await connection()).status).toBe("active");
+
+      const logged = h.logs.slice(logsBefore);
+      const warning = logged.find((entry) => entry.event === "clover_unauthorized");
+      expect(warning).toMatchObject({ consecutive_failures: 1, marks_after: 3 });
+      expect(JSON.stringify(logged)).not.toContain(h.clover.accessToken);
+      expect(JSON.stringify(logged)).not.toMatch(/Bearer|v1\.[A-Za-z0-9_-]{10,}\./);
+    });
+
+    it("keeps visitors from setting off another attempt for two minutes", async () => {
+      const callsBefore = h.clover.calls.length;
+      const menu = await publicMenu();
+      await h.settle();
+      // The website keeps showing the menu it has, and Clover is not asked again yet.
+      expect(menu.status).toBe(200);
+      expect(h.clover.calls.length).toBe(callsBefore);
+
+      // After the two minutes a visit sets off the next attempt, as usual.
+      await h.pg.query("update public.clover_connections set auth_failed_at = now() - interval '3 minutes', last_success_at = now() - interval '1 day' where restaurant_id = $1", [alpha]);
+      await publicMenu();
+      await h.settle();
+      expect(h.clover.calls.length).toBeGreaterThan(callsBefore);
+    });
+
+    it("clears the count the next time Clover accepts a request", async () => {
+      // The visit above reached Clover, which accepted the token: the run of rejections is over.
+      const stored = await row(alpha);
+      expect(stored.auth_failures).toBe(0);
+      expect(stored.auth_failing_since).toBeNull();
+      expect(stored.auth_failed_at).toBeNull();
+      expect(h.logs.some((entry) => entry.event === "clover_accepted_again")).toBe(true);
+    });
+  });
+});
+
 describe("when the merchant deletes the token in Clover", () => {
-  it("stops, asks for a new token, never tries to refresh, and keeps the published menu", async () => {
+  const failures = async () => (await row(alpha)).auth_failures;
+
+  it("does not give up at the first rejections: each sync fails, the connection stays", async () => {
     h.clover.tokenGeneration += 1; // the old token is now rejected, as after a delete in Clover
+
+    for (const expected of [1, 2]) {
+      const sync = await h.api(owner, "POST", "/clover/sync");
+      expect(sync.status).toBe(502);
+      expect(sync.body.error.code).toBe("clover_unauthorized");
+      expect(await failures()).toBe(expected);
+    }
+    expect((await row(alpha)).status).toBe("active");
+    expect(h.clover.refreshCalls).toBe(0);
+    expect(h.clover.calls.some((call) => call.path.startsWith("/oauth/"))).toBe(false);
+  });
+
+  it("does not give up after many rejections either, while they are all within a few minutes", async () => {
+    for (let attempt = 0; attempt < 3; attempt++) await h.api(owner, "POST", "/clover/sync");
+    const stored = await row(alpha);
+    expect(stored.auth_failures).toBe(5);
+    expect(stored.status).toBe("active");
+  });
+
+  it("asks for a new token once Clover has kept rejecting it for ten minutes, and keeps the published menu", async () => {
+    const logsBefore = h.logs.length;
+    await h.pg.query("update public.clover_connections set auth_failing_since = now() - interval '11 minutes' where restaurant_id = $1", [alpha]);
 
     const sync = await h.api(owner, "POST", "/clover/sync");
     expect(sync.status).toBe(502);
+    expect(sync.body.error.code).toBe("clover_needs_reauth");
     const status = (await h.api(owner, "GET", "/clover")).body.connection;
     expect(status.status).toBe("needs_reauth");
+    // What the dashboard is told went wrong is the failed synchronisation that ended it.
+    expect(status.last_error_code).toBe("clover_needs_reauth");
     expect(h.clover.refreshCalls).toBe(0);
-    expect(h.clover.calls.some((call) => call.path.startsWith("/oauth/"))).toBe(false);
+    expect(h.logs.slice(logsBefore).some((entry) => entry.event === "clover_token_rejected" && entry.consecutive_failures === 6)).toBe(true);
 
-    // A write is refused without touching Clover, and says to reconnect.
+    // From here nothing is sent to Clover. A write is refused and says to reconnect.
+    const callsBefore = h.clover.calls.length;
     const write = await h.api(owner, "PATCH", `/items/${steak}`, { clover: { price_cents: 1 }, expected: { price_cents: 3400 } });
     expect(write.status).toBe(409);
     expect(write.body.error.code).toBe("clover_needs_reauth");
     expect(h.clover.items.get(steak).price).toBe(3400);
+    expect((await h.api(owner, "POST", "/clover/sync")).status).toBe(409);
+    expect(h.clover.calls.length).toBe(callsBefore);
 
-    // The website keeps what it had.
+    // The website keeps what it had, and visitors set nothing off.
     const menu = await publicMenu();
     await h.settle();
     expect(menu.status).toBe(200);
     expect(menu.body.categories.flatMap((category) => category.items.map((item) => item.name))).toEqual(["Soup"]);
+    expect(h.clover.calls.length).toBe(callsBefore);
+  });
+
+  it("never wrote the token, or anything made from it, to the log in any of this", () => {
+    expect(everythingLogged()).not.toMatch(/access-\d|Bearer |v1\.[A-Za-z0-9_-]{10,}\./);
   });
 
   it("limits how often one person can try tokens", async () => {

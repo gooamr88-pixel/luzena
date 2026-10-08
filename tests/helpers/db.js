@@ -26,19 +26,32 @@ const SUPABASE_STUB = `
   create table auth.users (id uuid primary key, email text);
 `;
 
-export async function createTestDb() {
+// The migrations, in the order they are applied to a real project.
+// 20261005000300_storage.sql is not among them: PGlite has no storage schema.
+const MIGRATIONS = [
+  "20261005000100_schema.sql",
+  "20261005000200_functions.sql",
+  "20261005000400_application_retention.sql",
+  "20261005000500_sequence_privileges.sql",
+  "20261006000600_imported_items_start_hidden.sql",
+  "20261006000700_job_application_workflow.sql",
+  "20261007000800_site_photos.sql",
+  "20261007000900_housekeeping.sql",
+  "20261008001000_category_photos.sql",
+  "20261008001100_clover_auth_failures.sql",
+  "20261008001200_orphaned_category_photos.sql",
+  "20261008001300_menu_labels_and_notice.sql",
+];
+
+// `upTo` stops after the named migration: a database as it was before a later one, for a
+// test of what that later one does to data that is already there.
+export async function createTestDb({ upTo } = {}) {
   const pg = new PGlite();
   await pg.exec(SUPABASE_STUB);
-  await pg.exec(migration("20261005000100_schema.sql"));
-  await pg.exec(migration("20261005000200_functions.sql"));
-  // 20261005000300_storage.sql is skipped: PGlite has no storage schema.
-  await pg.exec(migration("20261005000400_application_retention.sql"));
-  await pg.exec(migration("20261005000500_sequence_privileges.sql"));
-  await pg.exec(migration("20261006000600_imported_items_start_hidden.sql"));
-  await pg.exec(migration("20261006000700_job_application_workflow.sql"));
-  await pg.exec(migration("20261007000800_site_photos.sql"));
-  await pg.exec(migration("20261007000900_housekeeping.sql"));
-  await pg.exec(migration("20261008001000_category_photos.sql"));
+  for (const name of MIGRATIONS) {
+    await pg.exec(migration(name));
+    if (name === upTo) break;
+  }
 
   const rpc = async (fn, args = {}) => {
     const names = Object.keys(args);
