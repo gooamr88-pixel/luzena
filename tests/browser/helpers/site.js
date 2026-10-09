@@ -146,7 +146,11 @@ export const describeViolations = (violations) =>
   violations.map((violation) => `[${violation.impact}] ${violation.id}: ${violation.help}\n    ${violation.nodes.join("\n    ")}`).join("\n");
 
 // True when nothing on the page is wider than the viewport.
+// Measured after two frames: just after the window is resized, Chromium can report the
+// layout of the size before for a moment (seen as 367 px on a 360 px screen, fine 500 ms
+// later), which is the test catching the resize, not the page overflowing.
 export const hasHorizontalOverflow = (page) =>
-  page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1);
+  page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() =>
+    resolve(document.documentElement.scrollWidth > document.documentElement.clientWidth + 1)))));
 
 export const VIEWPORT_WIDTHS = [360, 390, 430, 768, 1024, 1280, 1440];

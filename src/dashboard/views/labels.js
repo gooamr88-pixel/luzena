@@ -31,6 +31,10 @@ export async function labelsView(outlet) {
   let noticeLimit = 600;
   // Which label is being edited ("new" for a label that does not exist yet), or null.
   let editing = null;
+  // The notice as it is on screen, kept apart from what was last saved until Save is
+  // pressed. It lives here, not in the notice's section, so that a change to a label, which
+  // redraws the page, does not throw away what is being written.
+  let draft = null;
 
   // ---- labels ------------------------------------------------------------------------------
 
@@ -174,8 +178,7 @@ export async function labelsView(outlet) {
   // ---- the allergy notice --------------------------------------------------------------------
 
   function noticeSection() {
-    // What is on screen, kept apart from what was last saved until Save is pressed.
-    const draft = { enabled: notice.enabled, entries: notice.entries.length > 0 ? notice.entries.map((entry) => ({ ...entry })) : [{ lang: languages[0] ?? "en", text: "" }] };
+    draft ??= { enabled: notice.enabled, entries: notice.entries.length > 0 ? notice.entries.map((entry) => ({ ...entry })) : [{ lang: languages[0] ?? "en", text: "" }] };
     const preview = h("div", { class: "preview-surface" });
     const list = h("div", { class: "space-y-4" });
     const message = h("div", { class: "d-alert d-alert-bad", role: "alert", hidden: true });
@@ -239,6 +242,7 @@ export async function labelsView(outlet) {
       try {
         const result = await api("PUT", "/site/notice", { enabled: draft.enabled, entries: draft.entries.map((entry) => ({ lang: entry.lang, text: entry.text.trim() })) });
         notice = result.notice;
+        draft = null;
         toast(result.message);
         draw();
       } catch (failure) {

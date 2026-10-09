@@ -20,6 +20,13 @@ export function installDemo(state) {
   }));
   const groups = new Map();
   const items = [];
+  // The website order of the items inside each category, as the real menu_item_categories
+  // positions: the sample's own order to begin with.
+  const itemOrder = new Map(sample.categories.map((category) => [category.id, category.items.map((item) => item.id)]));
+  const positionIn = (categoryId, itemId) => {
+    const index = (itemOrder.get(categoryId) ?? []).indexOf(itemId);
+    return index === -1 ? Number.MAX_SAFE_INTEGER : index;
+  };
   sample.categories.forEach((category) => category.items.forEach((item, index) => {
     for (const group of item.modifier_groups) groups.set(group.id, { ...group, show_by_default: true });
     items.push({
@@ -195,6 +202,8 @@ export function installDemo(state) {
       price: (a, b) => (a.price_cents === null) - (b.price_cents === null) || (a.price_cents - b.price_cents) * direction,
       updated: (a, b) => a.updated_at.localeCompare(b.updated_at) * direction,
       category: (a, b) => (a.categories[0]?.name ?? "~").localeCompare(b.categories[0]?.name ?? "~") * direction,
+      // An item the owner has not placed goes last, by name, as the real query does.
+      custom: (a, b) => positionIn(category, a.id) - positionIn(category, b.id) || a.name.localeCompare(b.name),
     };
     list = [...list].sort(sorters[query.get("sort")] ?? ((a, b) => a.name.localeCompare(b.name) * direction));
     const offset = Number(query.get("offset") ?? 0);
@@ -278,6 +287,14 @@ export function installDemo(state) {
       body.ids.forEach((id, index) => { categories.find((c) => c.id === id).sort_order = index + 1; });
       log("CATEGORY_REORDERED", "category", null, body, "success", "SYNCED");
       return { result: "synced", categories: categoryList(), message: "Demo: order saved." };
+    }
+    if ((match = path.match(/^\/categories\/([A-Z0-9]{13})\/items\/reorder$/))) {
+      if (!categories.some((c) => c.id === match[1])) throw new ApiFailure(404, { code: "not_found", message: "This category does not exist." });
+      // Listed items first, in the order sent; any other item of the category after them.
+      const rest = (itemOrder.get(match[1]) ?? []).filter((id) => !body.ids.includes(id));
+      itemOrder.set(match[1], [...body.ids, ...rest]);
+      log("ITEMS_REORDERED", "category", match[1], { count: body.ids.length });
+      return { result: "saved", message: "Item order saved." };
     }
     if ((match = path.match(/^\/categories\/([A-Z0-9]{13})\/image$/))) {
       const category = categories.find((c) => c.id === match[1]);
@@ -503,7 +520,18 @@ export function installDemo(state) {
   };
   state.supabase = {
     auth: {
-      onAuthStateChange(callback) { listener = callback; callback(signedIn ? "SIGNED_IN" : "SIGNED_OUT", signedIn ? session : null); },
+      onAuthStateChange(callback) {
+        listener = callback;
+        // ?demo=reset-two-step opens the dashboard as a reset link would, for an account that
+        // has two-step sign-in on: the way to review that screen without an email.
+        if (new URLSearchParams(window.location.search).get("demo") === "reset-two-step") {
+          signedIn = true;
+          level = "aal1";
+          factors = [{ id: crypto.randomUUID(), factor_type: "totp", friendly_name: "Authenticator app", status: "verified", created_at: stamp() }];
+          return callback("PASSWORD_RECOVERY", session);
+        }
+        callback(signedIn ? "SIGNED_IN" : "SIGNED_OUT", signedIn ? session : null);
+      },
       getSession: async () => ({ data: { session: signedIn ? session : null } }),
       refreshSession: async () => ({ data: { session: signedIn ? session : null } }),
       // A new sign-in starts at the password alone, as a real one does.
@@ -511,7 +539,11 @@ export function installDemo(state) {
       signOut: async () => { signedIn = false; level = "aal1"; listener("SIGNED_OUT", null); },
       mfa,
       resetPasswordForEmail: async () => ({ error: null }),
-      updateUser: async () => ({ error: null }),
+      // As Supabase does: with two-step sign-in on, the password changes only at aal2.
+      updateUser: async ({ password }) =>
+        (password && factors.some((factor) => factor.status === "verified") && level !== "aal2"
+          ? { data: null, error: { message: "AAL2 session is required to update email or password when MFA is enabled." } }
+          : { data: { user: session.user }, error: null }),
     },
   };
   state.demo = demoApi;

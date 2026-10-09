@@ -7,6 +7,8 @@ export const state = {
   locale: document.documentElement.dataset.locale || "en-US",
   // Set by a view that has unsaved edits. Navigation asks it before leaving.
   leaveGuard: null,
+  // True between a successful password change and the sign-out that follows it.
+  passwordChanged: false,
 };
 
 export const currency = () => state.me?.restaurant.currency ?? "USD";

@@ -1644,3 +1644,78 @@ the client gave: Test, Commit, Production.
    already signed in, and with someone who can remove the factor in Supabase
    (Authentication > Users) if it goes wrong.
 4. TEST still has email sign-in switched off (TOTP is now on there).
+
+### 2026-10-09 Checkpoint: the owner puts the items of each category in order from the dashboard
+
+The client (in Arabic): an option in the dashboard to set the order of the items, exactly as
+for categories.
+
+The backend already had it, unused by any screen: `POST /categories/{id}/items/reorder`,
+stored in `menu_item_categories.position`, which is the website's own (Clover is not
+called, a sync keeps it, an item new to a category goes to the end), and the public menu
+already lists items by it. **No migration and no function change: nothing to deploy to
+Supabase.**
+
+Added: the page `src/dashboard/views/category-order.js` (`#/categories/<id>/items`),
+reached by "Arrange items" on each category with more than one item. It is the Categories
+page's pattern: drag a row or use the arrows, focus follows the moved row, an "Undo" /
+"Save order" bar, and the order read back from the server after saving. Demo mode keeps an
+order per category. 15 backend tests (`tests/item-order.test.js`) and browser tests in
+`dashboard.spec.js` ("the order of the items in a category", the WCAG scan, the seven
+widths).
+
+To put it live: push, then `deploy.sh` on the VPS (the dashboard is part of the website).
+
+### 2026-10-09 Checkpoint: third audit (everything since `4c22fd9`); owner photos no longer appear after the old ones
+
+The client: "analyze all after last audit + commit and push", and, during it: "old images
+appear first then new images i add from dashboard appear. big problem".
+
+**Read in full:** the three migrations of 2026-10-08 (the three replaced functions compared
+line by line with their previous versions: only additions), the Clover 401 handling, the
+labels and notice API, the orphaned-photo cleanup (its path pattern checked against the
+paths uploads really make), two-step sign-in in the backend and the dashboard, the Labels,
+Security and Item order pages, the public label and notice rendering, the home page and
+photos changes.
+
+**Fixed:**
+
+1. **Owner photos showed the old photo first (the client's report).** Only the hero was held
+   back, and only until the answer arrived, not until the new photo had loaded; the story
+   photo and the photo rows were not held back at all. Now every changeable photo is hidden
+   (space kept) until the right one has loaded, then faded in; the last answer is remembered
+   in the visitor's browser so a repeat visit shows the owner's photos at once. Limits: 2 s
+   by the stylesheet alone if the script never runs, 5 s at most once it runs.
+   `src/js/site-media.js`, `src/styles/main.css`. Proven by a browser test that records
+   every frame drawn and finds no frame of a built photo where the owner has one.
+2. **An unknown label was found out only after the save had been written.** A dish saved
+   with a label deleted meanwhile (another tab) changed Clover and the website, then
+   answered 422. The label check now runs before anything is written (`assertLabelsOwned`
+   in `dashboard/labels.ts`), for edits and for new dishes. Backend test.
+3. **Password reset with two-step sign-in on could not work.** Supabase Auth changes the
+   password of such an account only at aal2; the reset page asked for the password
+   straight away. It now asks for the code first. The "Your password has been changed"
+   message is now shown only when it was. Browser tests (demo: `?demo=reset-two-step`).
+4. **The allergy notice being written was lost** when a label was switched, moved or deleted
+   (the page redraw rebuilt the notice from what was saved). Browser test.
+5. **Security page:** a second press of "Turn on" could start a second setup; a QR code
+   given as raw SVG would not have been encoded. Both fixed.
+6. **Two flaky checks, both in the tests, not the product:** the sideways-scroll test
+   measured in the middle of a resize (367 px on 360 px, fine 500 ms later); the Deno smoke
+   checks could run against the previous function still holding the port. Both now wait.
+
+**Looked at and left (low, noted):** `clover_auth_failed` clears `refresh_lock_until`, which
+could let two OAuth refreshes overlap in a rare race (the restaurant uses a merchant API
+token, which has no refresh); a category photo with an unexpected path is skipped each hour
+rather than excluded in SQL. The Item order page has no "unsaved changes" guard on leaving,
+as the Categories page has none.
+
+**Backend change in this checkpoint:** `dashboard/items.ts` and `dashboard/labels.ts` (fix 2).
+**No migration.** It takes effect only when the five functions are deployed again.
+
+**Verified locally:** lint, types, content clean; `npm test` 400 passed (15 files); Deno
+checks passed; `npm run test:browser` 295 passed (public 151, sample 53, dashboard 91).
+
+**To put it live:** push (done with this commit), then `deploy.sh` on the VPS for the
+website (photos, Item order page, password reset, Labels and Security fixes), and the five
+functions deployed again to TEST and PRODUCTION for fix 2.

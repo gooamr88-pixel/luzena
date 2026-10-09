@@ -214,9 +214,17 @@ Visitor:   page opens with the built photos -> GET /public-site -> chosen photos
 - **The swap** is `src/js/site-media.js`. It replaces the `<picture>` marked
   `data-site-photo="hero|story"` and rebuilds the lists marked `data-site-gallery` from a
   `<template>` in the page. A gallery of the owner's replaces the built gallery whole.
-- **No visible change of photo in the hero.** The hero photo is held back (`opacity: 0`)
-  until the answer is in, then faded in; the stylesheet lets it in after two seconds by
-  itself if the script never runs. The dark hero and its text are there from the first paint.
+- **No visible change of photo, anywhere.** Every photo the owner can change (hero, story,
+  the home page's row, the gallery) is held back (`opacity: 0`, its space kept) until the
+  script has put the right photo in **and that photo has loaded**; then it fades in. A
+  visitor never sees a built photo turn into the owner's. (Until 2026-10-09 only the hero was
+  held back, and only until the answer, not the photo, had arrived: the old photo showed
+  first.) The last answer is remembered in the visitor's browser (`localStorage`, public
+  addresses only), so a second visit puts the owner's photos in at once and asks the server
+  afterwards; an answer that differs (a photo changed or removed since) replaces them,
+  faded. Limits: the stylesheet shows the built photos by itself after two seconds if the
+  script never runs; once it runs, each photo is shown after 5 s at most, whatever happens.
+  The hero's words and colours are there from the first paint.
 - **Storage.** Files go to the public `menu-images` bucket under `<restaurant>/site/<slot>/`,
   named by a hash of their content. They are public by nature. The dashboard resizes each
   photo in the browser to two sizes (full and phone) and re-encodes it, which also drops EXIF
@@ -399,7 +407,7 @@ production build refuses a value that is not `https://` or that looks like a pla
 | `GET /categories`, `POST /categories` | menu.read / menu.write | List; create (needs `Idempotency-Key`) |
 | `PATCH /categories/{id}` | menu.write | Rename (`clover`, `expected`) and website flags |
 | `POST /categories/reorder` | menu.write | `{ids[]}`, every current category in the new order |
-| `POST /categories/{id}/items/reorder` | menu.write | Website order of items in a category. API only: no screen uses it yet. |
+| `POST /categories/{id}/items/reorder` | menu.write | Website order of items in a category (`ids`, in order; items not named keep their order after them). Used by the dashboard's Item order page (`#/categories/{id}/items`, reached by "Arrange items" on the Categories page). Clover is not called; synchronisation keeps the order and puts an item new to the category at the end. An unknown or another restaurant's category answers 422, the same as everywhere else. |
 | `GET /modifier-groups`, `POST /modifier-groups`, `PATCH /modifier-groups/{id}` | menu.read / menu.write | Groups |
 | `POST /modifier-groups/{id}/modifiers`, `PATCH /modifier-groups/{id}/modifiers/{mid}` | menu.write | Modifiers |
 | `GET /clover` | menu.read | Connection status. Never contains token material. |

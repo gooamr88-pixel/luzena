@@ -275,6 +275,104 @@ describe("photos the owner has chosen in the dashboard", () => {
     await context.close();
   });
 
+  // Every frame the browser draws, which photo each changeable slot shows while it can be
+  // seen at all. Recorded inside the page from its very first frame.
+  const recordFrames = (context) => context.addInitScript(() => {
+    window.__photoFrames = [];
+    const tick = () => {
+      for (const slot of document.querySelectorAll("[data-site-photo]")) {
+        const image = slot.querySelector("img");
+        if (image && Number(getComputedStyle(image).opacity) > 0) {
+          window.__photoFrames.push({ slot: slot.dataset.sitePhoto, src: image.currentSrc || image.src });
+        }
+      }
+      for (const image of document.querySelectorAll("[data-site-gallery] img")) {
+        if (Number(getComputedStyle(image).opacity) > 0) window.__photoFrames.push({ slot: "gallery", src: image.currentSrc || image.src, alt: image.alt });
+      }
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  });
+  const slowAnswer = (photos, ms) => (context) => context.route("**/sample-api/site.json", async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, ms));
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ version: 1, photos }) });
+  });
+  const shownFrames = (page) => page.evaluate(() => window.__photoFrames);
+
+  it("never shows a built photo first: each stays hidden until the owner's own has loaded", async () => {
+    const { page, context, problems } = await openPage(browser, `${site.url}/`, {
+      prepare: async (context) => { await recordFrames(context); await slowAnswer(chosen, 1500)(context); },
+    });
+    // The words of the hero are never held back: only the photo waits.
+    expect(await page.locator("#hero-title").isVisible()).toBe(true);
+
+    await page.waitForSelector('[data-site-photo="hero"][data-photo-ready]');
+    await page.waitForSelector('[data-site-photo="story"][data-photo-ready]');
+    await page.waitForSelector('[data-site-gallery="strip"][data-photo-ready]');
+    await page.waitForTimeout(600);
+    const frames = await shownFrames(page);
+    const of = (slot) => frames.filter((frame) => frame.slot === slot);
+    expect(of("hero").length).toBeGreaterThan(0);
+    // Not one frame of the built hero (hero.jpg) or story photo (about.jpg).
+    expect(of("hero").every((frame) => frame.src.includes("/media/team-")), JSON.stringify(of("hero")[0])).toBe(true);
+    expect(of("story").every((frame) => frame.src.includes("/media/location-")), JSON.stringify(of("story")[0])).toBe(true);
+    // Nor of the built row of photos: everything seen in it is the owner's.
+    expect(of("gallery").every((frame) => frame.alt.startsWith("Owner photo")), JSON.stringify(of("gallery")[0])).toBe(true);
+    expect(problems).toEqual([]);
+    await context.close();
+  });
+
+  it("on the next visit puts the owner's photos in at once, before the server has answered again", async () => {
+    const { page, context } = await openPage(browser, `${site.url}/`, { prepare: answerWith(chosen) });
+    await page.waitForSelector('[data-site-photo="hero"][data-photo-ready]');
+    await page.close();
+
+    // The second visit: the server is slow to answer this time.
+    await context.unroute("**/sample-api/site.json");
+    await slowAnswer(chosen, 4000)(context);
+    await recordFrames(context);
+    const again = await context.newPage();
+    const started = Date.now();
+    await again.goto(`${site.url}/`);
+    await again.waitForSelector('[data-site-photo="hero"][data-photo-ready]');
+    // Shown from what this browser remembered, well before the slow answer.
+    expect(Date.now() - started).toBeLessThan(3500);
+    expect(await again.locator('[data-site-photo="hero"] img').getAttribute("src")).toBe("/media/team-800.jpg");
+    const frames = await shownFrames(again);
+    expect(frames.filter((frame) => frame.slot === "hero").every((frame) => frame.src.includes("/media/team-"))).toBe(true);
+    await context.close();
+  });
+
+  it("puts the built photo back when the owner has removed theirs since the last visit", async () => {
+    const { page, context } = await openPage(browser, `${site.url}/`, { prepare: answerWith(chosen) });
+    await page.waitForSelector('[data-site-photo="hero"][data-photo-ready]');
+    await page.close();
+
+    await context.unroute("**/sample-api/site.json");
+    await answerWith({})(context);
+    const again = await context.newPage();
+    await again.goto(`${site.url}/`);
+    await again.waitForFunction(() => document.querySelector('[data-site-photo="hero"] img')?.getAttribute("src")?.includes("/media/hero-"));
+    await again.waitForSelector('[data-site-photo="hero"][data-photo-ready]');
+    // The built picture as it was, with its sources.
+    expect(await again.locator('[data-site-photo="hero"] picture source').count()).toBeGreaterThan(0);
+    expect(await again.locator('[data-site-photo="story"] img').getAttribute("src")).toContain("/media/about-");
+    expect(await again.locator('[data-site-gallery="strip"] img').first().getAttribute("alt")).toBe("Sample photo 1");
+    await again.waitForFunction(() => getComputedStyle(document.querySelector('[data-site-photo="hero"] img')).opacity === "1");
+    await context.close();
+  });
+
+  it("shows the built photos within a few seconds when the server never answers", async () => {
+    const { page, context } = await openPage(browser, `${site.url}/`, {
+      allowRequestFailures: [/site\.json/],
+      prepare: (context) => context.route("**/sample-api/site.json", () => {}),
+    });
+    await page.waitForSelector('[data-site-photo="hero"][data-photo-ready]', { timeout: 15000 });
+    expect(await page.locator('[data-site-photo="hero"] img').getAttribute("src")).toContain("/media/hero-");
+    await page.waitForFunction(() => getComputedStyle(document.querySelector('[data-site-photo="hero"] img')).opacity === "1");
+    await context.close();
+  });
+
   it("replaces the story photo on the About page", async () => {
     const { page, context, problems } = await openPage(browser, `${site.url}/about/`, { prepare: answerWith(chosen) });
     await page.waitForFunction(() => document.querySelector('[data-site-photo="story"] img')?.getAttribute("src") === "/media/location-800.jpg");

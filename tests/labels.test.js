@@ -221,6 +221,34 @@ describe("labels on a dish", () => {
     expect(await assigned(soup)).toEqual(before);
   });
 
+  it("refuse a label that does not exist before anything else in the save is written, in Clover or on the website", async () => {
+    // A label deleted in another tab while the editor was open.
+    const gone = (await h.api(owner, "POST", "/labels", { name: "Gone Soon", icon: "clock" })).body.id;
+    await h.api(owner, "DELETE", `/labels/${gone}`);
+    const before = (await h.api(owner, "GET", `/items/${wrap}`)).body.item;
+    const callsBefore = h.clover.calls.length;
+
+    const response = await h.api(owner, "PATCH", `/items/${wrap}`, {
+      clover: { price_cents: before.price_cents + 100 }, expected: { price_cents: before.price_cents },
+      website: { description: "Written while the label was being deleted.", label_ids: [gone] },
+    });
+    expect(response.status).toBe(422);
+    expect(response.body.error.fields).toEqual({ "website.label_ids": "contains a label that does not exist" });
+    // Nothing was sent to Clover, and nothing changed here.
+    expect(h.clover.calls.length).toBe(callsBefore);
+    const after = (await h.api(owner, "GET", `/items/${wrap}`)).body.item;
+    expect(after.price_cents).toBe(before.price_cents);
+    expect(after.description).toBe(before.description);
+    expect(after.label_ids).toEqual(before.label_ids);
+
+    // A new dish with such a label is not created in Clover either.
+    const created = await h.api(owner, "POST", "/items", {
+      clover: { name: "Never Made", price_cents: 500 }, website: { label_ids: [gone] },
+    }, { "idempotency-key": "never-made-0001" });
+    expect(created.status).toBe(422);
+    expect(h.clover.calls.length).toBe(callsBefore);
+  });
+
   it("are hidden on the website while their label is switched off, and come back with it", async () => {
     const off = await h.api(owner, "PATCH", `/labels/${spicy.id}`, { active: false });
     expect(off.body.message).toContain("hidden on the website");

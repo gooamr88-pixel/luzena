@@ -401,6 +401,81 @@ describe("categories", () => {
     expect(await page.locator("main#main ol > li", { hasText: "Desserts" }).innerText()).not.toContain("Archived");
     await context.close();
   });
+
+  describe("the order of the items in a category", () => {
+    const STARTERS = ["Roasted Tomato Soup", "Charred Octopus", "Burrata & Heirloom Tomato", "Crispy Calamari"];
+    const notSaved = "text=The order has changed but is not saved yet.";
+
+    it("is reached from the category's row, and lists its items in the website's order", async () => {
+      const { page, context, problems } = await dashboard("#/categories");
+      await page.waitForSelector("main#main ol > li");
+      await page.locator("main#main ol > li", { hasText: "Starters" }).getByRole("link", { name: "Arrange items" }).click();
+      await page.waitForSelector("main#main h1:has-text('Item order: Starters')");
+      expect(page.url()).toContain("#/categories/SAMPLECAT0001/items");
+      expect(await names(page)).toEqual(STARTERS);
+      // It says plainly that Clover is not changed, and where it came from.
+      expect(await page.locator("main#main").innerText()).toContain("Clover keeps its own order");
+      expect(await page.locator('nav[aria-label="Breadcrumb"] a[href="#/categories"]').count()).toBe(1);
+      expect(await page.getByRole("button", { name: "Move Roasted Tomato Soup up" }).isDisabled()).toBe(true);
+      expect(await page.getByRole("button", { name: "Move Crispy Calamari down" }).isDisabled()).toBe(true);
+      expect(problems).toEqual([]);
+      await context.close();
+    });
+
+    it("reorders with the buttons, keeps focus on the moved item, saves only when asked, and can be undone first", async () => {
+      const { page, context } = await dashboard("#/categories/SAMPLECAT0001/items");
+      await page.waitForSelector("main#main ol > li");
+      await page.getByRole("button", { name: "Move Roasted Tomato Soup down" }).click();
+      expect(await names(page)).toEqual(["Charred Octopus", "Roasted Tomato Soup", "Burrata & Heirloom Tomato", "Crispy Calamari"]);
+      expect(await page.locator(notSaved).count()).toBe(1);
+      expect(await page.evaluate(() => document.activeElement.getAttribute("aria-label"))).toBe("Move Roasted Tomato Soup down");
+      // The keyboard alone carries it on down.
+      await page.keyboard.press("Enter");
+      expect(await names(page)).toEqual(["Charred Octopus", "Burrata & Heirloom Tomato", "Roasted Tomato Soup", "Crispy Calamari"]);
+
+      await page.getByRole("button", { name: "Undo" }).click();
+      expect(await names(page)).toEqual(STARTERS);
+      expect(await page.locator(notSaved).count()).toBe(0);
+
+      await page.getByRole("button", { name: "Move Crispy Calamari up" }).click();
+      await page.getByRole("button", { name: "Move Crispy Calamari up" }).click();
+      await page.getByRole("button", { name: "Move Crispy Calamari up" }).click();
+      await page.getByRole("button", { name: "Save order" }).click();
+      await page.waitForSelector("#toasts > div");
+      expect(await toast(page).innerText()).toContain("Item order saved.");
+      const saved = ["Crispy Calamari", "Roasted Tomato Soup", "Charred Octopus", "Burrata & Heirloom Tomato"];
+      expect(await names(page)).toEqual(saved);
+      expect(await page.locator(notSaved).count()).toBe(0);
+
+      // Leaving and coming back shows the saved order; so does the item list's menu order.
+      await page.goto(page.url().replace(/#.*$/, "#/categories"));
+      await page.waitForSelector("main#main ol > li");
+      await page.goto(page.url().replace(/#.*$/, "#/categories/SAMPLECAT0001/items"));
+      await page.waitForSelector("main#main h1:has-text('Item order: Starters')");
+      await page.waitForSelector("main#main ol > li");
+      expect(await names(page)).toEqual(saved);
+      await context.close();
+    });
+
+    it("reorders by dragging a row onto another", async () => {
+      const { page, context } = await dashboard("#/categories/SAMPLECAT0002/items");
+      await page.waitForSelector("main#main ol > li");
+      const before = await names(page);
+      expect(before).toEqual(["Grilled Ribeye", "Pan-Seared Sea Bass", "Wild Mushroom Risotto", "Catch of the Day"]);
+      await page.locator("main#main ol > li", { hasText: "Catch of the Day" })
+        .dragTo(page.locator("main#main ol > li", { hasText: "Grilled Ribeye" }), { targetPosition: { x: 40, y: 4 } });
+      expect(await names(page)).toEqual(["Catch of the Day", "Grilled Ribeye", "Pan-Seared Sea Bass", "Wild Mushroom Risotto"]);
+      expect(await page.locator(notSaved).count()).toBe(1);
+      await context.close();
+    });
+
+    it("says so for a category that does not exist", async () => {
+      const { page, context } = await dashboard("#/categories/NOSUCHCATEGOR/items");
+      await page.waitForSelector("text=This category does not exist");
+      expect(await page.locator("main#main h1").innerText()).toBe("Item order");
+      await context.close();
+    });
+  });
 });
 
 describe("modifiers", () => {
@@ -1112,6 +1187,23 @@ describe("menu labels", () => {
     await context.close();
   });
 
+  it("keeps the notice being written when a label is switched, moved or deleted meanwhile", async () => {
+    const { page, context } = await labelsPage();
+    await page.fill("#notice-text-0", "Not saved yet: please tell us about allergies.");
+    await page.check("#notice-enabled");
+    // Each of these redraws the page.
+    await labelRows(page).first().getByRole("switch").click();
+    await page.waitForSelector("#toasts > div");
+    const moved = await labelRows(page).nth(1).getAttribute("data-label");
+    await labelRows(page).nth(1).getByRole("button", { name: /later/ }).click();
+    await page.waitForFunction((id) =>
+      document.querySelectorAll('section[aria-labelledby="labels-title"] ol > li[data-label]')[2]?.dataset.label === id, moved);
+    expect(await page.inputValue("#notice-text-0")).toBe("Not saved yet: please tell us about allergies.");
+    expect(await page.isChecked("#notice-enabled")).toBe(true);
+    expect(await page.locator('section[aria-labelledby="notice-title"] .preview-surface').innerText()).toContain("Not saved yet");
+    await context.close();
+  });
+
   it("writes the allergy notice, previews it as the menu will show it, and puts it on the menu only when switched on", async () => {
     const { page, context, problems } = await labelsPage();
     const section = page.locator('section[aria-labelledby="notice-title"]');
@@ -1181,6 +1273,44 @@ describe("descriptions and featured dishes", () => {
 
 // Two-step sign-in. The demo stands in for Supabase Auth: it accepts the code 123456.
 describe("two-step sign-in", () => {
+  describe("and a password reset", () => {
+    // As a reset link opens the dashboard, for an account with two-step sign-in on.
+    const resetLink = async () => {
+      const opened = await openPage(browser, `${site.url}/dashboard/?demo=reset-two-step`);
+      await opened.page.waitForSelector("#code");
+      return opened;
+    };
+
+    it("asks for the code before the new password, because Supabase changes it only after the code", async () => {
+      const { page, context, problems } = await resetLink();
+      expect(await page.locator("h1").innerText()).toBe("Enter your code");
+      expect(await page.locator("#new-password").count()).toBe(0);
+      await page.fill("#code", "000000");
+      await page.getByRole("button", { name: "Verify" }).click();
+      await page.waitForSelector("[role=alert]:not([hidden])");
+      expect(await page.locator("#new-password").count()).toBe(0);
+
+      await page.fill("#code", "123456");
+      await page.getByRole("button", { name: "Verify" }).click();
+      await page.waitForSelector("#new-password");
+      await page.fill("#new-password", "a new long password");
+      await page.fill("#confirm-password", "a new long password");
+      await page.getByRole("button", { name: "Save password" }).click();
+      await page.waitForSelector("#password");
+      expect(await page.locator("body").innerText()).toContain("Your password has been changed.");
+      expect(problems).toEqual([]);
+      await context.close();
+    });
+
+    it("does not say the password was changed when the owner signs out at the code instead", async () => {
+      const { page, context } = await resetLink();
+      await page.getByRole("button", { name: "Sign out" }).click();
+      await page.waitForSelector("#password");
+      expect(await page.locator("body").innerText()).not.toContain("has been changed");
+      await context.close();
+    });
+  });
+
   const securityPage = async () => {
     const opened = await dashboard("#/security");
     await opened.page.waitForSelector("#two-step-title");
@@ -1310,6 +1440,7 @@ describe("accessibility of each dashboard screen", () => {
     ["an application", "#/applications/00000000-0000-4000-8000-000000000004", "#application-status"],
     ["items", "#/items", "table.d-table tbody tr"],
     ["categories", "#/categories", "main#main ol > li"],
+    ["item order", "#/categories/SAMPLECAT0001/items", "main#main ol > li"],
     ["modifiers", "#/modifiers", "main#main section.d-card"],
     ["Clover", "#/clover", "text=Demo merchant"],
     ["activity", "#/activity", "table.d-table tbody tr"],
@@ -1384,6 +1515,7 @@ describe("on a phone", () => {
     ["categories", "#/categories"], ["modifiers", "#/modifiers"], ["Clover", "#/clover"], ["activity", "#/activity"],
     ["applications", "#/applications"], ["an application", "#/applications/00000000-0000-4000-8000-000000000004"],
     ["photos", "#/photos"], ["labels", "#/labels"], ["security", "#/security"],
+    ["item order", "#/categories/SAMPLECAT0001/items"],
   ])("%s fits every screen width from 360px to 1440px without sideways scrolling", async (_name, hash) => {
     const { page, context } = await dashboard(hash, { width: 360, height: 800 });
     for (const width of VIEWPORT_WIDTHS) {

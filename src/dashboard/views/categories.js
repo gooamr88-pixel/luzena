@@ -1,4 +1,5 @@
 // Categories: create, rename, reorder (drag or buttons), hide on the website, archive.
+// The order of the items inside a category has its own page (category-order.js).
 import { api, newIdempotencyKey } from "../api.js";
 import { can } from "../state.js";
 import { append, badge, clear, confirmDialog, errorBlock, formDialog, h, icon, loadingBlock, pageHeader, stateBlock, switchControl, toast, toastFailure } from "../ui.js";
@@ -147,7 +148,8 @@ export async function categoriesView(outlet) {
             disabled: !writable || category.archived,
             onToggle: (next) => setWebsite(category, { web_hidden: !next }, next ? "Category is shown on the website." : "Category is hidden from the website."),
           })),
-        writable && h("div", { class: "flex gap-1" },
+        writable && h("div", { class: "flex flex-wrap gap-1" },
+          category.item_count > 1 && h("a", { href: `#/categories/${id}/items`, class: "d-btn d-btn-sm", dataset: { arrange: id } }, "Arrange items"),
           h("button", { type: "button", class: "d-btn d-btn-sm", onClick: () => rename(category) }, "Rename"),
           h("button", { type: "button", class: "d-btn d-btn-quiet d-btn-sm", onClick: () => archive(category) }, category.archived ? "Restore" : "Archive")));
 
@@ -195,7 +197,7 @@ export async function categoriesView(outlet) {
       title: "Categories",
       actions: writable && h("button", { type: "button", class: "d-btn d-btn-primary", onClick: add }, icon("plus", 16), "Add category"),
     }),
-    h("p", { class: "-mt-3 mb-6 max-w-2xl text-sm text-muted" }, "Categories and their order come from Clover. The website lists them in this order. Drag a row, or use the arrows, then save."),
+    h("p", { class: "-mt-3 mb-6 max-w-2xl text-sm text-muted" }, "Categories and their order come from Clover. The website lists them in this order. Drag a row, or use the arrows, then save. To change the order of the items inside a category, choose Arrange items."),
     orderBar, region,
   );
   await load();

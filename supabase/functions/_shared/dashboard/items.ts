@@ -9,7 +9,7 @@ import { ApiError, json } from "../http.ts";
 import { applyRawItems, refreshItem } from "../sync.ts";
 import type { Deps, Session } from "../types.ts";
 import { cloverId, parseBody, uuid, v } from "../validate.ts";
-import { MAX_LABELS_PER_ITEM, setItemLabels } from "./labels.ts";
+import { assertLabelsOwned, MAX_LABELS_PER_ITEM, setItemLabels } from "./labels.ts";
 import { assertOwned, audit, cloverApiError, idempotent, sameSet } from "./session.ts";
 
 export const DIETARY_TAGS = ["vegetarian", "vegan", "gluten-free", "dairy-free", "nut-free", "halal", "spicy"] as const;
@@ -252,6 +252,9 @@ export async function updateItemHandler(deps: Deps, session: Session, itemId: st
   }
   await assertOwned(deps, session, "category", patch.category_ids, "clover.category_ids");
   await assertOwned(deps, session, "modifier_group", patch.modifier_group_ids, "clover.modifier_group_ids");
+  // Before anything is written: a label that does not exist must not be found out after
+  // Clover and the website have already been changed.
+  await assertLabelsOwned(deps, session, input.website?.label_ids);
 
   const restaurantId = restaurantOf(session);
   const base = { action: "ITEM_UPDATED", entityType: "item", entityId: itemId };
@@ -338,6 +341,7 @@ export async function createItemHandler(deps: Deps, session: Session, request: R
   const input = parseBody(createSchema, body);
   await assertOwned(deps, session, "category", input.clover.category_ids, "clover.category_ids");
   await assertOwned(deps, session, "modifier_group", input.clover.modifier_group_ids, "clover.modifier_group_ids");
+  await assertLabelsOwned(deps, session, input.website?.label_ids);
 
   const restaurantId = restaurantOf(session);
   const base = { action: "ITEM_CREATED", entityType: "item" };

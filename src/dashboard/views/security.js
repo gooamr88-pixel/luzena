@@ -56,7 +56,7 @@ export async function securityView(outlet) {
           h("p", { class: "mt-1 text-muted" }, "Scan this code with the app:"),
           h("img", {
             class: "mt-3 size-44 rounded-lg border border-line bg-white p-2", alt: "QR code to scan with your authenticator app",
-            src: qr.startsWith("data:") ? qr : `data:image/svg+xml;utf-8,${qr}`, width: 176, height: 176,
+            src: qr.startsWith("data:") ? qr : `data:image/svg+xml;utf-8,${encodeURIComponent(qr)}`, width: 176, height: 176,
           }),
           h("p", { class: "mt-3 text-muted" }, "Or type this key into the app instead:"),
           h("p", { class: "mt-1" }, h("code", { class: "rounded-md border border-line bg-canvas px-2.5 py-1.5 font-mono text-[0.9rem] break-all text-text", dataset: { setupKey: "" } }, factor.totp.secret)),
@@ -97,7 +97,9 @@ export async function securityView(outlet) {
     return form;
   }
 
-  async function begin(panel, unfinished) {
+  async function begin(panel, unfinished, trigger) {
+    // One setup at a time: a second press would start a second one.
+    trigger.hidden = true;
     clear(panel);
     append(panel, loadingBlock("Preparing"));
     // An attempt that was started and left, here or in another tab, is cleared away first.
@@ -105,6 +107,7 @@ export async function securityView(outlet) {
     const { data, error } = await mfa.enroll({ factorType: "totp", friendlyName: `Authenticator app ${new Date().toISOString().slice(0, 16)}` });
     clear(panel);
     if (error || !data?.totp) {
+      trigger.hidden = false;
       append(panel, h("div", { class: "d-alert d-alert-bad mt-4", role: "alert" },
         "Two-step sign-in could not be started. It may be switched off for this website: see SECURITY.md, or ask the site administrator."));
       return;
@@ -150,7 +153,7 @@ export async function securityView(outlet) {
                 account.on.created_at ? ` Turned on ${formatDateTime(account.on.created_at, state.locale)}.` : ""),
               h("div", { class: "mt-5" }, h("button", { type: "button", class: "d-btn", onClick: () => turnOff(account.on) }, "Turn off two-step sign-in")))
           : h("div", {}, explain(),
-              h("div", { class: "mt-5" }, h("button", { type: "button", class: "d-btn d-btn-primary", onClick: () => begin(panel, account.unfinished) }, "Turn on two-step sign-in"))),
+              h("div", { class: "mt-5" }, h("button", { type: "button", class: "d-btn d-btn-primary", onClick: (event) => begin(panel, account.unfinished, event.currentTarget) }, "Turn on two-step sign-in"))),
         panel),
       h("section", { class: "d-card p-5 sm:p-6", "aria-labelledby": "lost-title" },
         h("h2", { id: "lost-title", class: "d-title" }, "If you lose your phone"),

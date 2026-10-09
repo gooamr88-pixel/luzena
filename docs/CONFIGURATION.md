@@ -285,6 +285,10 @@ two-factor setting under its account's security page.
    notifications *MFA factor enrolled* and *MFA factor unenrolled*, so the owner is emailed
    if a method is ever added or removed. Both were off on 2026-10-08.
 
+**A forgotten password, with two-step sign-in on:** the reset link asks for the code from
+the app first, then for the new password. Supabase Auth changes the password of such an
+account only from a session that has given the code, so the dashboard asks in that order.
+
 **If the owner loses the phone:** Supabase dashboard > the project > **Authentication** >
 **Users** > the user > remove the MFA factor. The owner then signs in with the password and
 sets two-step sign-in up again. There is deliberately no other way round it.

@@ -110,6 +110,20 @@ export async function reorderLabels(deps: Deps, session: Session, body: unknown)
   return json(200, { result: "saved", labels: result.labels, message: "Order saved." });
 }
 
+const unknownLabel = () => new ApiError(422, "validation_failed", "Some fields need attention.", {
+  fields: { "website.label_ids": "contains a label that does not exist" },
+});
+
+// Refuses, before anything is written, ids that are not this restaurant's labels (deleted
+// meanwhile, or never its own). The item editor's save checks here first, so that an
+// unknown label cannot surface only after Clover and the website have been changed.
+export async function assertLabelsOwned(deps: Deps, session: Session, labelIds: string[] | undefined): Promise<void> {
+  if (!labelIds || labelIds.length === 0) return;
+  const labels = await deps.db.rpc<{ id: string }[]>("dash_labels_list", { p_restaurant: restaurantOf(session) });
+  const known = new Set(labels.map((label) => label.id.toLowerCase()));
+  if (!labelIds.every((id) => known.has(id.toLowerCase()))) throw unknownLabel();
+}
+
 // Sets exactly which labels a dish carries. Used by the item editor's save, after the
 // dish's other website fields. Ids that are not this restaurant's labels are refused by the
 // database, and nothing is changed.
@@ -117,11 +131,7 @@ export async function setItemLabels(deps: Deps, session: Session, itemId: string
   const saved = await deps.db.rpc<boolean>("web_set_item_labels", {
     p_restaurant: restaurantOf(session), p_item: itemId, p_label_ids: labelIds.map((id) => id.toLowerCase()),
   });
-  if (!saved) {
-    throw new ApiError(422, "validation_failed", "Some fields need attention.", {
-      fields: { "website.label_ids": "contains a label that does not exist" },
-    });
-  }
+  if (!saved) throw unknownLabel();
 }
 
 // ----------------------------------------------------------------------------------------

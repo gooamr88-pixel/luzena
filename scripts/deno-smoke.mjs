@@ -139,6 +139,26 @@ const FUNCTIONS = {
   ],
 };
 
+// Waits until nothing answers on the port any more. The next function must not start until
+// the last one has gone: otherwise "is it listening yet?" is answered by the old one and its
+// checks are run against the wrong function (seen on a slow machine: the webhook's checks
+// answered 403 by the job application function, the dashboard's 405 by the webhook).
+async function waitUntilStopped(child) {
+  await Promise.race([
+    child.exitCode !== null ? Promise.resolve() : new Promise((done) => child.once("exit", done)),
+    new Promise((done) => setTimeout(done, 15000)),
+  ]);
+  for (let attempt = 0; attempt < 60; attempt++) {
+    try {
+      await fetch(`${base}/`, { signal: AbortSignal.timeout(1000) });
+    } catch {
+      return;
+    }
+    await new Promise((done) => setTimeout(done, 500));
+  }
+  throw new Error(`port ${PORT} is still answering 30 seconds after the function was stopped`);
+}
+
 async function waitUntilListening(child) {
   let output = "";
   child.stdout.on("data", (chunk) => { output += chunk; });
@@ -183,7 +203,13 @@ for (const [name, checks] of Object.entries(FUNCTIONS)) {
     failures += 1;
   } finally {
     child.kill();
-    await new Promise((done) => setTimeout(done, 800));
+    try {
+      await waitUntilStopped(child);
+    } catch (error) {
+      console.log(`
+${name}: ${error.message}`);
+      failures += 1;
+    }
   }
 }
 

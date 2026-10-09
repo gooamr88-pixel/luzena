@@ -6,6 +6,7 @@ import { append, clear, h, icon, loadingBlock, stateBlock, toast } from "./ui.js
 import { activityView } from "./views/activity.js";
 import { applicationDetailView, applicationsView } from "./views/applications.js";
 import { categoriesView } from "./views/categories.js";
+import { categoryOrderView } from "./views/category-order.js";
 import { cloverView, completeCloverReturn } from "./views/clover.js";
 import { itemEditorView } from "./views/item-editor.js";
 import { itemsView } from "./views/items.js";
@@ -39,6 +40,7 @@ const ROUTES = [
   { pattern: /^#\/items\/new$/, view: (outlet, _, query) => itemEditorView(outlet, null, query.get("from")) },
   { pattern: /^#\/items\/([A-Z0-9]{13})$/, view: (outlet, match) => itemEditorView(outlet, match[1], null) },
   { pattern: /^#\/categories$/, view: categoriesView },
+  { pattern: /^#\/categories\/([A-Z0-9]{13})\/items$/, view: categoryOrderView },
   { pattern: /^#\/modifiers$/, view: modifiersView },
   { pattern: /^#\/labels$/, view: labelsView },
   { pattern: /^#\/photos$/, view: photosView },
@@ -254,15 +256,20 @@ async function boot() {
         recovering = true;
         signedInUser = null;
         state.me = null;
-        return setPasswordView(app);
+        // Supabase Auth lets an account with two-step sign-in on change its password only
+        // from a session that has given the code. So the code is asked for first; an owner
+        // who has lost the phone as well needs the factor removed in Supabase (CONFIGURATION.md).
+        return owesSecondStep().then((owed) => (owed ? secondStepView(app, async () => setPasswordView(app)) : setPasswordView(app)));
       }
       if (!session) {
-        const wasRecovering = recovering;
+        // Said only when the password was in fact changed, not on any sign-out during a reset.
+        const changed = state.passwordChanged;
+        state.passwordChanged = false;
         recovering = false;
         signedInUser = null;
         state.me = null;
         state.leaveGuard = null;
-        return loginView(app, wasRecovering ? "Your password has been changed. Sign in with the new password." : undefined);
+        return loginView(app, changed ? "Your password has been changed. Sign in with the new password." : undefined);
       }
       if (recovering) return;
       // Token refreshes fire this event too; only a different user restarts the app.

@@ -112,6 +112,7 @@ export function setPasswordView(app) {
       const { error } = await state.supabase.auth.updateUser({ password: password.input.value });
       if (error) return fail("The password could not be saved. Request a new reset link and try again.");
       // Signing out ends the recovery session; the owner signs in with the new password.
+      state.passwordChanged = true;
       await state.supabase.auth.signOut();
     });
   });
