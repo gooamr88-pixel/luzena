@@ -623,8 +623,11 @@ the schedule (`supabase/schedule-daily-tasks.sql`, run by hand), and the website
       `verify:functions` run again: all pass. From now on PRODUCTION sends: a new
       application's notification to the recruitment address, messages and status emails,
       invitations, and the monthly report. **The first report (September 2026) goes at the
-      next daily run, 13:15 UTC on 2026-10-14, to the recruitment address** (`report_email` is
-      empty). Check it afterwards in `monthly_reports` and in Brevo's logs.
+      next daily run, 13:15 UTC on 2026-10-14.** Check it afterwards in `monthly_reports`
+      and in Brevo's logs.
+- [x] 2026-10-14, the client: "all in luznarestocafe@gmail.com". PRODUCTION's
+      `recruitment_email` and `report_email` set to it (before any report had gone), and
+      `provision-restaurant.sql` changed to match. The owner's sign-in account is unchanged.
 - [ ] Not run on PRODUCTION, on purpose: the end-to-end runs (they make data and would
       email the owner).
 

@@ -1865,6 +1865,12 @@ monthly report, each **delivered** by Brevo's own events), on PRODUCTION. TEST's
 now points at `luznarestocafe+test-recruitment@gmail.com` and `+test-report@`, so TEST never
 emails the owner. PRODUCTION's addresses are unchanged (recruitment = the owner's,
 `report_email` empty): **its first monthly report, for September 2026, goes at 13:15 UTC on
-2026-10-14 to the owner's address.** B-7 and B-10 closed. Still open: what
-`luznarestocafe@gmail.com` is for; B-8 (Auth's own password emails need a custom SMTP sender,
+2026-10-14 to the owner's address.** B-7 and B-10 closed.
+**Then the client: "No I don't want fadi.auchi@gmail.com. All in luznarestocafe@gmail.com."**
+PRODUCTION's `recruitment_email` and `report_email` are now `luznarestocafe@gmail.com`
+(set 2026-10-13 21:04 UTC, before any report had gone), and `provision-restaurant.sql`
+matches, so re-running it cannot bring the old address back. New-application emails,
+applicants' replies and the monthly report all go there. The owner's sign-in account
+(`fadi.auchi@gmail.com`) was not changed: that is a separate decision, not yet asked for.
+Still open: B-8 (Auth's own password emails need a custom SMTP sender,
 which needs Brevo's SMTP key, not the API key); the workbook in Excel; `deploy.sh`.

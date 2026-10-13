@@ -299,8 +299,8 @@ would win. What follows is the entry as it stood.
   PRODUCTION. On TEST, every kind of email was sent to tagged test addresses and Brevo
   reported each one **delivered** (`TESTING.md`). Brevo's free plan: 300 emails a day,
   shared with the account's two other businesses.
-- **What remains of it:** the question of what `luznarestocafe@gmail.com` is for (it
-  received the test emails; it is in no production setting).
+- **Settled 2026-10-14:** every email to the restaurant goes to `luznarestocafe@gmail.com`
+  (the client's instruction); it is PRODUCTION's recruitment and report address.
 
 What was found first, kept for the record:
 

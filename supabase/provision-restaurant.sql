@@ -6,13 +6,14 @@
 -- their own password with "Forgot your password?" on the dashboard sign-in page.
 --
 -- Check the four values below before running. v_owner is the email the owner signs in
--- with; the client confirmed on 2026-10-06 that it is the same as the recruitment address.
+-- with. Since 2026-10-14 the recruitment address is a different one, by the client's
+-- instruction: every email to the restaurant goes to luznarestocafe@gmail.com.
 
 do $$
 declare
   v_slug       text := 'luzena';                      -- must equal restaurantSlug in content/site.json
   v_name       text := 'Luzena Restaurant & Cafe';    -- shown in the dashboard and in application emails
-  v_recruiting text := 'fadi.auchi@gmail.com';        -- inbox that receives job applications (confirmed by the client 2026-10-05)
+  v_recruiting text := 'luznarestocafe@gmail.com';    -- inbox for applications, replies and the monthly report (client, 2026-10-14)
   v_owner      text := 'fadi.auchi@gmail.com';        -- email of the owner's Supabase Auth user (supplied by the client 2026-10-06)
   v_restaurant uuid;
   v_user       uuid;
@@ -22,9 +23,9 @@ begin
     raise exception 'No Supabase Auth user with email %. Create the user first.', v_owner;
   end if;
 
-  insert into public.restaurants (slug, name, recruitment_email)
-  values (v_slug, v_name, v_recruiting)
-  on conflict (slug) do update set name = excluded.name, recruitment_email = excluded.recruitment_email
+  insert into public.restaurants (slug, name, recruitment_email, report_email)
+  values (v_slug, v_name, v_recruiting, v_recruiting)
+  on conflict (slug) do update set name = excluded.name, recruitment_email = excluded.recruitment_email, report_email = excluded.report_email
   returning id into v_restaurant;
 
   insert into public.restaurant_users (restaurant_id, user_id, role)

@@ -242,8 +242,11 @@ change it: set the new value on the function, then run that file again with it.
 
 | Column of `restaurants` | What it is | Now |
 |---|---|---|
-| `recruitment_email` | Where new applications are announced, and where an applicant's reply goes | the owner's address (`supabase/provision-restaurant.sql`) |
-| `report_email` | Where the monthly report goes. Empty: the recruitment address | empty |
+| `recruitment_email` | Where new applications are announced, and where an applicant's reply goes | `luznarestocafe@gmail.com` on PRODUCTION since 2026-10-14 (the client: "all in luznarestocafe@gmail.com"); TEST uses tagged copies of it |
+| `report_email` | Where the monthly report goes. Empty: the recruitment address | `luznarestocafe@gmail.com` on PRODUCTION |
+
+The owner's **sign-in** address (their Supabase Auth account) is not one of these and was
+not changed. Supabase's own emails to the owner (a password reset) go to that address.
 | `timezone` | The clock a "month" is on for the report (IANA name) | `America/Los_Angeles` |
 
 Names used elsewhere for the same things: Clover's "Client ID" is `CLOVER_APP_ID`, its
