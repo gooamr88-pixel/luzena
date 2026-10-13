@@ -26,7 +26,7 @@ key that ships in the website (`SUPABASE_URL`, `SUPABASE_PUBLIC_KEY`), it tries 
 tables, write, call functions and use storage, and reads whether sign-ups are open. Every
 attempt must be refused.
 
-`npm run verify:functions` is the outside view of the four deployed Edge Functions
+`npm run verify:functions` is the outside view of the deployed Edge Functions
 (`SUPABASE_URL`, and `ALLOWED_ORIGIN` set to one origin from that project's
 `ALLOWED_ORIGINS`). It is the first check in which the functions have a real database behind
 them: an unknown restaurant must answer 404 from the database, not 503. It also checks the
@@ -59,7 +59,160 @@ deployed, and the Nginx configuration has never been loaded by an Nginx.
 The browser tests need a Chromium. They use one already installed by Playwright under
 `%LOCALAPPDATA%\ms-playwright`, or the executable named in `CHROME_PATH`.
 
-## Latest run: 2026-10-09, the third audit: item order, owner photos without the old ones first
+## Latest run: 2026-10-13 (evening), messages to applicants, status emails, the monthly report, the schedule
+
+Everything below was run on the final tree (after `npm audit fix` and the last change).
+
+| Check | Result |
+|---|---|
+| `npm run verify` (lint, typecheck, check:content, test, check:deno, test:browser) | **exit 0** |
+| `npm test` | **578 passed**, 0 failed (22 files) |
+| `npm run check:deno` | type check clean (six functions); 26 smoke checks, each function started under Deno |
+| `npm run test:browser` | **319 passed**, 0 failed (public 151, sample 53, dashboard 115) |
+| `npm audit` | **0 vulnerabilities** (`handlebars` 4.7.9 -> 4.7.10 by `npm audit fix`) |
+
+New unit tests: `tests/messages.test.js` (38: who may write and to whom, what goes into the
+email, once only, failure and retry, what "delivered" may mean, the status emails, the
+database's own closure), `tests/monthly-report.test.js` (26: the month on the restaurant's
+clock across daylight-saving changes, years and leap years; what a report says and does
+not; idempotency under three calls at once; failure, missing address, missing provider;
+the scheduler's secret), `tests/email.test.js` (11: Brevo's and Resend's request shapes, and
+how each one's event report is read; "delivered" only from a delivery event),
+`tests/rollback.test.js` (7: each rollback file restores the earlier schema exactly, keeps
+what it promises, and the migrations apply again). New browser tests: "writing to an
+applicant" (7), including the status email shown before it is sent and sent only when
+ticked.
+
+**On the real TEST project** (`cgxhifkeoesvsycewwfs`), with the deployed functions:
+
+| Check | Result |
+|---|---|
+| Migrations 1400 and 1500 applied | yes, each in one transaction with its ledger row |
+| Rollback files run, then the migrations again | TEST identical to where it started; when rolled back, identical to PRODUCTION (bar Supabase's own `rls_auto_enable` on TEST) |
+| The checks of `verify:database` (through the Management API: no database password here) | 15 of 15; 24 tables, 102 functions, none open to the public roles |
+| `npm run verify:functions` | 20 passed, 2 skipped by design |
+| The schedule | pg_cron ran it twice (every minute, briefly); both `succeeded`; the function answered 200 with counts; back to daily |
+| End to end (`scratchpad/e2e-test-project.mjs`, not in Git) | **70 of 70** |
+
+The end-to-end run makes a restaurant of its own with accounts at `example.test`, applies
+through the real form with a CV, reads it, downloads the CV through the API and fails to
+reach it in Storage four other ways, writes to the applicant, changes the status with the
+email ticked and unticked, invites a manager and a staff member who sign in and accept,
+tries 18 requests across the roles, changes a role, removes access and replays the
+invitation, expires and cancels another, exports, reads the activity log, calls the
+scheduled function with and without its secret, compares the report's figures with what it
+did, deletes the application, and deletes everything it made. TEST was left as it was found
+(one restaurant, one account), its email sign-in switched back off.
+
+**On PRODUCTION** (`xqzpuqjrlrxyitjubkqk`), after all of the above: the same migrations,
+the database checks 15 of 15 (24 tables, 101 functions; the 17 real applications and the
+owner untouched), the six functions deployed, `verify:functions` 20 passed and 2 skipped,
+the schedule created and one scheduled run seen to succeed (200). No end-to-end run there:
+it would make data in the live project.
+
+**What these runs could not prove:** any email actually arriving. There is no working
+email provider on either project (`BLOCKERS.md` B-10: the Brevo key supplied is refused).
+Every path that sends email was exercised live up to the provider and seen to report,
+truthfully, "not sent"; the provider's side is covered by the unit tests with a stand-in.
+Opening the workbook in Excel also remains to be done by a person.
+
+## The run before: 2026-10-13, team access and the export of job applications
+
+One Windows machine. **Nothing deployed and nothing committed**: the migration exists only
+in the working tree and in the test database.
+
+| Check | Result |
+|---|---|
+| `npm run lint`, `typecheck`, `check:content` | clean |
+| `npm test` | **496 passed**, 0 failed (18 files) |
+| `npm run check:deno` | type check clean; the five functions start and answer (22 checks) |
+| `npm run test:browser` | **312 passed**, 0 failed (3 files: public 151, sample 53, dashboard 108) |
+| `npm audit` | 1 advisory, in `handlebars` (build-time only, there before this work; see below) |
+
+New since the run before: **96 unit tests** in three new files, and **17 browser tests** in
+`dashboard.spec.js`: "exporting job applications" (5: the dialog's count, a real workbook
+saved and read back, the filtered set as CSV, ticked rows, one file from two presses, the
+keyboard, and what a manager and staff are not shown), "team and access" (6: the page,
+inviting, an email that could not be sent, cancelling, changing a role, removing access,
+each destructive step asking first and naming the person and the restaurant), "an invited
+person" (4: the link from the email, an address in it that is not one, accepting, an expired
+link), and the Team page in the WCAG scan and in the seven-width check. The export dialog,
+the "set up your access" screen and the invitation screen are each scanned too.
+
+The role count in two existing tests went from 18 to 17 (Cashier was removed from the
+roles at the client's request).
+
+The full browser suite was run twice. The first time 309 of 312 passed: two failures were
+in tests written or changed that day (a button's text read with a line break in it; the
+role count, not yet updated) and one was an existing test that times a page, "on the next
+visit puts the owner's photos in at once" (5.9 s against a limit of 3.5 s). That one was
+looked into rather than run again and hoped for: a probe that asks the question without a
+stopwatch (the server held back for 40 seconds; was the photo ready before it answered?)
+showed the owner's photo from the browser's memory after 0.9 s, and showed the test failing
+only when the machine, with 0.8 GB of memory free, took over five seconds to load the first
+page. Nothing it exercises was changed by this work. The second full run passed whole.
+
+| File | Tests | What it proves |
+|---|---|---|
+| `tests/team.test.js` | 44 | Team access on the real handlers and real SQL. The permission table is the same on the server and on the Team page; a table of 22 routes tried as owner, manager and staff; inviting (the account is made with no password, the email, what is and is not in it, every refusal, the limits); accepting (only the signed-in holder of the confirmed address; expired, cancelled, used, another restaurant's); changing a role and removing access, each taking effect on the session the person already holds; one restaurant against another by modified ids; what the database refuses by itself; what the activity log shows to whom; the invitation email's three forms; and the migration applied to a database that already has an owner and applications. |
+| `tests/export.test.js` | 17 | The export as the API answers it: which applications for each kind of request, compared with the list for 15 sets of filters; only the main facts in the answer; owner only, by direct request as each role and as nobody; another restaurant's ids find nothing; 35 malformed requests refused; too large refused with its size; the audit entry, written first, and nothing handed over when it cannot be written. |
+| `tests/export-files.test.js` | 35 | The files, built by the dashboard's own code and read back from the bytes (`tests/helpers/xlsx.js` opens the archive and reads the XML; it does not use the library that wrote it). The workbook: valid archive, well-formed XML, every part declared; one sheet; head, colours, summary equal to the rows; a real Excel table whose range, filter and column names agree with the cells; headings held in view; widths, wrapping, row heights; dates as real dates in one format on a named clock, across a change of the clocks; no formula anywhere, with 13 hostile values stored as text; Arabic, Hebrew, Greek, Cyrillic, Chinese, Vietnamese, emoji and a Persian joiner kept exactly; missing answers; no applications; one; five thousand. The CSV: byte-order mark, CR LF, quoting, 35 formula-starting values disarmed and 22 ordinary ones untouched, read back through a reader of the CSV standard. The file's name against 12 hostile inputs. |
+
+**Checked a second and a third way, outside the test suite.** A workbook of 20 made-up
+applicants (several scripts, six hostile names) and an empty one were written by the
+dashboard's code and read with **openpyxl**, a Python library with no code in common with
+the one that wrote them, and every XML part was parsed strictly with **lxml**. Both agree
+with the project's own reader: sheet `Applications`, range `A1:G26`, panes frozen at `A7`,
+table `JobApplications` over `A6:G26` with its filter on the same range and its seven
+column names equal to the heading cells, the shading rule on `A7:G26`, column E a date in
+`yyyy-mm-dd hh:mm`, no formula in any cell, no blank row, and the summary equal to a recount
+of the Status column. The same files are in `.visual/export-sample/` (not in Git) to open by
+hand.
+
+**In the browser** the file is made by a real Chromium, under the site's own security
+policy, saved through the browser's download, and the saved file is opened and read by the
+same reader.
+
+**Do the tests notice when a protection is gone?** Seven were taken out, one at a time, the
+tests run, and the file put back (compared byte for byte with the original each time). Every
+one was noticed:
+
+| Protection removed | Tests that then failed |
+|---|---|
+| A manager is given `applications.export` and `team.manage` | 8, in both files: the permission table, the 22-route table, "is the owner alone", "is refused to managers and staff" |
+| An invitation is accepted whatever address the account has | 2: "is only for the account whose own, confirmed address it was sent to", and the database's own check |
+| An expired invitation is still accepted | 1: "cannot be accepted once it has expired" |
+| Removing a member leaves their membership in place | 3: "ends every kind of access at once" and the two that follow it |
+| The export is not bound to the caller's restaurant | 11 of the 17 export tests |
+| The export carries email and phone | 1: "with the main facts of each and nothing more" |
+| CSV values are written as they are | 3: the two formula tests and the whole-file test |
+
+**Not proven, and it matters:**
+
+- **How Excel draws the workbook, and that it opens it without a repair message.** No
+  spreadsheet program is installed here (no Excel, no LibreOffice). Everything above is
+  about the file's contents and structure. Opening `.visual/export-sample/*.xlsx` in Excel
+  takes a minute and is the one check left: `DEPLOYMENT_CHECKLIST.md` section 11a.
+- **Anything against the real Supabase Auth.** Making the account, the set-password link
+  and the password email are a stand-in's in these tests (`SECURITY.md` section 4a).
+- **The migration on a real project**, and `verify:database` and `verify:functions` with
+  their new checks. The SQL those checks add was run against the local database as each
+  role and gives the expected answers; the scripts themselves were not run.
+
+**`npm audit`.** One advisory, rated critical, in `handlebars` 4.7.x, which was there before
+this work. Handlebars runs only at build time, on this repository's own templates and
+content; nothing a visitor or an applicant sends reaches it. A fix is available within the
+version range (`npm audit fix`). Not applied here: it changes the library that builds every
+public page, which is outside this task and wants its own run of the browser suite. The two
+packages this work added (`write-excel-file`, and `fflate` for the tests) have none.
+
+**A run that does not count.** The first browser run of the new tests took 5.4 hours for 16
+tests: the computer went to sleep during it, and seven tests "failed" on timeouts measured
+across the sleep. Three of those failures were real mistakes in the new tests (a toast read
+after it had gone, and two selectors that matched more than one thing) and were fixed. The
+runs above were made with the computer kept awake for their duration.
+
+## The run before: 2026-10-09, the third audit: item order, owner photos without the old ones first
 
 One Windows machine, nothing deployed by this run.
 

@@ -64,5 +64,7 @@ export function loadEnv(get: (name: string) => string | undefined): Env {
     menuSyncTtlSeconds: Number.isFinite(ttl) && ttl >= 30 ? Math.floor(ttl) : 300,
     ipHashSalt: value("IP_HASH_SALT") ?? "",
     emailFrom: value("EMAIL_FROM") ?? null,
+    // Too short to be a secret is treated as not set.
+    cronSecret: (value("CRON_SECRET") ?? "").length >= 32 ? (value("CRON_SECRET") as string) : null,
   };
 }

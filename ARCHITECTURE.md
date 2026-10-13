@@ -32,8 +32,10 @@ labelled as such.
   "Website photos" in section 5).
 - The **dashboard** is a separate single-page app under `/dashboard/`, with its own styles.
   It talks only to `dashboard-api`.
-- The **backend** is five Supabase Edge Functions. They are the only code that holds
-  credentials or talks to Clover or the database.
+- The **backend** is six Supabase Edge Functions: the five in the picture, and
+  `scheduled-tasks`, which nobody's browser calls (the database calls it once a day; see
+  "The daily schedule and the monthly report" in section 5). They are the only code that
+  holds credentials or talks to Clover, the email provider or the database.
 - **Hosting** (decided by the client, 2026-10-05): the built website is served by Nginx on
   the client's existing Hostinger VPS, deployed from GitHub by `deploy/deploy.sh`. The VPS
   serves files and nothing else: it runs no application code, proxies nothing, and holds no
@@ -166,10 +168,14 @@ those fields.
 
 - Every tenant-owned row has `restaurant_id`. Composite primary keys start with it.
 - A user's restaurants come from `restaurant_users` (roles `owner`, `manager`, `staff`).
-  Only `owner` is assigned today; the permission map already covers the other two.
+  An owner is linked by the operator (`supabase/provision-restaurant.sql`); managers and
+  staff are invited by an owner from the dashboard (see "Team and access" in section 5).
+  There is no platform-wide role inside this API: the operator works in Supabase itself.
 - Per request, `dashboard-api` verifies the JWT with Supabase Auth, loads the user's
   memberships, and picks the restaurant. The `x-restaurant-id` header can only choose among
   restaurants the user already belongs to. No id in a body or URL is trusted for tenancy.
+- The membership is read on **every** request. Changing a member's role or removing them
+  takes effect at their next request, with the session they already hold.
 - Clover ids in requests are checked against the restaurant's own mirror (`menu_known_ids`)
   before any Clover call.
 - The database is closed by default: RLS on every table with **no policies**, table
@@ -293,6 +299,225 @@ restaurant, changed in the dashboard, and unknown to Clover.
 | `PATCH /items/{id}` | menu.write | `website.label_ids`: exactly the labels this dish carries (12 at most). |
 | `GET`, `PUT /site/notice` | site.manage | `{enabled, entries: [{lang, text}]`. Refuses to be switched on empty. |
 
+### Team and access
+
+Who may open a restaurant's dashboard, and as what. Added 2026-10-13.
+
+**What each role may do** is one table in `_shared/dashboard/session.ts`
+(`ROLE_PERMISSIONS`), checked by the router on every request. The Team page shows the same
+table (`src/dashboard/roles.js`); a test fails if the two differ.
+
+| In the dashboard | Permission | Owner | Manager | Staff |
+|---|---|---|---|---|
+| See the menu | `menu.read` | yes | yes | yes |
+| Change items, categories, modifiers, labels | `menu.write` | yes | yes | no |
+| Change the website's photos and the allergy notice | `site.manage` | yes | yes | no |
+| Sync the menu from Clover | `clover.sync` | yes | yes | no |
+| Connect or disconnect Clover | `clover.manage` | yes | no | no |
+| Read job applications | `applications.read` | yes | yes | no |
+| Download a CV | `applications.cv` | yes | yes | no |
+| Change an application's stage, add notes, delete it | `applications.manage` | yes | yes | no |
+| Export applications to a file | `applications.export` | yes | no | no |
+| See the activity log | `activity.read` | yes | yes | no |
+| Invite people, change roles, remove access | `team.manage` | yes | no | no |
+
+An owner may give `manager` or `staff` (`GRANTABLE_ROLES`); nobody may give `owner`. An
+owner is made, changed and removed only by the operator, outside this API: no function
+writes the role `owner` or touches a row that has it, and the invitation table cannot hold it.
+
+```
+Owner -> Team > Invite someone -> POST /team/invitations
+            |  the backend: 1. asks the database whether this may be offered (dry run)
+            |               2. asks Supabase Auth to make the account, WITHOUT a password
+            |               3. writes the invitation   4. emails the person (Resend)
+            v
+Invited person -> link in the email -> /dashboard/#/welcome?email=... -> "Send me the link"
+            |  Supabase Auth emails its own link; they choose a password and sign in
+            v
+        signed in, no restaurant yet -> GET /account/invitations -> "Accept invitation"
+            |  POST /account/invitations/{id}/accept
+            v
+        a row in restaurant_users: now a member
+```
+
+- **An invitation grants nothing.** It is a row in `team_invitations`: an address, a role
+  (`manager` or `staff` only), who offered it, when it runs out (7 days). Its state is
+  worked out from the row each time it is read: `pending`, `expired`, `revoked`, `accepted`.
+- **There is no invitation token and no password in this system.** What proves who is
+  accepting is the sign-in, which Supabase Auth checks, and the address Supabase Auth has
+  confirmed. An invitation is found only for exactly that address. So nothing in an
+  invitation can be leaked, guessed or replayed, and no route works without a session.
+- **Accepting is the one moment a membership is made** (`team_invitation_accept`): open,
+  not expired, not cancelled, addressed to the caller. Someone who is already a member
+  keeps the role they have. An account that already belongs to another restaurant is
+  refused, because the dashboard opens one restaurant per account.
+- **The email** (`_shared/dashboard/team-email.ts`) says who invited them, as what, and how
+  to get in. For an account this system made and nobody has signed in to, it carries a
+  single-use link from Supabase Auth for choosing a password; that link is short-lived, so
+  the email also spells out the way that always works ("Forgot your password?"). The link is
+  put in the email and nowhere else. An account that is in use is never sent one.
+- **If the email cannot be sent** the invitation is kept and marked (`email_status =
+  failed`), and the Team page says so on it, as an application's page does.
+- **Taking access away** deletes the member's row in `restaurant_users` and nothing else:
+  the restaurant, its records, the person's Supabase Auth account and the audit log stay.
+- **Limits:** 20 invitations an hour per person, 5 emails a day to one address, 25 open
+  invitations per restaurant. An invitation that closed more than 90 days ago is deleted
+  when the next one is made, so the address of someone who never joined is not kept.
+
+| Method and path | Permission | Notes |
+|---|---|---|
+| `GET /team` | team.manage | Members, the invitations not yet accepted, and the roles the caller may give. |
+| `POST /team/invitations` | team.manage | `{email, role}`. 403 `role_not_allowed`, 409 `already_member`, `already_invited`, `too_many_invitations`, 502 `account_unavailable`. |
+| `POST /team/invitations/{uuid}/resend` | team.manage | Sends it again and gives it a fresh week. 404 once accepted or cancelled. |
+| `DELETE /team/invitations/{uuid}` | team.manage | Cancels it. It can no longer be accepted, sent again or cancelled. |
+| `PATCH /team/members/{uuid}` | team.manage | `{role}`. 403 `self_change`, `owner_protected`, `role_not_allowed`; 404 for anyone who is not this restaurant's member. |
+| `DELETE /team/members/{uuid}` | team.manage | Removes the membership. Same refusals. |
+| `GET /account/invitations` | a session; no restaurant needed | The invitations waiting for the caller's own confirmed address. |
+| `POST /account/invitations/{uuid}/accept` | a session; no restaurant needed | 404 unless it is addressed to the caller; 410 `invitation_expired`, `invitation_revoked`; 409 `invitation_used`, `account_in_use`. |
+
+The last two are the only routes that do not need a restaurant, because making the
+membership is what they are for. They need a session exactly as every other route does,
+second step included.
+
+**What the dashboard does when access changes.** A refusal from the server (403
+`forbidden` or `no_restaurant`) makes the page ask who the account is now; if that differs
+from what it was drawn from, the page starts again from the new answer. A page nobody
+touches is not told: what it already shows stays on screen until the next action.
+
+### Exporting job applications
+
+An owner can take the applications list away as a file. Added 2026-10-13.
+
+```
+Owner -> Applications > Export -> POST /applications/export/preview   "12 will be exported"
+                               -> POST /applications/export           the rows, as JSON
+        the browser lays them out:  src/dashboard/export/workbook.js  -> .xlsx
+                                    src/dashboard/export/applications.js -> .csv
+```
+
+- **An export is the list in a file: the main facts and no more** (the client's decision,
+  2026-10-13): applicant, position, full-time or part-time, experience, date applied, CV or
+  not, stage. Contact details and the applicant's own words are not in it, and
+  `dash_applications_export` does not read them for it.
+- **Three kinds, each unambiguous.** `all`: every application. `filtered`: those matching
+  the list's filters, on every page. `selected`: those named by id (the ticked rows, or the
+  rows of the page on screen). The dialog offers only the kinds that mean something at that
+  moment, says what each covers, and shows the server's count before anything is made.
+- **The server decides which applications.** The restaurant is the caller's own; an id is
+  looked for only inside it, so another restaurant's id finds nothing. The list and the
+  export read their matches from one SQL function (`_applications_matching`), so a filter
+  cannot mean two things. One statement counts and reads, so the file is of one moment.
+- **Owner only** (`applications.export`), 30 an hour, at most 5,000 applications a file
+  (422 `export_too_large` above that, with the count). Each export is written to the audit
+  log **before** the rows are returned, and if that cannot be written nothing is returned.
+  The entry says how many, which kind and format, never whose.
+- **The files are made in the browser**, by a module loaded only when an export is asked
+  for. The workbook is written with `write-excel-file`; the Excel table (the filter buttons)
+  is added through that library's extension point (`export/excel-table.js`). Everything an
+  applicant typed is stored as text, never as a formula. In CSV, a value that a spreadsheet
+  would run as a formula is given a leading apostrophe.
+
+| Method and path | Permission | Notes |
+|---|---|---|
+| `POST /applications/export/preview` | applications.export | `{scope, filters?, ids?}` -> `{count, requested, limit, exportable}`. Hands over nobody's details. |
+| `POST /applications/export` | applications.export | The same body plus `format` (`xlsx`, `csv`). -> `{count, generated_at, restaurant, applications[]}`. |
+
+### Writing to an applicant
+
+An owner or a manager answers an applicant from the application's page. Added 2026-10-13.
+
+```
+Application page -> "Start from" (5 beginnings) -> subject + message -> confirm -> POST /applications/{id}/messages
+   dash_application_message_create   a row, status "sending", recipient = the application's own address
+   EmailSender.send                  Brevo (or Resend) HTTP API, sender = EMAIL_FROM, reply-to = recruitment_email
+   dash_application_message_result   "sent" + the provider's message id, or "failed" + why; an event in the history
+GET /applications/{id}               asks the provider about "sent" messages -> delivered | bounced | blocked
+```
+
+- **The request chooses the words and nothing else.** The recipient is read from the
+  application by the database; the sender is the backend's `EMAIL_FROM`; an applicant's
+  reply goes to the restaurant's `recruitment_email`. The body is `{kind, subject, body}`
+  and any other field is refused (422). `src/dashboard/views/applications.js` has no box
+  for an address.
+- **What is typed is text.** In the HTML part every character is escaped
+  (`dashboard/messages.ts`, `applicantEmail`); the subject is one line. The only link in
+  the email is the restaurant's own website.
+- **Recorded before it is sent.** A message exists as a row (who wrote it, when, to which
+  address, the words) before the provider is called, and is updated with the outcome. The
+  application's history gets `message_sent` or `message_failed`; the audit log gets
+  `APPLICATION_MESSAGE_SENT` with the kind and the outcome only.
+- **Four words for what became of it, and they mean different things.** `sent`: the
+  provider accepted it. `delivered`: the provider reports that the recipient's mail server
+  took it. `bounced` / `blocked`: the provider reports that it did not arrive. `failed`:
+  it never left. The dashboard shows "Delivered" for the second only. The provider is asked
+  when the application is opened, at most once a minute per message, for a week.
+- **Once.** The page sends an `Idempotency-Key` per message, so a second press or a retry
+  after a lost answer is the same message. A message that failed can be sent again
+  ("Try again": same words, same recipient); one that went cannot.
+- **Limits.** `applications.message` (owner, manager). 60 an hour per person. Subject up to
+  150 characters, message up to 5,000. Messages are deleted with their application, so the
+  retention period covers them.
+- **Telling the applicant about a new status** (the client's request, 2026-10-13). When the
+  status is changed on the application's page, a box "Email {name} about the new status"
+  is shown, ticked, with the exact email under "See the email". Saving with it ticked sends
+  `notify_applicant: true`; the server sends its own text for that status
+  (`dashboard/status-emails.ts`: Reviewing, Shortlisted, Interview, Hired, Rejected; New has
+  none) through the same path as a written message (kind `status_update`, same record,
+  same delivery tracking, same hourly budget). Only when the status really changes, so a
+  second press sends nothing. The note is never part of it. The change is saved first: an
+  email that cannot be sent does not undo it, and is kept as "Not sent" to try again.
+
+| Method and path | Permission | Notes |
+|---|---|---|
+| `POST /applications/{id}/messages` | applications.message | `{kind, subject, body}`, `Idempotency-Key`. -> `{result: sent\|failed, message, messages[], notice}`. |
+| `POST /applications/{id}/messages/{message}/retry` | applications.message | Only a message whose status is `failed`; 409 otherwise. |
+| `GET /applications/{id}` | applications.read | Now also `messages[]`, oldest first, after asking the provider about the unsettled ones, and (with applications.message) `status_emails`, the email each status would send. |
+| `PATCH /applications/{id}` | applications.manage | `{status, note?, notify_applicant?}`. With `notify_applicant` also applications.message and the message budget, checked before anything changes. -> `{result, email: null \| {result: sent\|failed, to_email}, application, message}`. |
+
+### The daily schedule and the monthly report
+
+A sixth function, `scheduled-tasks`, is called once a day by the database itself
+(`pg_cron` through `pg_net`; `supabase/schedule-daily-tasks.sql`). Added 2026-10-13.
+
+```
+pg_cron 13:15 UTC -> net.http_post(scheduled-tasks, x-cron-secret from Vault)
+   purgeExpiredApplications, housekeeping, purgeOrphanedCategoryPhotos     (as before, now daily)
+   sendMonthlyReports: for each restaurant
+       reportPeriod(now, restaurants.timezone)   the month before, midnight to midnight THERE
+       monthly_report_claim                      one row per restaurant and month; false = not owed
+       monthly_report_data                       counts for exactly that month
+       EmailSender.send -> monthly_report_finish  sent + provider id, or failed + why
+```
+
+- **Who may call it.** Only a caller presenting `CRON_SECRET` (at least 32 characters,
+  compared in constant time). Until the secret is set the function answers 503 to
+  everyone. It takes no input and answers with counts only.
+- **A month is sent once.** `monthly_reports` has one row per restaurant and month.
+  `monthly_report_claim` takes it; a month that is `sent` can never be taken again, and one
+  being sent by another call is left alone for fifteen minutes. So the scheduler calling
+  daily, twice at once, or again after a failure, sends one report. A month that could not
+  be sent is tried again at the next call. (If the provider accepted a report and the
+  database could not then be told, that month would be sent a second time the next day:
+  at-least-once was chosen over possibly-never.)
+- **Whose month.** Each restaurant has an IANA time zone (`restaurants.timezone`, default
+  `America/Los_Angeles`). The month's first and last instants are worked out on that clock
+  in TypeScript (`scheduled/monthly-report.ts`, `reportPeriod`), across daylight-saving
+  changes, and handed to SQL as instants.
+- **What it reports.** Only what this system records: applications (received, by position,
+  by stage, with a CV, waiting), messages to applicants and how many the provider confirmed
+  delivered, Clover connection and synchronisations, the menu as it stands, changes made in
+  the dashboard, errors logged, the team. **What it does not record is named as not
+  available, with the reason**: visitors (the site has no analytics and sets no cookies),
+  orders and sales (they are Clover's and never pass through here), releases. No figure is
+  estimated. No applicant is named.
+- **Where it goes.** `restaurants.report_email`, or `recruitment_email` while that is
+  empty. A restaurant with neither, or a backend with no email provider, is counted as
+  `not_configured` and nothing is recorded against the month: it goes in full at the first
+  call after the configuration is there.
+- **Seeing what happened.** `monthly_reports` (status, address, provider id, error,
+  attempts, the figures); the activity log (`MONTHLY_REPORT_SENT` / `_FAILED`);
+  `cron.job_run_details` and `net._http_response` for the call itself.
+
 ### Two-step sign-in
 
 Supabase Auth's own multi-factor sign-in (an authenticator app, TOTP). This system adds no
@@ -412,24 +637,28 @@ production build refuses a value that is not `https://` or that looks like a pla
 | `POST /modifier-groups/{id}/modifiers`, `PATCH /modifier-groups/{id}/modifiers/{mid}` | menu.write | Modifiers |
 | `GET /clover` | menu.read | Connection status. Never contains token material. |
 | `POST /clover/connect`, `/clover/complete`, `/clover/disconnect` | clover.manage | OAuth start, finish, disconnect |
-| `POST /clover/sync` | menu.write | Manual sync |
+| `POST /clover/sync` | clover.sync | Manual sync |
 | `GET /applications` | applications.read | Job applications, newest first. `search, status, position, from, to` (instants; `to` is exclusive), `limit, offset`. Returns `total`, the page, `counts` by stage and the `positions` applied for. |
 | `GET /applications/summary` | applications.read | `{new, total}`: the number beside "Applications" in the sidebar |
 | `GET /applications/{uuid}` | applications.read | One application in full, with its history |
 | `PATCH /applications/{uuid}` | applications.manage | `{status, note?}`. Stages: `new, reviewing, shortlisted, interview, hired, rejected`. |
-| `GET /applications/{uuid}/cv` | applications.read | The CV's bytes, as a download. Recorded in the history and the audit log. |
+| `GET /applications/{uuid}/cv` | applications.cv | The CV's bytes, as a download. Recorded in the history and the audit log. |
 | `DELETE /applications/{uuid}` | applications.manage | Deletes the application, its CV and its history for good: for an applicant who asks. The file first, so a failure leaves the application in place. |
-| `GET /activity?before=<id>` | activity.read | Audit log, 30 per page |
+| `GET /activity?before=<id>` | activity.read | Audit log, 30 per page. Entries about the team name the person only to a caller with `team.manage`. |
+
+The team and export routes are in their own sections above. `GET /overview` carries the
+latest entries of the activity log only for a caller who may open the log.
 
 Per-user rate limits apply to every route (see `dashboard/router.ts`).
 
 ## 6. Data model
 
-Defined in `supabase/migrations/`. Twenty-one tables:
+Defined in `supabase/migrations/`. Twenty-two tables:
 
 | Table | Holds |
 |---|---|
-| `restaurants`, `restaurant_users` | Tenants and memberships |
+| `restaurants`, `restaurant_users` | Tenants and memberships. A membership also carries, for display only, the member's address, who invited them and when they last opened the dashboard. |
+| `team_invitations` | An owner's offer of a role to an address: `manager` or `staff`, who offered it, when it runs out, whether it was accepted or cancelled. Grants nothing by itself. |
 | `clover_connections` | One Clover merchant per restaurant, encrypted tokens, sync state and locks |
 | `oauth_states` | One-time nonces for connecting Clover |
 | `menu_categories`, `menu_items`, `menu_item_categories` | Mirror plus website data |
@@ -485,4 +714,8 @@ runs under Node in the tests.
 - Bulk price changes.
 - A screen for reordering items inside a category (the API exists).
 - Tax, stock quantities, subcategories, orders.
-- Self-service sign-up and user management screens. The operator provisions owners.
+- Self-service sign-up. Nobody can make themselves an account: an owner is provisioned by
+  the operator, and everyone else is invited by an owner.
+- A platform-wide administrator inside the dashboard, and adding or removing owners from it.
+- Per-person permissions. What someone may do is their role, and the roles are fixed.
+- One account in two restaurants. The backend can hold it; the dashboard opens one.

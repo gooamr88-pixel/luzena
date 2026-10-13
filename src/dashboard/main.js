@@ -11,11 +11,12 @@ import { cloverView, completeCloverReturn } from "./views/clover.js";
 import { itemEditorView } from "./views/item-editor.js";
 import { itemsView } from "./views/items.js";
 import { labelsView } from "./views/labels.js";
-import { loginView, secondStepView, setPasswordView } from "./views/login.js";
+import { invitationView, loginView, secondStepView, setPasswordView, welcomeView } from "./views/login.js";
 import { modifiersView } from "./views/modifiers.js";
 import { overviewView } from "./views/overview.js";
 import { photosView } from "./views/photos.js";
 import { securityView } from "./views/security.js";
+import { teamView } from "./views/team.js";
 
 const app = document.getElementById("app");
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -31,6 +32,7 @@ const NAV = [
   { href: "#/applications", label: "Applications", icon: "applications", match: /^#\/applications/, permission: "applications.read", count: true },
   { href: "#/clover", label: "Clover", icon: "clover", match: /^#\/clover/ },
   { href: "#/activity", label: "Activity", icon: "activity", match: /^#\/activity/, permission: "activity.read" },
+  { href: "#/team", label: "Team", icon: "team", match: /^#\/team/, permission: "team.manage" },
   { href: "#/security", label: "Security", icon: "lock", match: /^#\/security/ },
 ];
 
@@ -48,8 +50,28 @@ const ROUTES = [
   { pattern: /^#\/applications\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/, view: applicationDetailView },
   { pattern: /^#\/clover$/, view: cloverView },
   { pattern: /^#\/activity$/, view: activityView },
+  { pattern: /^#\/team$/, view: teamView },
   { pattern: /^#\/security$/, view: securityView },
 ];
+
+// What the address the page was opened at says about why. Read once, before anything else
+// touches the address, and used only while nobody is signed in.
+//   welcome      the link in an invitation email: "#/welcome?email=<address>". The address
+//                is only filled into a form; it grants and proves nothing.
+//   linkExpired  Supabase Auth sent the reader back because an emailed link had expired or
+//                had been used already.
+function readArrival(hash) {
+  const arrival = { welcome: null, linkExpired: false };
+  if (hash.startsWith("#/welcome")) {
+    const address = new URLSearchParams(hash.split("?")[1] ?? "").get("email") ?? "";
+    arrival.welcome = /^[^\s@<>"']{1,64}@[^\s@<>"']{1,190}$/.test(address) ? address : "";
+  } else if (/[#&]error(_code|_description)?=/.test(hash)) {
+    arrival.linkExpired = true;
+  }
+  return arrival;
+}
+
+const LINK_EXPIRED = "That link has expired or has already been used. Choose \"Forgot your password?\" below to be sent a new one.";
 
 let outlet = null;
 let currentHash = "";
@@ -196,13 +218,21 @@ async function startSession() {
   } catch (failure) {
     // The backend says the same thing in its own words.
     if (failure instanceof ApiFailure && failure.code === "mfa_required") return secondStepView(app, startSession);
+    if (failure instanceof ApiFailure && failure.status === 401) return clear(app);
+    // An account with no restaurant may have been invited to one. If so, the invitation is
+    // shown to accept; if the question cannot be answered, the message below stands.
+    if (failure.code === "no_restaurant") {
+      const waiting = await api("GET", "/account/invitations").then((answer) => answer.invitations, () => []);
+      if (waiting.length > 0) return invitationView(app, waiting, startSession);
+    }
     clear(app);
     const signOut = h("button", { type: "button", class: "d-btn", onClick: () => state.supabase.auth.signOut() }, "Sign out");
-    if (failure instanceof ApiFailure && failure.status === 401) return;
     append(app, h("div", { class: "mx-auto max-w-xl p-6" }, stateBlock({
       tone: "bad",
-      title: failure.code === "no_restaurant" ? "No restaurant is linked to this account" : "The dashboard could not be loaded",
-      body: failure.code === "no_restaurant" ? "Ask the site administrator to give this account access." : explain(failure),
+      title: failure.code === "no_restaurant" ? "This account has no access to a dashboard" : "The dashboard could not be loaded",
+      body: failure.code === "no_restaurant"
+        ? "It is not linked to a restaurant, and no invitation is waiting for it. If you were invited, the invitation may have expired or been cancelled, or your access may have been removed: ask the restaurant's owner."
+        : explain(failure),
       action: [h("button", { type: "button", class: "d-btn d-btn-primary", onClick: startSession }, "Try again"), signOut],
     })));
     return;
@@ -225,7 +255,41 @@ async function startSession() {
   }
 }
 
+// The server has refused something this page thought was allowed: an owner may have
+// changed this account's role, or taken its access away, while the page was open. The
+// server is asked who this account is now. If the answer differs from what the page was
+// drawn from, the page starts again from it, so nothing stays on screen that the account
+// may no longer see. If it is the same, the refusal was an ordinary one and nothing is done.
+let checkingAccess = false;
+async function accessChanged() {
+  if (checkingAccess || !state.me) return;
+  checkingAccess = true;
+  try {
+    const before = JSON.stringify([state.me.role, state.me.permissions]);
+    let now = null;
+    try {
+      const me = await api("GET", "/me");
+      now = JSON.stringify([me.role, me.permissions]);
+    } catch (failure) {
+      // No restaurant any more is a change; anything else (offline, a busy server) is not.
+      if (!(failure instanceof ApiFailure) || failure.code !== "no_restaurant") return;
+    }
+    if (now === before) return;
+    for (const open of document.querySelectorAll("dialog[open]")) open.close();
+    state.me = null;
+    state.leaveGuard = null;
+    await startSession();
+    if (state.me) toast("Your access to this dashboard has changed. It now shows what you can do.", "warn");
+  } finally {
+    checkingAccess = false;
+  }
+}
+
 async function boot() {
+  // Before anything can change the address: why was the page opened at this one?
+  const arrival = readArrival(location.hash);
+  if (arrival.welcome !== null || arrival.linkExpired) history.replaceState(null, "", `${location.pathname}${location.search}#/`);
+
   state.apiBase = document.documentElement.dataset.api ?? "";
   // The whole branch, and demo.js with it, is removed from the bundle unless the build
   // sets VITE_DASHBOARD_DEMO=1, which is only allowed for the sample profile.
@@ -269,7 +333,12 @@ async function boot() {
         signedInUser = null;
         state.me = null;
         state.leaveGuard = null;
-        return loginView(app, changed ? "Your password has been changed. Sign in with the new password." : undefined);
+        // What the address said is acted on once: after that, signing out is just signing out.
+        const { welcome, linkExpired } = arrival;
+        arrival.welcome = null;
+        arrival.linkExpired = false;
+        if (!changed && welcome !== null) return welcomeView(app, welcome);
+        return loginView(app, changed ? "Your password has been changed. Sign in with the new password." : linkExpired ? LINK_EXPIRED : undefined);
       }
       if (recovering) return;
       // Token refreshes fire this event too; only a different user restarts the app.
@@ -282,6 +351,7 @@ async function boot() {
 
   window.addEventListener("hashchange", () => { if (state.me) route(); });
   window.addEventListener("applications-changed", (event) => { if (state.me) showNewApplications(event.detail); });
+  window.addEventListener("access-changed", accessChanged);
   window.addEventListener("beforeunload", (event) => {
     if (state.leaveGuard) event.preventDefault();
   });

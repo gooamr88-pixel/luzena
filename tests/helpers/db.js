@@ -41,6 +41,8 @@ const MIGRATIONS = [
   "20261008001100_clover_auth_failures.sql",
   "20261008001200_orphaned_category_photos.sql",
   "20261008001300_menu_labels_and_notice.sql",
+  "20261013001400_team_access_and_application_export.sql",
+  "20261014001500_applicant_messages_and_monthly_reports.sql",
 ];
 
 // `upTo` stops after the named migration: a database as it was before a later one, for a

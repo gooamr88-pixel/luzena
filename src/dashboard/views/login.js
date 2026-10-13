@@ -1,5 +1,11 @@
 // Sign-in, password reset request, and setting a new password. Authentication itself is
 // Supabase Auth; this file only draws the forms.
+//
+// It also draws the two screens an invited person meets: "set up your access", which sends
+// them Supabase Auth's own link for choosing a password, and, once they have signed in,
+// the invitation itself to accept. Neither handles a password or a secret of this system's.
+import { api, explain } from "../api.js";
+import { ROLE_SUMMARIES, roleName } from "../roles.js";
 import { state } from "../state.js";
 import { append, clear, h } from "../ui.js";
 
@@ -72,12 +78,24 @@ export function loginView(app, notice) {
   email.input.focus();
 }
 
-function resetRequestView(app) {
-  const email = field("email", "Email", { type: "email", autocomplete: "username", inputmode: "email" });
+// Asks Supabase Auth to email a link for choosing a password. The same form serves someone
+// who has forgotten theirs and someone who has just been invited and has none yet: the only
+// difference is the wording, and for the second the address is filled in from the link in
+// their invitation.
+function resetRequestView(app, {
+  title = "Reset password",
+  intro = "Enter your email and we will send you a link to set a new password.",
+  address = "",
+  action = "Send reset link",
+  // Same answer whether or not the address has an account.
+  sent = "If that address has an account, a reset link is on its way.",
+  back = "Back to sign in",
+} = {}) {
+  const email = field("email", "Email", { type: "email", autocomplete: "username", inputmode: "email", value: address });
   const message = h("div", { class: "d-alert d-alert-info", role: "status", hidden: true });
-  const submit = h("button", { type: "submit", class: "d-btn d-btn-primary w-full" }, "Send reset link");
+  const submit = h("button", { type: "submit", class: "d-btn d-btn-primary w-full" }, action);
   const form = h("form", { class: "mt-6 space-y-4" }, message, email.node, submit,
-    h("button", { type: "button", class: "d-btn d-btn-quiet d-btn-sm w-full", onClick: () => loginView(app) }, "Back to sign in"));
+    h("button", { type: "button", class: "d-btn d-btn-quiet d-btn-sm w-full", onClick: () => loginView(app) }, back));
 
   form.addEventListener("submit", (event) => {
     event.preventDefault();
@@ -85,13 +103,63 @@ function resetRequestView(app) {
       await state.supabase.auth.resetPasswordForEmail(email.input.value.trim(), {
         redirectTo: `${location.origin}/dashboard/`,
       });
-      // Same answer whether or not the address has an account.
-      message.textContent = "If that address has an account, a reset link is on its way.";
+      message.textContent = sent;
       message.hidden = false;
     });
   });
-  shell(app, "Reset password", "Enter your email and we will send you a link to set a new password.", form);
-  email.input.focus();
+  shell(app, title, intro, form);
+  (address ? submit : email.input).focus();
+}
+
+// Where the link in an invitation email leads: the way in for someone who has no password
+// yet. Nothing here knows whether the address was really invited, and it says nothing
+// either way: an address that was not gets no email, and no access if it ever signs in.
+export function welcomeView(app, address) {
+  resetRequestView(app, {
+    title: "Set up your access",
+    intro: `You have been invited to the ${restaurantName} dashboard. Enter the email address the invitation was sent to, and we will send you a link to choose your password.`,
+    address,
+    action: "Send me the link",
+    sent: "If that address has been invited, a link is on its way. Open it on this device, choose your password, then sign in here.",
+    back: "I already have a password: sign in",
+  });
+}
+
+// The invitations waiting for the account that has just signed in, each to accept. Shown
+// in place of the dashboard, because until one is accepted the account has no restaurant
+// and the server answers it nothing else.
+export function invitationView(app, invitations, onAccepted) {
+  const message = h("div", { class: "d-alert d-alert-bad", role: "alert", hidden: true });
+  const buttons = [];
+  const cards = invitations.map((invitation) => {
+    const accept = h("button", { type: "button", class: "d-btn d-btn-primary w-full" }, "Accept invitation");
+    buttons.push(accept);
+    accept.addEventListener("click", () => {
+      message.hidden = true;
+      for (const button of buttons) button.disabled = true;
+      withBusy(accept, "Accepting...", async () => {
+        try {
+          await api("POST", `/account/invitations/${invitation.id}/accept`);
+          await onAccepted();
+        } catch (failure) {
+          message.textContent = explain(failure);
+          message.hidden = false;
+        }
+      }).finally(() => { for (const button of buttons) button.disabled = false; });
+    });
+    return h("div", { class: "rounded-lg border border-line p-4" },
+      h("p", { class: "font-semibold" }, invitation.restaurant),
+      h("p", { class: "mt-1 text-sm text-muted" },
+        invitation.invited_by_email ? `${invitation.invited_by_email} invited you as ` : "You were invited as ",
+        h("strong", { class: "text-text" }, roleName(invitation.role)), "."),
+      ROLE_SUMMARIES[invitation.role] && h("p", { class: "mt-1 text-sm text-muted" }, ROLE_SUMMARIES[invitation.role]),
+      h("div", { class: "mt-4" }, accept));
+  });
+  const body = h("div", { class: "mt-6 space-y-4" }, message, cards,
+    h("button", { type: "button", class: "d-btn d-btn-quiet d-btn-sm w-full", onClick: () => state.supabase.auth.signOut() }, "Sign out"));
+  shell(app, invitations.length === 1 ? "You have been invited" : "You have invitations",
+    "Accept to open the dashboard. Nothing is shared with you until you do.", body);
+  buttons[0]?.focus();
 }
 
 export function setPasswordView(app) {

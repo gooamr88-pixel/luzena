@@ -29,6 +29,10 @@ const ICONS = {
   image: "M4 5h16v14H4zM4 16l5-5 4 4 3-3 4 4M15 9.5h.01",
   tag: "M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42zM7.5 7.5h.01",
   lock: "M6 11h12a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2zM8 11V7a4 4 0 0 1 8 0v4",
+  // A shield with a tick: who is let in. A sheet with an arrow: a file to take away.
+  team: "M12 3l7 3v5c0 4.6-2.9 8.3-7 10-4.1-1.7-7-5.4-7-10V6zM9 12l2 2 4-4",
+  export: "M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5M12 11v6M9 14l3 3 3-3",
+  userPlus: "M15 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M8.5 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM19 8v6M22 11h-6",
 };
 
 export function icon(name, size = 18) {
@@ -116,8 +120,10 @@ export function switchControl({ checked, label, disabled = false, onToggle }) {
   return button;
 }
 
-function openDialog(content, { onClose } = {}) {
-  const dialog = h("dialog", { class: "d-dialog" }, content);
+// Shows content in a dialog over the page. Escape closes it, focus is kept inside it while
+// it is open, and it is taken out of the page when it closes.
+export function openDialog(content, { onClose, label } = {}) {
+  const dialog = h("dialog", { class: "d-dialog", "aria-label": label }, content);
   document.body.append(dialog);
   dialog.addEventListener("close", () => {
     dialog.remove();
@@ -129,10 +135,10 @@ function openDialog(content, { onClose } = {}) {
 
 // Resolves true only when the owner presses the confirm button. Escape, the Cancel button
 // and closing the dialog all resolve false. Focus starts on Cancel for destructive actions.
-export function confirmDialog({ title, body, confirmLabel = "Confirm", danger = false }) {
+export function confirmDialog({ title, body, confirmLabel = "Confirm", cancelLabel = "Cancel", danger = false }) {
   return new Promise((resolve) => {
     let answer = false;
-    const cancel = h("button", { type: "button", class: "d-btn", onClick: () => dialog.close() }, "Cancel");
+    const cancel = h("button", { type: "button", class: "d-btn", onClick: () => dialog.close() }, cancelLabel);
     const confirm = h("button", {
       type: "button", class: `d-btn ${danger ? "d-btn-danger" : "d-btn-primary"}`,
       onClick: () => { answer = true; dialog.close(); },
@@ -154,12 +160,16 @@ export function formDialog({ title, intro, fields, submitLabel = "Save", onSubmi
   const errorBox = h("div", { class: "d-alert d-alert-bad", role: "alert", hidden: true });
   const submit = h("button", { type: "submit", class: "d-btn d-btn-primary" }, submitLabel);
   const inputs = fields.map((field) => {
-    const input = h("input", {
-      class: "d-input", id: `dialog-${field.name}`, name: field.name, type: field.type ?? "text",
-      value: field.value ?? "", required: field.required ?? false, maxlength: field.maxlength,
-      min: field.min, max: field.max, step: field.step, inputmode: field.inputmode, placeholder: field.placeholder,
-      autocomplete: "off",
-    });
+    // A field with `options` is a list to choose from; any other is a box to type in.
+    const input = field.options
+      ? h("select", { class: "d-input", id: `dialog-${field.name}`, name: field.name, required: field.required ?? false },
+          field.options.map((option) => h("option", { value: option.value, selected: option.value === field.value }, option.label)))
+      : h("input", {
+          class: "d-input", id: `dialog-${field.name}`, name: field.name, type: field.type ?? "text",
+          value: field.value ?? "", required: field.required ?? false, maxlength: field.maxlength,
+          min: field.min, max: field.max, step: field.step, inputmode: field.inputmode, placeholder: field.placeholder,
+          autocomplete: field.autocomplete ?? "off",
+        });
     return h("div", {},
       h("label", { class: "d-label", for: input.id }, field.label, field.source && source(field.source)),
       input,

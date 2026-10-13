@@ -5,12 +5,23 @@
 // allows only for the sample profile. It is never part of a production bundle. Nothing here
 // talks to Clover or a database, and nothing is saved: a reload resets everything.
 import sample from "../../content/sample-menu.json";
+import { statusEmail, statusEmails } from "../../supabase/functions/_shared/dashboard/status-emails.ts";
 import { ApiFailure } from "./api.js";
+import { ROLE_PERMISSIONS } from "./roles.js";
 
 const DIETARY = ["vegetarian", "vegan", "gluten-free", "dairy-free", "nut-free", "halal", "spicy"];
 
 export function installDemo(state) {
   const stamp = (minutesAgo = 0) => new Date(Date.now() - minutesAgo * 60_000).toISOString();
+  // Ways to open the demo, for reviewing a screen that the owner's own view never shows:
+  //   ?demo=manager, ?demo=staff  the dashboard as that role sees it
+  //   ?demo=invited               an account that has signed in and has an invitation to accept
+  //   ?demo=signed-out            starts at the sign-in form (for the link in an invitation email)
+  const mode = new URLSearchParams(window.location.search).get("demo") ?? "";
+  const role = ["manager", "staff"].includes(mode) ? mode : "owner";
+  let invited = mode === "invited";
+  const restaurantName = () => document.documentElement.dataset.restaurantName || "Restaurant";
+  const refuse = () => { throw new ApiFailure(403, { code: "forbidden", message: "Your role does not allow this action." }); };
   let sequence = 0;
   const newId = (prefix) => `${prefix}${String(++sequence).padStart(13 - prefix.length, "0")}`;
 
@@ -65,7 +76,7 @@ export function installDemo(state) {
     phone: `+1 619 555 01${String(10 + number)}`, position, status: "new", status_changed_at: null, email_status: "sent",
     employment_type: "full_time", availability: ["weekday_evenings", "weekend_evenings"], start_when: "two_weeks",
     experience_level: "1_2", experience: null, work_authorized: true, message: null, cv: null,
-    created_at: stamp(minutesAgo),
+    created_at: stamp(minutesAgo), messages: [],
     events: [event("submitted", minutesAgo, { to_status: "new" }), event("email_sent", minutesAgo), ...events],
     ...answers,
   });
@@ -107,6 +118,24 @@ export function installDemo(state) {
   // The second event of the last applicant is the email that did not go out.
   applications[5].events[1].kind = "email_failed";
 
+  // Messages written to applicants. One that arrived and one that never left, so both can
+  // be seen. Nothing is emailed in a demo: a new message is only shown as sent.
+  let messageId = 0;
+  const applicantMessage = (application, kind, subject, text, minutesAgo, extra = {}) => ({
+    id: `00000000-0000-4000-9000-${String(++messageId).padStart(12, "0")}`, kind, to_email: application.email, subject, body: text,
+    status: "sent", status_detail: null, attempts: 1, sent_by_email: "owner@example.com",
+    created_at: stamp(minutesAgo), sent_at: stamp(minutesAgo), delivered_at: null, ...extra,
+  });
+  const [, daniel, , , lena] = applications;
+  lena.messages.push(applicantMessage(lena, "status_update", "An update on your application for the Host / Hostess position",
+    "Dear Lena,\n\nThank you for coming in. We are glad to offer you the Host / Hostess position, starting on the 15th.\n\nPlease reply to this email to confirm.\n\nKind regards,\nThe restaurant",
+    60 * 24 * 2 - 30, { status: "delivered", delivered_at: stamp(60 * 24 * 2 - 31) }));
+  lena.events.push(event("message_sent", 60 * 24 * 2 - 30, { note: "An update on your application for the Host / Hostess position", actor_email: "owner@example.com" }));
+  daniel.messages.push(applicantMessage(daniel, "more_information", "Your application for the Line Cook position",
+    "Dear Daniel,\n\nThank you for your application. Before we take it further, could you tell us which evenings you are free?\n\nKind regards,\nThe restaurant",
+    120, { status: "failed", status_detail: "The email service did not accept the message.", sent_at: null }));
+  daniel.events.push(event("message_failed", 120, { note: "Your application for the Line Cook position", actor_email: "owner@example.com" }));
+
   const findApplication = (id) => {
     const application = applications.find((entry) => entry.id === id);
     if (!application) throw new ApiFailure(404, { code: "not_found", message: "This application does not exist." });
@@ -115,17 +144,43 @@ export function installDemo(state) {
   const applicationDetail = (application) => ({
     ...application,
     other_applications: applications.filter((entry) => entry.email === application.email && entry.id !== application.id).length,
+    // The server's own text for each status, from the same file the server reads.
+    status_emails: statusEmails(application, restaurantName()),
   });
-  function listApplications(query) {
+  // The applications that match the list's filters, newest first. The list and the export
+  // both read from here, as they both read from one definition in the real database.
+  function matchingApplications(query) {
     const search = (query.get("search") ?? "").toLowerCase();
     const from = query.get("from");
     const to = query.get("to");
-    const matching = applications
+    return applications
       .filter((entry) => !query.get("status") || entry.status === query.get("status"))
       .filter((entry) => !query.get("position") || entry.position === query.get("position"))
       .filter((entry) => (!from || entry.created_at >= from) && (!to || entry.created_at < to))
       .filter((entry) => !search || [entry.full_name, entry.email, entry.position, entry.phone].some((text) => text.toLowerCase().includes(search)))
       .sort((a, b) => b.created_at.localeCompare(a.created_at));
+  }
+
+  // What an export is given: the main facts of each application, as the real API sends
+  // them. No contact details and none of the applicant's own words.
+  function exportApplications(body, countOnly) {
+    const filters = new URLSearchParams(body.scope === "filtered" ? body.filters ?? {} : {});
+    const found = matchingApplications(filters).filter((entry) => !body.ids || body.ids.includes(entry.id));
+    const requested = body.ids?.length ?? null;
+    if (countOnly) return { count: found.length, requested, limit: 5000, exportable: true };
+    log("APPLICATIONS_EXPORTED", "application_export", null, { format: body.format ?? "xlsx", scope: body.scope, count: found.length });
+    return {
+      result: "exported", count: found.length, requested, scope: body.scope, generated_at: stamp(),
+      restaurant: { name: restaurantName(), slug: "demo" },
+      applications: found.map((entry) => ({
+        full_name: entry.full_name, position: entry.position, status: entry.status, employment_type: entry.employment_type,
+        experience_level: entry.experience_level, has_cv: entry.cv !== null, created_at: entry.created_at,
+      })),
+    };
+  }
+
+  function listApplications(query) {
+    const matching = matchingApplications(query);
     const offset = Number(query.get("offset") ?? 0);
     const limit = Number(query.get("limit") ?? 25);
     const counts = {};
@@ -153,6 +208,38 @@ export function installDemo(state) {
   // The website's own photos. None chosen to begin with, as on a new site.
   const GALLERY_LIMIT = 24;
   const sitePhotos = { hero: null, story: null, gallery: [] };
+
+  // The team: the owner, two people who accepted an invitation, one invitation waiting and
+  // one that ran out. Invented people at an address that cannot exist.
+  const INVITATION_DAYS = 7;
+  const member = (number, email, memberRole, joinedDaysAgo, seenMinutesAgo) => ({
+    id: number === 0 ? "demo-user" : `20000000-0000-4000-8000-${String(number).padStart(12, "0")}`,
+    email, role: memberRole, joined_at: stamp(60 * 24 * joinedDaysAgo), invited_by_email: number === 0 ? null : "owner@example.com",
+    last_seen_at: seenMinutesAgo === null ? null : stamp(seenMinutesAgo), role_changed_at: null,
+  });
+  let members = [
+    member(0, "owner@example.com", "owner", 120, 1),
+    member(1, "sam.rivera@example.test", "manager", 40, 180),
+    member(2, "lee.park@example.test", "staff", 12, null),
+  ];
+  let invitations = [
+    { id: "30000000-0000-4000-8000-000000000001", email: "jordan.kim@example.test", role: "manager", status: "pending", invited_by_email: "owner@example.com",
+      email_status: "sent", created_at: stamp(60 * 24 * 2), sent_at: stamp(60 * 24 * 2), expires_at: stamp(-60 * 24 * 5), revoked_at: null },
+    { id: "30000000-0000-4000-8000-000000000002", email: "alex.moreno@example.test", role: "staff", status: "expired", invited_by_email: "owner@example.com",
+      email_status: "sent", created_at: stamp(60 * 24 * 12), sent_at: stamp(60 * 24 * 12), expires_at: stamp(60 * 24 * 5), revoked_at: null },
+  ];
+  const team = () => ({ members, invitations, you: "demo-user", roles: ["manager", "staff"], limits: { invitation_days: INVITATION_DAYS } });
+  const findMember = (id) => {
+    const found = members.find((entry) => entry.id === id);
+    if (!found) throw new ApiFailure(404, { code: "not_found", message: "This person is not a member of this restaurant." });
+    if (found.id === "demo-user") throw new ApiFailure(403, { code: "self_change", message: "You cannot change or remove your own access." });
+    return found;
+  };
+  const findInvitation = (id) => {
+    const found = invitations.find((entry) => entry.id === id && ["pending", "expired"].includes(entry.status));
+    if (!found) throw new ApiFailure(404, { code: "not_found", message: "This invitation is no longer open." });
+    return found;
+  };
 
   const view = (item) => ({
     ...item,
@@ -220,12 +307,79 @@ export function installDemo(state) {
     const query = new URLSearchParams(queryString);
     let match;
 
+    // An invited account: it has signed in, belongs to no restaurant yet, and is answered
+    // only about its own invitation until it accepts.
+    if (path === "/account/invitations") {
+      return { invitations: invited
+        ? [{ id: "30000000-0000-4000-8000-000000000009", restaurant: restaurantName(), role: "manager", invited_by_email: "owner@example.com", expires_at: stamp(-60 * 24 * 6) }]
+        : [] };
+    }
+    if (/^\/account\/invitations\/[0-9a-f-]{36}\/accept$/.test(path)) {
+      invited = false;
+      return { result: "accepted", role: "manager", message: "Demo: invitation accepted in this browser tab only." };
+    }
+    if (invited) throw new ApiFailure(403, { code: "no_restaurant", message: "This account is not linked to a restaurant." });
+
     if (path === "/me") {
       return {
         user: { email: "owner@example.com" },
-        restaurant: { id: "demo", name: document.documentElement.dataset.restaurantName || "Restaurant", slug: "demo", currency: sample.currency },
-        role: "owner", permissions: ["menu.read", "menu.write", "clover.manage", "activity.read", "applications.read", "applications.manage", "site.manage"], dietary_tags: DIETARY,
+        restaurant: { id: "demo", name: restaurantName(), slug: "demo", currency: sample.currency },
+        role, permissions: ROLE_PERMISSIONS[role], dietary_tags: DIETARY,
       };
+    }
+
+    if (path === "/team" || path.startsWith("/team/")) {
+      if (role !== "owner") refuse();
+      if (path === "/team") return team();
+      if (path === "/team/invitations") {
+        const email = String(body.email).toLowerCase();
+        if (members.some((entry) => entry.email === email)) {
+          throw new ApiFailure(409, { code: "already_member", message: "This person already has access to the dashboard." });
+        }
+        if (invitations.some((entry) => entry.email === email && entry.status === "pending")) {
+          throw new ApiFailure(409, { code: "already_invited", message: "This address already has an invitation waiting. Send it again from the list instead." });
+        }
+        // An address at fail.test shows what the page says when the email cannot be sent.
+        const sent = !email.endsWith("@fail.test");
+        invitations = [{
+          id: crypto.randomUUID(), email, role: body.role, status: "pending", invited_by_email: "owner@example.com", email_status: sent ? "sent" : "failed",
+          created_at: stamp(), sent_at: sent ? stamp() : null, expires_at: stamp(-60 * 24 * INVITATION_DAYS), revoked_at: null,
+        }, ...invitations.filter((entry) => entry.email !== email)];
+        log("MEMBER_INVITED", "team_invitation", invitations[0].id, { email, role: body.role, email_sent: sent });
+        return {
+          result: "invited", email_sent: sent, team: team(),
+          message: sent ? `Demo: no email is sent. In the real dashboard an invitation would go to ${email}.` : "The invitation is saved, but the email could not be sent. Send it again, or tell the person to open the dashboard and choose \"Forgot your password?\" with this address.",
+        };
+      }
+      if ((match = path.match(/^\/team\/invitations\/([0-9a-f-]{36})\/resend$/))) {
+        const invitation = findInvitation(match[1]);
+        Object.assign(invitation, { status: "pending", email_status: "sent", sent_at: stamp(), expires_at: stamp(-60 * 24 * INVITATION_DAYS) });
+        log("INVITATION_RESENT", "team_invitation", invitation.id, { email: invitation.email, role: invitation.role });
+        return { result: "sent", email_sent: true, team: team(), message: `Demo: no email is sent. The invitation to ${invitation.email} is open for another ${INVITATION_DAYS} days.` };
+      }
+      if ((match = path.match(/^\/team\/invitations\/([0-9a-f-]{36})$/))) {
+        const invitation = findInvitation(match[1]);
+        Object.assign(invitation, { status: "revoked", revoked_at: stamp() });
+        log("INVITATION_CANCELLED", "team_invitation", invitation.id, null);
+        return { result: "cancelled", team: team(), message: `The invitation to ${invitation.email} has been cancelled. It can no longer be accepted.` };
+      }
+      if ((match = path.match(/^\/team\/members\/([0-9a-f-]{36}|demo-user)$/))) {
+        const found = findMember(match[1]);
+        if (method === "DELETE") {
+          members = members.filter((entry) => entry !== found);
+          log("MEMBER_REMOVED", "team_member", found.id, null);
+          return { result: "removed", team: team(), message: `${found.email} no longer has access to the dashboard.` };
+        }
+        const changed = found.role !== body.role;
+        Object.assign(found, { role: body.role, role_changed_at: changed ? stamp() : found.role_changed_at });
+        if (changed) log("MEMBER_ROLE_CHANGED", "team_member", found.id, { role: body.role, email: found.email });
+        return { result: "saved", team: team(), message: changed ? `${found.email} is now ${body.role === "manager" ? "Manager" : "Staff"}.` : "Nothing changed." };
+      }
+    }
+
+    if (path === "/applications/export/preview" || path === "/applications/export") {
+      if (role !== "owner") refuse();
+      return exportApplications(body, path.endsWith("/preview"));
     }
     if (path === "/overview") {
       const live = items.filter((item) => !item.archived);
@@ -370,6 +524,21 @@ export function installDemo(state) {
       // A one-page stand-in, so the download can be tried. It is not anyone's CV.
       return new Blob(["%PDF-1.4\n% Demo file. Not a real CV.\n"], { type: "application/pdf" });
     }
+    if ((match = path.match(/^\/applications\/([0-9a-f-]{36})\/messages(?:\/([0-9a-f-]{36})\/retry)?$/)) && method === "POST") {
+      const application = findApplication(match[1]);
+      let message;
+      if (match[2]) {
+        message = application.messages.find((entry) => entry.id === match[2]);
+        if (message?.status !== "failed") throw new ApiFailure(409, { code: "not_retryable", message: "This message cannot be sent again: it is not one that failed." });
+        Object.assign(message, { status: "sent", status_detail: null, attempts: message.attempts + 1, sent_at: stamp() });
+      } else {
+        message = applicantMessage(application, body.kind, body.subject, body.body, 0);
+        application.messages.push(message);
+      }
+      application.events.push(event("message_sent", 0, { note: message.subject, actor_email: "owner@example.com" }));
+      log("APPLICATION_MESSAGE_SENT", "application", application.id, { kind: message.kind, status: "sent" });
+      return { result: "sent", message, messages: application.messages, notice: `Demo: nothing was emailed. On the live dashboard this goes to ${message.to_email}.` };
+    }
     if ((match = path.match(/^\/applications\/([0-9a-f-]{36})$/))) {
       const application = findApplication(match[1]);
       if (method === "GET") return { application: applicationDetail(application) };
@@ -380,6 +549,7 @@ export function installDemo(state) {
       }
       const note = body.note?.trim() || null;
       const changed = body.status !== application.status;
+      const email = changed && body.notify_applicant === true ? statusEmail(body.status, application, restaurantName()) : null;
       if (changed) {
         application.events.push(event("status_changed", 0, { from_status: application.status, to_status: body.status, note, actor_email: "owner@example.com" }));
         log("APPLICATION_STATUS_CHANGED", "application", application.id, { status: body.status });
@@ -387,9 +557,17 @@ export function installDemo(state) {
       } else if (note) {
         application.events.push(event("note", 0, { note, actor_email: "owner@example.com" }));
       }
+      // As the server does: the change first, then the email about it, kept with the others.
+      if (email) {
+        application.messages.push(applicantMessage(application, "status_update", email.subject, email.body, 0));
+        application.events.push(event("message_sent", 0, { note: email.subject, actor_email: "owner@example.com" }));
+        log("APPLICATION_MESSAGE_SENT", "application", application.id, { kind: "status_update", status: "sent", application_status: body.status });
+      }
       return {
         result: "saved", application: applicationDetail(application),
-        message: changed ? "Demo: status changed in this browser tab only." : note ? "Demo: note added." : "Nothing changed.",
+        email: email ? { result: "sent", to_email: application.email } : null,
+        message: email ? `Demo: status changed in this browser tab only. Nothing was emailed; on the live dashboard ${application.email} is told.`
+          : changed ? "Demo: status changed in this browser tab only." : note ? "Demo: note added." : "Nothing changed.",
       };
     }
 
@@ -477,7 +655,7 @@ export function installDemo(state) {
   // The smallest slice of the Supabase Auth client that the dashboard uses.
   let listener = () => {};
   const session = { access_token: "demo", user: { id: "demo-user" } };
-  let signedIn = true;
+  let signedIn = mode !== "signed-out";
 
   // Two-step sign-in, as far as the screens need it. A stand-in for Supabase Auth's own:
   // nothing here is a real secret, and the only code it accepts is 123456.

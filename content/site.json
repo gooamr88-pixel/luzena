@@ -251,12 +251,6 @@
         "requirements": ["Hard-working and reliable", "Works well in a team", "No experience needed"]
       },
       {
-        "slug": "cashier", "department": "Front of House", "title": "Cashier", "type": null, "location": null,
-        "summary": "Takes orders and payments, and handles takeaway and online orders.",
-        "responsibilities": ["Take orders and payments at the till", "Prepare and hand over takeaway and online orders", "Answer questions about the menu", "Balance the till at the end of the shift"],
-        "requirements": ["Comfortable using a till or POS system", "Accurate with cash and cards", "Polite and patient with guests"]
-      },
-      {
         "slug": "cleaner", "department": "Support", "title": "Cleaner", "type": null, "location": null,
         "summary": "Keeps the restaurant, the cafe and the restrooms spotless.",
         "responsibilities": ["Clean dining areas, restrooms and entrances", "Mop floors and empty bins", "Restock soap, paper and other supplies", "Report anything that needs repair"],

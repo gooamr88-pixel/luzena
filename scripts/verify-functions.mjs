@@ -1,4 +1,4 @@
-// The outside view of the four deployed Edge Functions on a real Supabase project: do they
+// The outside view of the deployed Edge Functions on a real Supabase project: do they
 // answer, do they reach the database, and do they refuse what they should? Run it after
 // `supabase functions deploy` and `supabase secrets set`, on EVERY project.
 // `npm run check:deno` asks the same questions with no database behind the functions; this
@@ -104,6 +104,29 @@ const CHECKS = [
     const r = await call("/dashboard-api/me", { headers: { authorization: `Bearer ${publicKey}`, apikey: publicKey } });
     return r.status === 401 ? null : describe(r);
   }],
+  ["dashboard-api refuses the team, an export and an invitation without a session", async () => {
+    const json = { origin, "content-type": "application/json" };
+    const attempts = [
+      await call("/dashboard-api/team", { headers: { origin } }),
+      await call("/dashboard-api/team/invitations", { method: "POST", headers: json, body: JSON.stringify({ email: "verify@example.test", role: "manager" }) }),
+      await call(`/dashboard-api/team/members/${NOBODY}`, { method: "DELETE", headers: { origin } }),
+      await call("/dashboard-api/applications/export", { method: "POST", headers: json, body: JSON.stringify({ scope: "all" }) }),
+      await call("/dashboard-api/applications/export/preview", { method: "POST", headers: json, body: JSON.stringify({ scope: "all" }) }),
+      await call("/dashboard-api/account/invitations", { headers: { origin } }),
+      await call(`/dashboard-api/account/invitations/${NOBODY}/accept`, { method: "POST", headers: { origin } }),
+    ];
+    const letThrough = attempts.filter((r) => r.status !== 401 || r.code !== "unauthenticated");
+    return letThrough.length === 0 ? null : letThrough.map(describe).join(" / ");
+  }],
+  ["dashboard-api refuses the same routes to a forged token", async () => {
+    const forged = { origin, authorization: "Bearer forged.token.value", "content-type": "application/json" };
+    const attempts = [
+      await call("/dashboard-api/team", { headers: forged }),
+      await call("/dashboard-api/applications/export", { method: "POST", headers: forged, body: JSON.stringify({ scope: "all" }) }),
+      await call(`/dashboard-api/account/invitations/${NOBODY}/accept`, { method: "POST", headers: forged }),
+    ];
+    return attempts.every((r) => r.status === 401) ? null : attempts.map(describe).join(" / ");
+  }],
   ["dashboard-api answers 404 for an unknown route", async () => {
     const r = await call("/dashboard-api/no-such-route");
     return r.status === 404 && r.code === "not_found" ? null : describe(r);
@@ -149,6 +172,21 @@ const CHECKS = [
     const r = await call("/clover-webhook");
     return r.status === 405 ? null : describe(r);
   }],
+
+  // The scheduler's function. 401 means it is deployed and has its secret; 503 means it is
+  // deployed and still refuses everyone because CRON_SECRET is not set (the monthly report
+  // and the daily clean-up will not run until it is). Either way, nobody without the secret
+  // gets it to do anything.
+  ["scheduled-tasks does nothing for a caller without the secret", async () => {
+    const bare = await call("/scheduled-tasks", { method: "POST" });
+    const wrong = await call("/scheduled-tasks", { method: "POST", headers: { "x-cron-secret": "not-the-secret-not-the-secret-not-the-secret" } });
+    if (bare.status === 503 && bare.code === "not_configured") return "deployed, but CRON_SECRET is not set: no schedule can call it yet";
+    return bare.status === 401 && wrong.status === 401 ? null : `${describe(bare)} / ${describe(wrong)}`;
+  }],
+  ["scheduled-tasks refuses GET, and says nothing to a browser", async () => {
+    const r = await call("/scheduled-tasks", { headers: { origin } });
+    return r.status === 405 && r.headers.get("access-control-allow-origin") === null ? null : describe(r);
+  }],
 ];
 
 // With an owner's credentials: sign in exactly as the dashboard does, then read every screen.
@@ -163,7 +201,8 @@ async function signedInChecks() {
     return [["the owner can sign in", () => `HTTP ${response.status} ${session.error_code ?? session.msg ?? ""}`]];
   }
   const signedIn = { authorization: `Bearer ${session.access_token}`, origin };
-  const reads = ["/overview", "/items", "/categories", "/modifier-groups", "/clover", "/activity"];
+  // Reads only. The team page is the owner's; counting an export hands over nobody's details.
+  const reads = ["/overview", "/items", "/categories", "/modifier-groups", "/clover", "/activity", "/team"];
   return [
     ["the owner can sign in", () => null],
     [`the owner's session resolves to the restaurant "${slug}" with the owner role`, async () => {

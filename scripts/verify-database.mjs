@@ -15,7 +15,7 @@ import { fileURLToPath } from "node:url";
 import pg from "pg";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const EXPECTED_TABLES = 21;
+const EXPECTED_TABLES = 24;
 const migrations = readdirSync(join(ROOT, "supabase", "migrations"))
   .filter((name) => /^\d{14}_.+\.sql$/.test(name)).map((name) => name.slice(0, 14)).sort();
 
@@ -129,6 +129,17 @@ try {
       "read job_applications": "select * from public.job_applications limit 1",
       "read clover_connections": "select * from public.clover_connections limit 1",
       "read audit_logs": "select * from public.audit_logs limit 1",
+      "read who has access (restaurant_users)": "select * from public.restaurant_users limit 1",
+      "read team_invitations": "select * from public.team_invitations limit 1",
+      "read messages to applicants": "select * from public.job_application_messages limit 1",
+      "read monthly_reports": "select * from public.monthly_reports limit 1",
+      "call dash_application_message_create": `select public.dash_application_message_create(${nobody}, ${nobody}, 'reply', 's', 'b', ${nobody}, 'x@example.test')`,
+      "call monthly_report_claim": `select public.monthly_report_claim(${nobody}, date '2026-01-01')`,
+      "call monthly_report_data": `select public.monthly_report_data(${nobody}, now(), now(), now())`,
+      "make itself an owner": `insert into public.restaurant_users (restaurant_id, user_id, role) values (${nobody}, ${nobody}, 'owner')`,
+      "call team_list": `select public.team_list(${nobody})`,
+      "call team_invitation_accept": `select public.team_invitation_accept(${nobody}, ${nobody}, 'x@example.test')`,
+      "call dash_applications_export": `select public.dash_applications_export(${nobody}, null, null, null, null, null, null, 10, false)`,
       "insert a restaurant": "insert into public.restaurants (slug, name) values ('intruder', 'Intruder')",
       "call clover_connection_secret": `select public.clover_connection_secret(${nobody})`,
       "call public_menu": `select public.public_menu(${nobody})`,
@@ -144,6 +155,41 @@ try {
   report(!lookup.error && lookup.rows[0].r === null, "service_role can call restaurant_public", lookup.error ?? "");
   const limit = await as("service_role", "select public.rate_limit_hit('verify:probe', 5, 60) as allowed");
   report(!limit.error && limit.rows[0].allowed === true, "service_role can write through rate_limit_hit (rolled back)", limit.error ?? "");
+
+  // Team access (migration 20261013001400). The backend's role must be able to read the
+  // team and to count an export; and every restaurant must still have an owner, which is
+  // the one thing that migration must never have disturbed.
+  const teamList = await as("service_role", `select public.team_list(${nobody}) as r`);
+  report(!teamList.error && Array.isArray(teamList.rows[0].r?.members), "service_role can call team_list", teamList.error ?? "");
+  const exportCount = await as("service_role", `select public.dash_applications_export(${nobody}, null, null, null, null, null, null, 10, true) as r`);
+  report(!exportCount.error && exportCount.rows[0].r?.count === 0, "service_role can call dash_applications_export", exportCount.error ?? "");
+  const invitationRoles = await as("service_role",
+    `insert into public.team_invitations (restaurant_id, email, role, expires_at) values (${nobody}, 'verify-probe@example.test', 'owner', now())`);
+  report(Boolean(invitationRoles.error) && /check constraint/.test(invitationRoles.error), "an invitation cannot hold the role owner",
+    invitationRoles.error ? "" : "the insert was accepted (rolled back)");
+
+  // Messages to applicants and monthly reports (migration 20261014001500). The backend's
+  // role must be able to use both; a message cannot be made for an application that is
+  // not there; and every restaurant has a clock for its months.
+  const noMessage = await as("service_role", `select public.dash_application_message_create(${nobody}, ${nobody}, 'reply', 's', 'b', ${nobody}, 'x@example.test') as r`);
+  report(!noMessage.error && noMessage.rows[0].r === null, "service_role can call dash_application_message_create, which makes nothing for an unknown application", noMessage.error ?? "");
+  const figures = await as("service_role", `select public.monthly_report_data(${nobody}, now() - interval '1 month', now(), now() - interval '2 months') as r`);
+  report(!figures.error && figures.rows[0].r?.applications?.received === 0, "service_role can call monthly_report_data", figures.error ?? "");
+  const reportList = await as("service_role", "select public.monthly_report_restaurants() as r");
+  report(!reportList.error && Array.isArray(reportList.rows[0].r) && reportList.rows[0].r.every((entry) => typeof entry.timezone === "string" && entry.timezone !== ""),
+    "every restaurant has a time zone for its monthly report", reportList.error ?? "");
+
+  await client.query("begin transaction read only");
+  const ownerless = await rows(`
+    select r.slug from public.restaurants r
+    where not exists (select 1 from public.restaurant_users u where u.restaurant_id = r.id and u.role = 'owner')`);
+  report(ownerless.length === 0, "every restaurant still has an owner", ownerless.map((row) => row.slug).join(", "));
+  const membership = (await rows(`
+    select count(*)::int as members, count(*) filter (where email is null)::int as without_address,
+           (select count(*)::int from public.team_invitations) as invitations
+    from public.restaurant_users`))[0];
+  console.log(`      team now: ${JSON.stringify(membership)}`);
+  await client.query("rollback");
 } catch (error) {
   failures += 1;
   console.error(`\nThe verification itself failed: ${error.message}`);

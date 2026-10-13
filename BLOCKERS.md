@@ -244,14 +244,75 @@ would win. What follows is the entry as it stood.
   refusals were exercised locally; its build and switch steps, and the Nginx file, were
   not. Expect to fix small things on first contact, as with the functions on TEST.
 
-### B-7. Resend verified domain — NEEDED for the notification email · INFRASTRUCTURE
+### B-7. An email provider — NEEDED for every email the backend sends · INFRASTRUCTURE
 
-- **Needed:** a Resend account, `luzenarestaurant.com` verified there (three DNS records),
+- **Since 2026-10-13 the provider is Brevo** (the client's choice; Resend is still
+  understood). What it needs is B-10 below. Every email goes through it: the notification
+  of a new application, messages to applicants, invitations to the dashboard and the
+  monthly report.
+- **Was:** a Resend account, `luzenarestaurant.com` verified there (three DNS records),
   an API key.
 - **Until then:** applications are still received, stored and shown in the dashboard under
   Applications; only the email that says "a new one has arrived" is not sent. Each such
   application is marked, and the dashboard says on it that the notification did not go out.
   (Until 2026-10-06 the email was the only record, so this blocked applications entirely.)
+- **Also needed for invitations (since 2026-10-13):** the email that tells someone they
+  have been invited to the dashboard goes the same way. Without it an invitation is saved
+  and marked "email not sent".
+
+### B-8. A mail sender for Supabase Auth — BLOCKING for inviting anyone · INFRASTRUCTURE
+
+- **Needed:** a custom SMTP sender set in each Supabase project (Authentication > Emails;
+  Resend's SMTP works). It has been on the checklist as "recommended"; team access makes it
+  required.
+- **Why:** an invited person chooses their password through a link that Supabase Auth
+  emails. Supabase's own sender delivers only to members of the Supabase organisation. The
+  owner is one, which is why his own password reset has worked; a manager he invites is
+  not, and would be sent nothing, with nothing to say so.
+- **Until then:** an invitation still carries a one-click "Choose your password" link that
+  does not depend on this sender, but it works for about an hour. Someone who opens their
+  invitation later than that cannot get in.
+- **Not checkable from here:** whether it is already set. The client reported on
+  2026-10-13 that "email works"; which email was not said. `DEPLOYMENT_CHECKLIST.md`
+  section 11a has the check that settles it (a password email to an outside address).
+
+### B-9. Team access, the export, messages and reports on a real Supabase project — RESOLVED 2026-10-13 (TEST, then PRODUCTION)
+
+- **PRODUCTION, the same evening, after TEST had passed whole:** both migrations, the six
+  functions, the schedule (one run seen), `verify:functions` and the database checks all
+  pass. The website (the new dashboard) waits for `deploy.sh` on the VPS.
+
+- **Done on TEST** with an access token the client supplied: both migrations applied, their
+  rollback files run and the migrations applied again (TEST identical before and after,
+  and identical to PRODUCTION when rolled back); the six functions deployed; the daily
+  schedule created and seen to run; `verify:functions` and the database checks pass; a
+  65-check run end to end with real Auth, Storage and Postgres (`TESTING.md`).
+- **Still open from this item:** that the workbook opens in Excel without a repair message
+  (no spreadsheet program here; `DEPLOYMENT_CHECKLIST.md` section 11a), and everything that
+  needs a working email provider (B-10).
+
+### B-10. The Brevo API key is refused — BLOCKING every email · CLIENT INPUT
+
+- **Found 2026-10-13.** The API key supplied (`xkeysib-...`) is answered by Brevo with
+  401 "Key not found", on every endpoint, asked twice hours apart. It looks shortened when
+  copied. The SMTP login is refused from this machine with "525 5.7.1 Unauthorized IP
+  address": the account restricts which addresses may use its keys.
+  SMTP is in any case not usable by the backend (Edge Functions may not open SMTP ports);
+  the HTTP API key is what is needed.
+- **Needed from the client, in Brevo:** (1) Security > Authorised IPs: switch the
+  restriction off (Supabase's functions do not have fixed addresses); (2) SMTP & API > API
+  keys: create a key and copy it whole; (3) Senders, domains: verify the sender address
+  (or the domain `luzenarestaurant.com`) the emails should come from, and say which it is;
+  (4) say whether `luznarestocafe@gmail.com` is the recruitment inbox, the address for the
+  monthly report, the sender, or something else.
+- **Then, per project, TEST first:** `BREVO_API_KEY` and `EMAIL_FROM` set as function
+  secrets; a real application, a message to a test address, an invitation and a report
+  sent; delivery confirmed by Brevo's own events (`DEPLOYMENT_CHECKLIST.md` section 11b).
+- **Until then, nothing is sent and nothing pretends to be.** The application is still
+  received and shown, marked "notification not sent"; a message to an applicant is kept
+  and marked "Not sent: Email is not set up"; an invitation is saved and marked "email not
+  sent"; the monthly report is counted as `not_configured` and recorded nowhere, so the
+  month that is owed goes in full at the first daily run after the key is set.
 
 ---
 
@@ -287,7 +348,8 @@ not guessed. Adding the latitude and longitude from the Google listing helps loc
 
 ### N-4. Full-time or part-time for each role — NON-BLOCKING · CLIENT INPUT
 
-`type` is empty on all 18 positions, so no badge is shown.
+`type` is empty on all 17 positions, so no badge is shown. (There were 18 until 2026-10-13,
+when the client had Cashier taken out: the restaurant has no such job.)
 
 ### N-5. Is the restaurant open yet? — NON-BLOCKING · CLIENT INPUT
 
@@ -309,13 +371,11 @@ Measured locally (see `TESTING.md`). Field numbers need the deployed site and re
 with the production project's exact host and regenerate the Nginx file
 (`npm run build:nginx`).
 
-### N-9. A guaranteed schedule for deleting old applications — NON-BLOCKING · OPTIONAL
+### N-9. A guaranteed schedule for deleting old applications — RESOLVED 2026-10-13
 
-Since 2026-10-07 deletion also runs about once an hour on the back of any visit to the
-public website (see "Job applications" in `ARCHITECTURE.md`), as well as when an application
-arrives and when an owner opens the dashboard. Only a period with no visitor at all delays
-it. If the privacy policy promises deletion by an exact day regardless of activity, add a
-daily schedule (described in `DEPLOYMENT_CHECKLIST.md`).
+The daily schedule (`supabase/schedule-daily-tasks.sql`, pg_cron calling the
+`scheduled-tasks` function) runs the deletion every day, whether or not anyone visits. The
+hourly run on the back of a visit stays, as a second net.
 
 ### N-11. SQL functions without a fixed `search_path` — NON-BLOCKING · INFRASTRUCTURE
 

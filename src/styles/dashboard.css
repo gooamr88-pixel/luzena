@@ -182,9 +182,31 @@
     @apply border-bad;
   }
 
-  /* Checkboxes take the accent, so a ticked box is gold-brown rather than browser blue. */
-  input[type="checkbox"] {
+  /* Checkboxes and radio buttons take the accent, so a ticked one is gold-brown rather than
+     browser blue. */
+  input[type="checkbox"],
+  input[type="radio"] {
     accent-color: var(--color-brand);
+  }
+
+  /* One of several choices, as a row that is all target: the button, a name, and a line of
+     explanation under it. The chosen row is outlined in the accent, and the keyboard's
+     focus ring is drawn on the row. Used in the export dialog. */
+  .d-choice {
+    @apply flex cursor-pointer items-start gap-3 rounded-lg border border-line-strong bg-surface px-3.5 py-3 text-sm transition-colors hover:border-brand has-[:checked]:border-brand has-[:checked]:bg-[#fbf5ea] has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-focus;
+  }
+
+  .d-choice input {
+    @apply mt-0.5 size-4 shrink-0 cursor-pointer;
+  }
+
+  /* A tick box on its own in a table or on a card: the box is 16px, the target 40px. */
+  .d-tick {
+    @apply inline-flex size-10 cursor-pointer items-center justify-center rounded-md transition-colors hover:bg-sand has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-0 has-[:focus-visible]:outline-focus;
+  }
+
+  .d-tick input {
+    @apply size-4 cursor-pointer;
   }
 
   .d-hint {

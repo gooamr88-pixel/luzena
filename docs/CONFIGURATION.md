@@ -221,10 +221,24 @@ naming the project every time.
 | `TOKEN_ENCRYPTION_KEY` | n/a | freshly generated | freshly generated, **different from test** |
 | `MENU_SYNC_TTL_SECONDS` | n/a | `300` | `300` |
 | `IP_HASH_SALT` | n/a | random | random, different from test |
-| `RESEND_API_KEY` | n/a | test key | production key |
-| `EMAIL_FROM` | n/a | an address on a verified domain | `Luzena Careers <careers@luzenarestaurant.com>` |
+| `BREVO_API_KEY` | n/a | Brevo API key (`xkeysib-...`). **Not set yet: the key supplied is refused (`BLOCKERS.md` B-10)** | the same account's key |
+| `RESEND_API_KEY` | n/a | only if Brevo is not used | only if Brevo is not used |
+| `EMAIL_FROM` | n/a | a sender verified in Brevo | `Luzena Restaurant & Cafe <an address verified in Brevo>`: the name applicants see |
+| `CRON_SECRET` | n/a | 48 random characters, set 2026-10-13, also in that project's Vault | its own, different from test |
 | `JOB_APPLICATIONS_ENABLED` | n/a | `true` | `true` since 2026-10-06 |
 | `JOB_APPLICATION_RETENTION_DAYS` | n/a | `90` | `90`: the client's decision (2026-10-06), and the number the privacy policy states |
+
+`CRON_SECRET` lives in two places on each project and they must agree: the function's
+secret, and the database's Vault (put there by `supabase/schedule-daily-tasks.sql`). To
+change it: set the new value on the function, then run that file again with it.
+
+**In the database, per restaurant** (not secrets; changed with one SQL statement):
+
+| Column of `restaurants` | What it is | Now |
+|---|---|---|
+| `recruitment_email` | Where new applications are announced, and where an applicant's reply goes | the owner's address (`supabase/provision-restaurant.sql`) |
+| `report_email` | Where the monthly report goes. Empty: the recruitment address | empty |
+| `timezone` | The clock a "month" is on for the report (IANA name) | `America/Los_Angeles` |
 
 Names used elsewhere for the same things: Clover's "Client ID" is `CLOVER_APP_ID`, its
 "Client Secret" is `CLOVER_APP_SECRET`, the Clover environment is `CLOVER_ENV`, and the
@@ -296,3 +310,49 @@ sets two-step sign-in up again. There is deliberately no other way round it.
 **Not yet proven against the real service.** The screens and the backend check are tested
 against stand-ins. The first real enrolment, on TEST and then on PRODUCTION, is the test:
 do it while signed in on a second browser too, so that a mistake cannot lock the account out.
+
+## 11. Team access: who can sign in to the dashboard
+
+How it works is in `ARCHITECTURE.md` ("Team and access"). What has to be set, and what only
+the operator can do, is here. There is nothing to configure in code: no variable, no secret.
+
+### 11.1 What must be set before anyone is invited
+
+| Setting | Where | Why |
+|---|---|---|
+| A custom SMTP sender for Auth | Supabase > Authentication > Emails | An invited person chooses their password through a link Supabase Auth emails. Its built-in sender delivers only to members of the Supabase organisation and is rate limited. |
+| `RESEND_API_KEY`, `EMAIL_FROM` | Edge Function secrets (section 7) | The invitation itself is sent through Resend. Without them it is saved and marked "email not sent". |
+| `ALLOWED_ORIGINS` | Edge Function secrets | The link in the invitation is built from it: the origin the owner's request came from when it is on the list, the first origin on the list otherwise. |
+| The dashboard's address in the redirect allow-list | Supabase > Authentication > URL configuration (`supabase/config.toml`) | The "Choose your password" link in an invitation returns there. It is the same address a password reset already uses. |
+| Sign-ups **off** | Supabase > Authentication > Sign In / Providers | Unchanged. Nobody makes themselves an account; the backend makes one, with no password, only for an address an owner invited. |
+
+`otp_expiry` in `supabase/config.toml` (3600 seconds) is how long the "Choose your password"
+button in an invitation works. The invitation itself stays open for seven days: after the
+hour the person uses "Forgot your password?" on the sign-in page, which the email also says.
+
+### 11.2 What only the operator can do, in Supabase
+
+These are deliberately not in the dashboard.
+
+- **Add or remove an owner.** Run `supabase/provision-restaurant.sql` for a new owner. To
+  remove one, in the SQL editor:
+  `delete from public.restaurant_users where role = 'owner' and email = '<address>';`
+  Check first that the restaurant keeps another owner: `npm run verify:database` fails a
+  project where a restaurant has none.
+- **Delete someone's account.** Removing a member in the dashboard removes their access,
+  not their Supabase Auth account. Authentication > Users > the user > Delete. This also
+  ends any session they still hold.
+- **End a session at once.** Removing a member already ends their access at their next
+  request. Deleting or banning the account in Authentication > Users ends the session too.
+- **See who has access, straight from the database:**
+  `select r.slug, u.email, u.role, u.created_at, u.last_seen_at from public.restaurant_users u join public.restaurants r on r.id = u.restaurant_id order by 1, 3;`
+- **Let a manager export applications.** Add `"applications.export"` to `manager` in
+  `ROLE_PERMISSIONS` (`supabase/functions/_shared/dashboard/session.ts`) and in
+  `src/dashboard/roles.js`; `tests/team.test.js` fails until the two agree. Deploy the
+  function, then the website.
+
+### 11.3 What is not proven yet
+
+Everything about the team is tested against a real Postgres engine and a stand-in for
+Supabase Auth. The first invitation on TEST is the first time the real service is asked to
+make an account and a set-password link. `DEPLOYMENT_CHECKLIST.md` section 11a is that test.

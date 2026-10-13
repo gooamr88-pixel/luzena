@@ -98,7 +98,10 @@ Where each setting belongs, per environment: `docs/CONFIGURATION.md`.
 ## 3. Authentication and sessions
 
 - Supabase Auth, email and password. No custom password handling exists in this code.
-- Sign-up is disabled (`supabase/config.toml`). The operator creates owners.
+- Sign-up is disabled (`supabase/config.toml`). The operator creates owners. Since
+  2026-10-13 an owner can invite managers and staff: the backend then asks Supabase Auth to
+  make the account, with no password, and the person chooses one through Supabase Auth's
+  own link. Still nobody can make themselves an account (section 4a).
 - Access tokens last one hour; refresh tokens rotate (`config.toml`).
 - **No cookies.** The dashboard API authenticates with a bearer token in a header. There is
   therefore no cookie to mark `Secure`, `HttpOnly` or `SameSite`, and no cookie-based CSRF.
@@ -128,6 +131,162 @@ identifiers. The `x-restaurant-id` header only chooses among restaurants the use
 belongs to. Clover ids are matched against the restaurant's own mirror (`menu_known_ids`)
 before any Clover call. Unknown fields in a request body are rejected, so
 `{"role": "admin"}` or `{"restaurant_id": ...}` is a 422.
+
+### 4a. Team access (added 2026-10-13)
+
+Until this date one account existed per restaurant. Owners can now invite managers and
+staff, change their role and remove them. How it works is in `ARCHITECTURE.md` ("Team and
+access"); what protects it is here. **All of it is proven on a real Postgres engine
+(PGlite) with a stand-in for Supabase Auth. None of it has run against a real Supabase
+project**: see "Not verified" at the end of this section.
+
+| Risk | What stops it | Test (`tests/team.test.js` unless said) |
+|---|---|---|
+| A restaurant user gains platform-wide access | There is no such role. The role column accepts three values (a check constraint), every route is bound to the caller's own restaurant, and naming another is refused. | "has no platform-wide role" |
+| Someone is made an owner from the dashboard | `owner` is on nobody's list of roles to give (`GRANTABLE_ROLES`); the invitation table cannot store it; no SQL function writes it or touches an owner's row. | "only accepts the roles an owner may give", "can never make an owner, change an owner, or change one's own role" |
+| A manager or staff member promotes themselves, or anyone | Every team route needs `team.manage`, which only an owner has. A role is never read from the request. | "is refused to managers and staff", the 22-route table in "gives a manager the day-to-day work" |
+| An owner locks themselves out, or removes another owner | Nobody changes or removes their own access; an owner's row is never written. The existing owner's access cannot be lost through this API. | "is never something a person does to themselves or to an owner"; the migration test |
+| An invitation is used by the wrong person | There is no token. It is found only for the account signed in with exactly that address, and only once Supabase Auth has confirmed the address. Knowing its id is no use to anyone else. | "is only for the account whose own, confirmed address it was sent to" |
+| An invitation is used after it should be dead | Expired, cancelled and already-used invitations are refused by the one function that makes memberships; a removed member cannot replay the invitation they once accepted. | "cannot be accepted once it has expired", "...once the owner has cancelled it", "cannot be undone by replaying" |
+| One restaurant reaches into another's team | Every function takes the caller's restaurant; another restaurant's member or invitation id is "not found", exactly like a made-up one. | "one restaurant and another" (both tests) |
+| A secret leaks | There is none of this system's to leak: no token, no password. Supabase Auth's own set-password link goes into the email and nowhere else: not a response, a log line, the audit log or the database. | "sends the set-password link in the email and puts it nowhere else" |
+| A password passes through this system | It cannot: the port that makes accounts (`AccountDirectory.ensure`) takes an address and nothing else. People choose their password with Supabase Auth, as the owner did. | "records the offer, makes an account with no password" |
+| Sign-up is opened as a shortcut | It is not touched. Accounts are made only by the backend with the service role, only for an address an owner invited. | (no code path; `supabase/config.toml` unchanged) |
+| The form is used to send email to strangers | Owner only; 20 invitations an hour per person; 5 emails a day to one address; 25 open invitations per restaurant. | "cannot be used to pester an address or to pile up invitations" |
+| Access outlives its removal | The membership is read on every request, so the next request with the old session is refused: every route, CV downloads and exports included. | "ends every kind of access at once, for the session the person already holds" |
+| The database is reached around the API | `team_invitations` has row level security, no policy and no privilege for `anon` or `authenticated`; the 17 new functions are the service role's alone, and none runs with its owner's rights. | "keeps the new table and every new function closed"; `sql.test.js` "access control at the database" |
+| The activity log tells managers who was invited | Entries about the team reach a caller without `team.manage` with the person's details removed. The overview's "recent activity" is no longer given to staff at all (they could not open the log, but were handed its latest eight entries: found in this work, fixed). | "what the activity log shows of the team" (both tests) |
+
+**What removal cannot do.** These are limits of the design, not bugs:
+
+- **The Supabase session stays valid** until its token expires (an hour) or the person signs
+  out. It opens nothing: the database grants `authenticated` nothing, storage has no policy,
+  and this API refuses an account with no membership. Ending the session itself would need
+  the operator to delete or ban the account in Supabase.
+- **A page left open keeps showing what it had loaded.** Nothing is pushed to it. It is
+  cleared the first time it asks the server for anything, and it can load nothing new.
+- **A file already downloaded is the person's.** A CV or an export taken while they had
+  access cannot be recalled. There are no links to expire: CVs never have an address.
+- **The account is not deleted.** Removing a member removes their access, not their
+  Supabase Auth account. The operator can delete it in Supabase (Authentication > Users).
+
+**Decisions that differ from what was first proposed**, each deliberate:
+
+| Proposed | Built | Why |
+|---|---|---|
+| A Platform Admin role | None | Nothing in the product needs one; the operator already works in Supabase. A role that crosses restaurants is the one thing here that could breach tenant isolation by design. |
+| Owner can assign owners: "denied by default" | Denied, with no switch | An owner is the operator's to provision. |
+| Manager's Clover sync: "only if explicitly authorized" | Allowed, by its own permission `clover.sync` | A manager already writes prices to Clover; refusing them a re-read of it would protect nothing. It is now a permission of its own rather than a side effect of `menu.write`. |
+| Manager's export: "denied unless explicitly authorized" | Denied | There are no per-person grants; adding them would be a second permission system. One line in `ROLE_PERMISSIONS` changes it if the owner wants it. |
+| Invitation tokens | None | The sign-in is the proof. A token would be one more secret to protect, for no gain. |
+| RLS and Storage policies | No policy added | The design is closed by default: no policy, no privilege, and `verify:database` fails a project that has either. A policy would open a path that does not exist today. |
+
+**Verified on the real TEST project on 2026-10-13** (deployed functions, real Postgres,
+real Supabase Auth and Storage; a restaurant and accounts made for the run at
+`example.test` and deleted after it; 65 of 65 checks, `TESTING.md`):
+`auth.admin.createUser({ email, email_confirm: true })` makes an account with a confirmed
+address that nobody can sign in to (Supabase gives it a random password of its own that it
+tells nobody: the column is not empty, but no password works); the person signs in once a
+password is chosen; before accepting, that account opens nothing; another account can
+neither see nor accept the invitation by its id; a manager and staff get exactly their
+permissions (18 requests); a role change and a removal take effect on the session the
+person already holds; a removed person cannot replay the invitation; expired and cancelled
+invitations are refused; the account, the restaurant, its owner and its records survive a
+removal; public sign-up stays closed. The migration applied, and the database checks of
+`verify:database` pass there (24 tables, 102 functions, none open to the public roles).
+
+**Still not verified:**
+
+- That the invitation email, with its one-click set-password link
+  (`auth.admin.generateLink({ type: "recovery" })`), arrives and opens the dashboard's "set
+  a new password" screen. No email provider works yet (`BLOCKERS.md` B-10), so on TEST the
+  invitation was saved and reported, truthfully, as "email not sent"; the password was set
+  by the test itself through the admin API in place of the person following the link.
+- That Supabase Auth delivers its own password email to an address outside the Supabase
+  organisation. Its built-in sender only does so for the organisation's own members: **a
+  custom SMTP sender must be set for Auth** (`BLOCKERS.md` B-8), or an invited person who
+  misses the one-click link in their invitation will never receive another.
+
+### 4b. Exporting job applications (added 2026-10-13)
+
+| Risk | What stops it | Test (`tests/export.test.js` unless said) |
+|---|---|---|
+| Someone who may not export gets a file | `applications.export` is the owner's alone and is checked on the request itself, with the membership, before anything is read. Managers read applications and are still refused. | "is the owner alone", "ends with the access" |
+| Another restaurant's applications are exported | The restaurant is the caller's own. Ids are looked for inside it; filters cannot reach outside it. | "one restaurant and another" (both tests) |
+| The request chooses more than it should | Each kind takes exactly its own fields; anything else is a 422, including `columns`, `fields`, `limit` and a restaurant id. | "each kind of export takes exactly what it needs" |
+| The file carries more than the list | The export is the main facts only (the client's decision): the SQL function reads no contact detail, no free text, no storage path. | "is every application... and nothing more"; `export-files.test.js` "leaves out everything but the main facts" |
+| A formula in an applicant's name runs in Excel | In the workbook every such value is a text cell, never a formula. In CSV, a value that would start a formula (`= + - @`, also after spaces, control or invisible characters, and in their full-width forms) is given a leading apostrophe; every field is quoted. | `export-files.test.js` "stores what an applicant typed as text", "disarms a value that a spreadsheet would run as a formula" |
+| The file name is used to write somewhere | It is built from fixed words, the restaurant's slug reduced to `a-z 0-9 -`, and the date. Nothing an applicant wrote, no path. | `export-files.test.js` "names the file from fixed words" |
+| Exports go unrecorded | The audit entry is written before the rows are returned; if it cannot be, nothing is returned. It holds the count, kind, format and which filters were used: never a name, and not the text of a search. | "writes each export to the audit log", "hands over nothing if the export cannot be recorded" |
+| The whole table is pulled repeatedly | 30 exports an hour; 5,000 applications a file. | "is limited in how often", "refuses an export too large" |
+| The count and the file disagree | One SQL statement counts and reads. | "counts and reads in one moment" |
+
+**Not covered:** the file is made in the owner's browser and saved to their computer. What
+happens to it after that (where it is kept, who it is sent to) is outside this system. An
+export of personal data should be treated like the applications themselves: the privacy
+policy's retention period applies to copies too.
+
+### 4c. Writing to applicants (added 2026-10-13)
+
+The dashboard can now send email in the restaurant's name. That is a new way to do harm
+(send to strangers, pretend to be someone, put a link in front of an applicant), so the
+request is given as little to decide as possible.
+
+| Risk | What stops it | Test (`tests/messages.test.js` unless said) |
+|---|---|---|
+| The form is used to email someone who never applied | There is no recipient in the request. The address is the application's own, read by the database when the message is recorded. `to`, `cc`, `bcc`, `email` and the like are unknown fields: 422. | "does not let a request choose the recipient, the sender or where answers go" |
+| Someone writes as another sender, or redirects the replies | The sender is the backend's `EMAIL_FROM`; reply-to is the restaurant's `recruitment_email` from the database. Neither is in the request. | the same test; "is emailed to the applicant under the restaurant's name" |
+| A header is added through the subject | The subject is reduced to one line before it is stored or sent. The provider is called over its JSON API, which has no header syntax to break out of. | "keeps a subject to one line" |
+| Markup, a link or a script is put in front of the applicant | Everything typed is escaped in the HTML part. The one link in the email is the restaurant's website, built by the server from its own allowed origins. | "is text: nothing typed becomes markup, a link or a script" |
+| Staff, another restaurant, or nobody at all sends | `applications.message` is the owner's and manager's; the application is looked for inside the caller's restaurant, so another's is "not found"; no session is a 401. | "refuses anyone who is not an owner or a manager", "answers as if another restaurant's application did not exist" |
+| A message is sent twice | An `Idempotency-Key` per message; a replay returns the first answer. Only a message that failed can be sent again. | "is not sent again when the same request arrives twice", "cannot be tried again once it has gone" |
+| The dashboard claims a delivery that did not happen | `delivered` is written only from the provider's own report for that message id. No route lets a request set it. Accepted-by-the-provider is shown as "Sent". | "is 'sent', and no more than that, until the provider itself reports", "is never set by a request"; `tests/email.test.js` "says 'delivered' only when the provider reports a delivery" |
+| It is used to send in bulk | 60 messages an hour per person; one applicant per message; 5,000 characters. | "is limited to sixty messages an hour" |
+| What was written leaks into logs | The audit log holds the kind and the outcome. Server logs hold the message's id and the provider's status code. Neither holds the address, the subject or the words. | "is recorded in the activity log without the applicant, the subject or the words", "is kept, says plainly that nothing reached the applicant" |
+| Messages outlive the application | They are deleted with it (a foreign key that cascades), by hand or at the end of the retention period. | "go when the application is deleted, and when it passes the retention period" |
+| A status change is used to email an applicant something else, or to flood them | The status email's words are the server's, for the status and nothing else; the request carries only `notify_applicant: true` (subject, body, recipient: 422). It is sent only when the status really changes, needs `applications.message`, and draws on the same 60-an-hour budget, checked before the status is touched. The internal note never goes into it. | "telling the applicant about a new status" (8 tests) |
+| The provider's key leaks | It is a function secret, sent in one header to the provider and nowhere else; a refusal from the provider is reported as its status code only. | `tests/email.test.js` "does not count a refusal as sent, and does not repeat the provider's answer or the key" |
+
+**Limits, stated plainly:**
+
+- A person with `applications.message` can write anything to an applicant. This system
+  records who wrote what; it does not review it.
+- `delivered` means the recipient's mail server accepted the message. Whether it reached
+  the inbox, the spam folder or a person is not something any provider can report.
+- The delivery status is asked for when someone opens the application. A message nobody
+  looks at again stays "Sent" in the dashboard (and is counted as not confirmed in the
+  monthly report), although it may well have arrived.
+
+### 4d. The scheduled function and the monthly report (added 2026-10-13)
+
+| Risk | What stops it | Test (`tests/monthly-report.test.js`) |
+|---|---|---|
+| Anyone on the internet triggers the daily work, or a flood of reports | `scheduled-tasks` does nothing without `CRON_SECRET` (32 characters or more, compared in constant time), answers 503 to everyone until one is set, and takes no input. A month already sent cannot be sent again by any number of calls. | "does nothing for a caller without the secret", "refuses every call until a secret of a proper length has been set", "does not send a month twice" |
+| The secret leaks through the schedule | The job reads it from Supabase Vault each time it runs. It is in no migration, no job definition, no log line and no response. The SQL that stores it is run by hand from a copy that is not committed. | "runs the day's work... answers with counts alone" (the secret is in no log and no answer) |
+| A report goes to the wrong restaurant, or carries another's figures | Every count takes the restaurant's id; the address is that restaurant's own row. | "gives each restaurant its own figures on its own clock, and nothing of another's" |
+| A report carries personal data | It is counts and the names of positions. No applicant's name, address, phone, message or CV. The stored copy of the figures is the same. | "names no applicant and carries no address, message or secret" |
+| A report states something that was not measured | Each figure is one SQL count over the month. What the system does not record (visitors, orders, releases) is a line that says so and why. | "names what this system does not measure as not available"; "counts exactly the restaurant's own month" |
+| A report is silently never sent | A failure is a row (`failed`, the reason, the attempt count), an entry in the activity log, and an error in the function's log; it is tried again daily. A missing address or provider is reported in the function's answer as `not_configured`. | "records a month the email provider refused", "waits, without recording a failure" |
+
+`verify_jwt` is off for this function, as for the public ones: the gateway's JWT check
+would only prove that the caller knows the project's public key, which everyone does. The
+secret is the check.
+
+**pg_net, and what the public roles can reach of it.** The schedule needs the `pg_net`
+extension, which lets SQL make HTTP requests. When it is created, Supabase itself grants
+its functions to `anon` and `authenticated`, and the role that runs our SQL cannot revoke
+a grant Supabase made (checked on TEST: the revoke is silently without effect). They cannot
+use it: those roles reach the database only through the Data API, which serves the
+`public` schema alone. On TEST, calls to `net.http_get`, `vault.create_secret` and
+`cron.unschedule` through the API, with the public key and with a signed-in session, and a
+read of `vault.decrypted_secrets`, were all refused, and the job was still scheduled
+afterwards. **Never add `net`, `cron` or `vault` to the API's exposed schemas** (Supabase:
+Settings > API > Exposed schemas): that would open them.
+
+**Verified on TEST, 2026-10-13:** the schedule created from `schedule-daily-tasks.sql`; the
+secret and the address in Vault and in neither the job definition nor `cron.job`; pg_cron
+run every minute for two minutes: both runs `succeeded`, pg_net reached the function, which
+answered 200 with counts only both times; the schedule then put back to daily.
 
 ## 5. Input validation, injection, XSS, CSRF
 
@@ -220,6 +379,9 @@ stranger.
 | Public menu | 120 per minute per address |
 | Job applications | 20 per hour per connection (one address is often many people: a mobile carrier, the restaurant's own wifi) and 3 per day per email address (both counted as salted hashes), plus a honeypot field, a minimum fill time and an origin check. The form's own id for each visit makes a repeated send one application. |
 | CV downloads | 60 per 5 minutes per user |
+| Exports of applications | 30 per hour per user; 5,000 applications per file |
+| Invitations (sending and sending again) | 20 per hour per user; 5 emails a day to one address; 25 open per restaurant |
+| Accepting an invitation | 20 per 15 minutes per account |
 | Dashboard reads | 600 per 5 minutes per user |
 | Dashboard writes | 240 per 5 minutes per user |
 | Creates | 120 per 5 minutes |
@@ -302,7 +464,9 @@ optionally a CV.
   and sets a retention period (`docs/CONFIGURATION.md` section 5).
 - **Who can read them.** A signed-in owner or manager of that restaurant, through the
   dashboard API, and nobody else: not staff accounts, not another restaurant's owner (to
-  whom the application does not exist), not the public. The two tables have row level
+  whom the application does not exist), not the public. Downloading a CV is a permission
+  of its own (`applications.cv`, owner and manager), checked on every download; taking the
+  list away as a file is the owner's alone (`applications.export`, section 4b). The two tables have row level
   security with no policies and no privilege for `anon` or `authenticated`.
   `tests/applications.test.js` "who may read an application" checks each of these.
 - **What the browser is given.** The list carries names, positions and stages only. Contact

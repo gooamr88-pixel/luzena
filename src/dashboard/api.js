@@ -56,6 +56,12 @@ async function request(method, path, body, headers) {
     await state.supabase.auth.signOut();
     throw new ApiFailure(401, payload?.error ?? { code: "unauthenticated", message: "Your session has expired. Sign in again." });
   }
+  // The server decides on every request who may do what, so a refusal is how this page
+  // learns that an owner has changed this account's role or taken its access away while it
+  // was open. The dashboard is told, and redraws itself from what the server now says.
+  if (response.status === 403 && state.me && ["no_restaurant", "forbidden"].includes(payload?.error?.code)) {
+    window.dispatchEvent(new CustomEvent("access-changed", { detail: payload.error.code }));
+  }
   throw new ApiFailure(response.status, payload?.error);
 }
 
@@ -70,7 +76,11 @@ export async function api(method, path, body, headers = {}) {
 // the browser as a download. The file travels inside the authenticated request: it never
 // has an address of its own that could be copied, shared or guessed.
 export async function downloadFile(path, filename) {
-  const blob = state.demo ? await state.demo("GET", path) : await (await request("GET", path, undefined, {})).blob();
+  saveBlob(state.demo ? await state.demo("GET", path) : await (await request("GET", path, undefined, {})).blob(), filename);
+}
+
+// Hands a file that exists only in this page's memory to the browser as a download.
+export function saveBlob(blob, filename) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;

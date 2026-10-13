@@ -61,6 +61,11 @@ additional_redirect_urls = ["https://luzenarestaurant.com/dashboard/"]
 #   public-site      public read endpoint (which photos the website shows).
 #   job-application  public form endpoint (origin check, rate limit, bot traps).
 #   clover-webhook   authenticated by the X-Clover-Auth shared secret.
+#   scheduled-tasks  called by the database's scheduler; authenticated by the X-Cron-Secret
+#                    shared secret (CRON_SECRET), and closed until that secret is set.
+[functions.scheduled-tasks]
+verify_jwt = false
+
 [functions.dashboard-api]
 verify_jwt = false
 

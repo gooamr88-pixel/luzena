@@ -248,7 +248,8 @@ sniffed from bytes; CSP without inline script or style; no `innerHTML`.
 - Never fade text with `opacity` to show a state: it lowers contrast invisibly. An
   out-of-stock menu item uses the `muted` colour (`.menu-item-unavailable`).
 - Hours are shown day by day, then a line per service (breakfast).
-- Careers: 18 roles in 5 departments, each a native `<details>` disclosure.
+- Careers: 17 roles in 5 departments (18 until 2026-10-13, when Cashier was removed at the
+  client's request), offered as the choices of the application form's Position list.
 - The sample profile is the real content with sample values laid over only what is missing.
 - Dashboard: dense, separate stylesheet. Every field is tagged "Clover" or "Website".
 - Switches and save buttons never show a state the server has not confirmed.
@@ -1719,3 +1720,138 @@ checks passed; `npm run test:browser` 295 passed (public 151, sample 53, dashboa
 **To put it live:** push (done with this commit), then `deploy.sh` on the VPS for the
 website (photos, Item order page, password reset, Labels and Security fixes), and the five
 functions deployed again to TEST and PRODUCTION for fix 2.
+
+### 2026-10-13 Checkpoint: team access and the export of job applications BUILT; not committed, not deployed
+
+The client asked for two things, to be built unattended and left for review: an owner
+exports job applications as a professionally laid-out Excel file (CSV as a second format),
+and an owner gives other people their own sign-in with a role. During the work the client
+added three instructions, each followed:
+
+1. **"export without details main only"**: the export holds the main facts of each
+   application, as the list shows them, and nothing else. Read here as: applicant,
+   position, full-time or part-time, experience, date applied, CV or not, stage. **No
+   email, no phone**, no availability, none of the applicant's own words. If "main" was
+   meant to include contact details, that is a few lines in `dash_applications_export`
+   and `src/dashboard/export/applications.js`, and the tests that pin the columns.
+2. **Cashier removed** from the roles on Join Our Team ("it does not exist in Canada and
+   USA"): `content/site.json`, 18 roles to 17. Takes effect when the website is redeployed.
+3. **"email work"**, with the address `luznarestocafe@gmail.com`: taken to mean that email
+   delivery is now set up. Nothing was changed for that address; it is in no file. **Ask
+   the client what it is for** (a new owner? the recruitment inbox? the sender?).
+
+**What exists now, all in the working tree:**
+
+- **Migration `20261013001400_team_access_and_application_export.sql`** (additive): table
+  `team_invitations` (22 tables in all); four display columns on `restaurant_users`
+  (`email`, `invited_by_email`, `last_seen_at`, `updated_at`); 17 new functions;
+  `dash_applications_list` replaced by a version that answers exactly as before and shares
+  its filters with the export. No policy, no security definer, nothing for the public roles.
+- **Backend** (`dashboard-api` only): `dashboard/team.ts`, `dashboard/team-email.ts`,
+  `accounts.ts`; the export in `dashboard/applications.ts`; four new permissions in
+  `dashboard/session.ts` (`team.manage`, `applications.export`, `applications.cv`,
+  `clover.sync`); routes in `dashboard/router.ts`, with two that need a session but no
+  restaurant (`/account/invitations...`); a new port, `Deps.accounts`, wired to Supabase
+  Auth's admin API in `runtime.ts`.
+- **Dashboard**: `views/team.js` (Team in the sidebar, owners only), `views/export-dialog.js`
+  and tick boxes on the applications list, `export/` (the workbook, the CSV, the Excel
+  table), `roles.js`; in `views/login.js` the "set up your access" and "you have been
+  invited" screens; `main.js` restarts the page when the server says access has changed.
+- **One new dependency**: `write-excel-file` 4.1.1 (one dependency of its own, `fflate`),
+  loaded only when an Excel export is asked for (21 kB compressed). Chosen over ExcelJS,
+  whose last release was in 2023, which pulls in 170 packages with two open advisories and
+  whose browser build contains dynamic `Function` calls that the site's policy forbids.
+- **Design decisions worth knowing before changing anything:**
+  - No invitation token and no password anywhere in this system. An account is made with
+    no password; the person chooses one through Supabase Auth; the sign-in is the proof.
+  - No Platform Admin role. Owners are still the operator's to provision.
+  - An invitation never changes an existing membership; an owner's row is never written.
+  - One account, one restaurant: accepting a second is refused, because the dashboard
+    cannot yet choose between two (`api.js` never sends `x-restaurant-id`).
+  - The files are made in the browser; the server only decides which rows.
+- **A gap found in what was already there, and fixed:** `GET /overview` gave staff the
+  latest eight entries of the activity log, which they may not open.
+
+**Verified locally:** lint, types, content clean; `npm test` **496 passed** (18 files; 96
+new); Deno type check and 22 smoke checks passed; `npm run test:browser` **312 passed**
+(public 151, sample 53, dashboard 108; 17 new). A sample workbook was also
+read with openpyxl and lxml, which agree with the project's own reader. Detail in
+`TESTING.md`.
+
+**NOT verified, and why it matters** (`BLOCKERS.md` B-8, B-9):
+
+1. **Nothing has run against a real Supabase project.** No access token and no database
+   password are on this machine. Unproven: the migration applying; Supabase Auth making the
+   account and the set-password link the way the code expects.
+2. **Nobody has opened the workbook in Excel.** No spreadsheet program here. Its structure
+   is checked three ways; how Excel draws it, and that it opens without a repair message,
+   is not. Samples are in `.visual/export-sample/`.
+3. **Supabase Auth needs a custom SMTP sender before anyone is invited**, or an invited
+   person outside the Supabase organisation is sent no password email.
+4. `npm audit` reports one advisory in `handlebars` (build-time only, there before this
+   work). Left alone; `npm audit fix` resolves it within the version range.
+
+**To put it live, when the client says so** (`DEPLOYMENT_CHECKLIST.md` section 11a): on
+TEST then PRODUCTION, `supabase db push` (it must name exactly the one migration),
+`npm run verify:database` (22 tables), deploy `dashboard-api`, `npm run verify:functions`;
+only then push and `deploy.sh`. **Backend first**: the new dashboard against the old
+backend would call routes that do not exist; the old dashboard against the new backend
+works unchanged. (Superseded by the next checkpoint: all of it is now on both projects.)
+
+### 2026-10-13 Checkpoint (evening): messages, status emails, monthly report, schedule; BACKEND LIVE on TEST and PRODUCTION
+
+The client's second brief ("full production-ready restaurant management, recruitment and
+automated reporting"), then **"Deploy after test everything"**, then, during the work,
+**"i want people of application i edit their status receive email also with the new
+status"**. The client supplied a Supabase access token and Brevo credentials; they were kept
+outside the repository for the session and are in no file, log or commit.
+
+**Built:**
+
+- **Messages to applicants** (`dashboard/messages.ts`, migration 1500,
+  `views/applications.js`): an owner or manager writes from the application's page, from
+  five beginnings (own words, received, interview, more information, update). Recipient
+  from the database, sender `EMAIL_FROM`, reply-to the recruitment address. Recorded before
+  it is sent; `sent` / `delivered` (only from the provider's own event) / `bounced` /
+  `blocked` / `failed`; "Try again" for a failed one; idempotency key per message; 60 an
+  hour. Permission `applications.message` (owner, manager).
+- **Status emails** (the mid-work request): the status form offers "Email {name} about the
+  new status", ticked, with the exact email shown; the server's own text per status
+  (`dashboard/status-emails.ts`; none for New); sent through the same path, only on a real
+  change; the note never in it; the change stands if the email fails.
+- **Monthly report** (`scheduled/monthly-report.ts`, `monthly_reports`): the month before,
+  on the restaurant's clock (`restaurants.timezone`, default `America/Los_Angeles`), to
+  `report_email` or the recruitment address; once per month however often it is asked;
+  counts only; visitors, orders and releases named as not measured.
+- **The schedule**: function `scheduled-tasks` (secret `CRON_SECRET`, 503 until set), called
+  daily at 13:15 UTC by pg_cron through pg_net, address and secret in Vault
+  (`supabase/schedule-daily-tasks.sql`, run per project with values filled in). Also does
+  the retention clean-up daily (N-9 closed).
+- **Email providers**: Brevo (`BREVO_API_KEY`) and Resend behind one interface, each with
+  a status lookup. **Rollback files** for both migrations in `supabase/rollback/`, tested.
+- **Audit fixes**: `npm audit fix` (handlebars 4.7.10, 0 advisories); a harness flaw (reused
+  stand-in message ids); a page answer that missed the email event in the history.
+
+**Verified:** `npm run verify` exit 0 on the final tree (578 unit, 319 browser). On TEST:
+migrations, rollback round trip (exact), database checks 15/15, `verify:functions`, the
+schedule seen to run twice, an end-to-end run of **70 of 70** with real Auth, Storage and
+Postgres, everything it made deleted. On PRODUCTION: a copy of the touched rows, the
+migrations, database checks 15/15 (17 applications intact), the six functions (dashboard-api
+and the others v13, scheduled-tasks v1), `verify:functions`, the schedule with one run seen
+(200). How it was done without `supabase link` or a database password: the Management API
+(SQL through `/database/query`, each migration with its ledger row in one transaction), and
+`supabase functions deploy --project-ref <ref> --use-api` with the token in the
+environment.
+
+**NOT working yet, and why (BLOCKERS.md B-10):** no email leaves either project. The Brevo
+API key supplied is answered "Key not found"; the SMTP login is refused for the IP address.
+Every email path reports "not sent" truthfully meanwhile, and the monthly report counts
+itself `not_configured` without recording anything, so the owed month goes once the key is
+set. **Open questions for the client:** a working Brevo API key, the Authorised IPs
+restriction off, the verified sender; and what `luznarestocafe@gmail.com` is for (not
+written anywhere: the recruitment address is still the owner's, and `report_email` is
+empty). B-8 (Auth's own SMTP sender) still stands.
+
+**The website** (new dashboard screens, Cashier removed) is committed and pushed; it goes
+live when the client runs `deploy.sh` on the VPS. The old dashboard works unchanged against
+the new backend until then.

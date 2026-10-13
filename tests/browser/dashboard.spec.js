@@ -7,8 +7,10 @@
 // file talks to a real Supabase project or to Clover.
 //
 // Every test opens a fresh page, so the demo data starts from the same state each time.
+import { readFileSync } from "node:fs";
 import sharp from "sharp";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { malformed, readWorkbook } from "../helpers/xlsx.js";
 import {
   accessibilityViolations, describeViolations, hasHorizontalOverflow, launchBrowser, openPage, serveBuild, VIEWPORT_WIDTHS,
 } from "./helpers/site.js";
@@ -33,6 +35,22 @@ const dashboard = async (hash = "#/", size = {}) => {
 
 const dialog = (page) => page.locator("dialog.d-dialog[open]");
 const toast = (page) => page.locator("#toasts > div").last();
+// A toast is on screen for four seconds. Where a test has slow work to do between the press
+// and the check (saving and reading a file, on a machine that can take ten seconds to
+// answer a click), every toast is noted as it appears and read from the notes afterwards.
+const noteToasts = (page) => page.evaluate(() => {
+  window.toastsSeen = [];
+  new MutationObserver((records) => {
+    for (const record of records) {
+      for (const node of record.addedNodes) window.toastsSeen.push({ text: node.textContent, role: node.getAttribute("role") });
+    }
+  }).observe(document.getElementById("toasts"), { childList: true });
+});
+const toastsSeen = (page) => page.evaluate(() => window.toastsSeen);
+const waitForToast = async (page, text) => {
+  await page.waitForFunction((expected) => window.toastsSeen.some((seen) => seen.text.includes(expected)), text);
+  return (await toastsSeen(page)).find((seen) => seen.text.includes(text));
+};
 const rows = (page) => page.locator("table.d-table tbody tr");
 const row = (page, name) => page.locator("table.d-table tbody tr", { hasText: name });
 const waitForRows = (page, count) => page.waitForFunction((expected) =>
@@ -711,6 +729,9 @@ describe("job applications", () => {
 
     await page.selectOption("#application-status", "hired");
     await page.fill("#application-note", "Offer accepted. Starts on the 1st.");
+    // Emailing the applicant is offered, ticked; this test is about the status alone.
+    expect(await page.locator("#application-notify").isChecked()).toBe(true);
+    await page.uncheck("#application-notify");
     await save.click();
     await page.waitForFunction(() => document.querySelector(".d-timeline > li")?.textContent.includes("to Hired"));
     expect(await toast(page).innerText()).toMatch(/status changed/i);
@@ -719,6 +740,8 @@ describe("job applications", () => {
     expect(latest).toContain("Status changed from Interview to Hired");
     expect(latest).toContain("Offer accepted. Starts on the 1st.");
     expect(await page.locator("#application-status").inputValue()).toBe("hired");
+    // Unticked: nothing was written to the applicant.
+    expect(await page.locator("ul[data-messages] > li").count()).toBe(0);
 
     // A note on its own, without moving the application.
     await page.fill("#application-note", "Paperwork sent.");
@@ -818,6 +841,708 @@ describe("job applications", () => {
     const kept = await page.evaluate(() => JSON.stringify([{ ...window.localStorage }, { ...window.sessionStorage }, document.cookie]));
     expect(kept).not.toMatch(/omar|haddad|example\.test/i);
     expect(await page.locator("body").innerText()).not.toMatch(/omar/i);
+    await context.close();
+  });
+});
+
+// Writing to an applicant. What the server then does with a message (who may send, where
+// it can go, what the email holds, what "delivered" means) is in tests/messages.test.js.
+describe("writing to an applicant", () => {
+  const MAYA = "00000000-0000-4000-8000-000000000001";
+  const DANIEL = "00000000-0000-4000-8000-000000000002";
+  const LENA = "00000000-0000-4000-8000-000000000005";
+  const messages = (page) => page.locator("ul[data-messages] > li");
+  const open = async (id, query = "", size = {}) => {
+    const opened = await dashboard(`${query}#/applications/${id}`, size);
+    await opened.page.waitForSelector("#messages-title");
+    return opened;
+  };
+
+  it("starts a message in the restaurant's name, addressed to the applicant, and replaces typed words only after asking", async () => {
+    const { page, context, problems } = await open(MAYA);
+    const restaurant = await page.evaluate(() => document.documentElement.dataset.restaurantName || "Restaurant");
+    expect(await page.locator("#messages-title").innerText()).toBe("Messages to the applicant");
+    expect(await page.locator("#message-template option").allInnerTexts()).toEqual([
+      "A message of my own", "We have received your application", "An invitation to an interview", "A request for more information", "An update on the application",
+    ]);
+    expect(await page.locator("#message-subject").inputValue()).toBe(`Your application to ${restaurant}`);
+    expect(await page.locator("#message-body").inputValue()).toBe(`Dear Maya,\n\n\n\nKind regards,\n${restaurant}`);
+    // Where it will go is said before anything is written: the applicant's own address.
+    expect(await page.locator("#message-hint").innerText()).toBe(
+      `Sent to maya.thompson@example.test in the name of ${restaurant}. Their answer comes to the restaurant's recruitment inbox.`);
+    // There is no box for an address: a message can only go to the applicant it is about.
+    expect(await page.locator('main#main form input[type="email"], main#main form input[name="to"]').count()).toBe(0);
+
+    // Nothing typed yet, so another beginning simply replaces the first.
+    await page.selectOption("#message-template", "interview");
+    expect(await page.locator("#message-subject").inputValue()).toBe("Interview for the Barista position");
+    const invitation = await page.locator("#message-body").inputValue();
+    expect(invitation).toContain("We would like to invite you to an interview.");
+    expect(invitation).toContain("Date and time: \nPlace: ");
+
+    // Words have been typed: choosing another beginning asks first, and Cancel keeps them.
+    await page.fill("#message-body", invitation.replace("Date and time: ", "Date and time: Thursday at 3 PM"));
+    await page.selectOption("#message-template", "acknowledgment");
+    expect(await dialog(page).innerText()).toContain("Replace what you have written?");
+    await dialog(page).getByRole("button", { name: "Cancel" }).click();
+    await page.waitForFunction(() => document.querySelector("#message-template").value === "interview");
+    expect(await page.locator("#message-body").inputValue()).toContain("Thursday at 3 PM");
+    expect(await page.locator("#message-subject").inputValue()).toBe("Interview for the Barista position");
+
+    await page.selectOption("#message-template", "acknowledgment");
+    await dialog(page).getByRole("button", { name: "Replace" }).click();
+    await page.waitForFunction(() => document.querySelector("#message-subject").value === "We have received your application");
+    expect(await page.locator("#message-body").inputValue()).toContain(`Thank you for applying for the Barista position at ${restaurant}.`);
+    expect(problems).toEqual([]);
+    await context.close();
+  });
+
+  it("sends only after showing where the message goes, then keeps it on the application, in the history and in the activity log", async () => {
+    const { page, context, problems } = await open(MAYA);
+    await noteToasts(page);
+    expect(await messages(page).count()).toBe(0);
+    await page.selectOption("#message-template", "interview");
+    await page.fill("#message-subject", "Interview on Thursday");
+    await page.fill("#message-body", "Dear Maya,\n\nPlease come in on Thursday at 3 PM.\n\nKind regards");
+    await page.getByRole("button", { name: "Send message" }).click();
+
+    const asked = await dialog(page).innerText();
+    expect(asked).toContain("Send this message to Maya Thompson?");
+    expect(asked).toContain("maya.thompson@example.test");
+    expect(asked).toContain("Subject: Interview on Thursday");
+    // Cancel sends nothing and loses nothing.
+    await dialog(page).getByRole("button", { name: "Cancel" }).click();
+    expect(await messages(page).count()).toBe(0);
+    expect(await page.locator("#message-body").inputValue()).toContain("Thursday at 3 PM");
+
+    await page.getByRole("button", { name: "Send message" }).click();
+    await dialog(page).getByRole("button", { name: "Send message" }).click();
+    await page.waitForFunction(() => document.querySelectorAll("ul[data-messages] > li").length === 1);
+    expect((await waitForToast(page, "nothing was emailed")).text).toContain("maya.thompson@example.test");
+
+    const sent = await messages(page).first().innerText();
+    expect(sent).toContain("Interview on Thursday");
+    expect(sent).toMatch(/To maya\.thompson@example\.test, by owner@example\.com, /);
+    // Accepted for sending is "Sent". It is not called delivered until the provider says so.
+    expect(await messages(page).first().locator(".d-badge").innerText()).toBe("Sent");
+    expect(sent).not.toMatch(/Delivered/);
+    expect(await page.locator("main#main h3", { hasText: "1 message sent from here" }).count()).toBe(1);
+    await messages(page).first().locator("summary").click();
+    expect(await messages(page).first().locator("details p").innerText()).toBe("Dear Maya,\n\nPlease come in on Thursday at 3 PM.\n\nKind regards");
+
+    // The form starts again, so the same words cannot go twice by a second press.
+    expect(await page.locator("#message-template").inputValue()).toBe("reply");
+    expect(await page.locator("#message-body").inputValue()).not.toContain("Thursday");
+    const latest = await page.locator(".d-timeline > li").first().innerText();
+    expect(latest).toContain("Message sent to the applicant");
+    expect(latest).toContain("Interview on Thursday");
+    expect(latest).toContain("by owner@example.com");
+
+    await page.locator('aside a[data-nav="#/activity"]').click();
+    await page.waitForSelector("table.d-table tbody tr");
+    const log = await page.locator("table.d-table tbody").innerText();
+    expect(log).toContain("Message written to an applicant");
+    // The activity log says that a message was written. Not to whom, and not what it said.
+    expect(log).not.toMatch(/Maya|maya\.thompson|Thursday/);
+    expect(problems).toEqual([]);
+    await context.close();
+  });
+
+  it("sends one message for two presses, and refuses an empty subject or message beside the form", async () => {
+    const { page, context } = await open(MAYA);
+    await page.fill("#message-subject", "   ");
+    await page.getByRole("button", { name: "Send message" }).click();
+    const problem = page.locator('main#main form [role="alert"]');
+    expect(await problem.innerText()).toBe("Write a subject and a message first.");
+    expect(await page.evaluate(() => document.activeElement.id)).toBe("message-subject");
+    expect(await dialog(page).count()).toBe(0);
+    await page.fill("#message-subject", "A subject");
+    await page.fill("#message-body", "  ");
+    await page.getByRole("button", { name: "Send message" }).click();
+    expect(await page.evaluate(() => document.activeElement.id)).toBe("message-body");
+    expect(await messages(page).count()).toBe(0);
+
+    await page.fill("#message-body", "Some words.");
+    await page.getByRole("button", { name: "Send message" }).click();
+    await dialog(page).getByRole("button", { name: "Send message" }).evaluate((node) => { node.click(); node.click(); });
+    await page.waitForFunction(() => document.querySelectorAll("ul[data-messages] > li").length > 0);
+    await page.waitForTimeout(600);
+    expect(await messages(page).count()).toBe(1);
+    // The boxes hold no more than the server accepts.
+    expect(await page.locator("#message-subject").getAttribute("maxlength")).toBe("150");
+    expect(await page.locator("#message-body").getAttribute("maxlength")).toBe("5000");
+    await context.close();
+  });
+
+  it("shows a message as delivered only where the provider reported it, with when", async () => {
+    const { page, context, problems } = await open(LENA);
+    expect(await messages(page).count()).toBe(1);
+    const text = await messages(page).first().innerText();
+    expect(await messages(page).first().locator(".d-badge").innerText()).toBe("Delivered");
+    expect(text).toContain("An update on your application for the Host / Hostess position");
+    expect(text).toMatch(/To lena\.fischer@example\.test, by owner@example\.com, .+\. Delivered .+\./);
+    expect(await messages(page).first().getByRole("button", { name: "Try again" }).count()).toBe(0);
+    expect(await page.locator(".d-timeline").innerText()).toContain("Message sent to the applicant");
+    const violations = await accessibilityViolations(page);
+    expect(violations, describeViolations(violations)).toEqual([]);
+    expect(problems).toEqual([]);
+    await context.close();
+  });
+
+  it("says plainly when a message never left, why, and sends it again when asked", async () => {
+    const { page, context } = await open(DANIEL);
+    await noteToasts(page);
+    const failed = messages(page).first();
+    expect(await failed.locator(".d-badge").innerText()).toBe("Not sent");
+    expect(await failed.innerText()).toContain("The email service did not accept the message.");
+    expect(await page.locator(".d-timeline").innerText()).toContain("A message to the applicant could not be sent");
+    const violations = await accessibilityViolations(page);
+    expect(violations, describeViolations(violations)).toEqual([]);
+
+    await failed.getByRole("button", { name: "Try again" }).click();
+    await page.waitForFunction(() => document.querySelector("ul[data-messages] > li .d-badge")?.textContent === "Sent");
+    await waitForToast(page, "nothing was emailed");
+    expect(await messages(page).count()).toBe(1);
+    expect(await messages(page).first().getByRole("button", { name: "Try again" }).count()).toBe(0);
+    expect(await messages(page).first().innerText()).not.toContain("did not accept");
+    await context.close();
+  });
+
+  it("tells the applicant about a new status, showing the email first, and only when the box is ticked", async () => {
+    const { page, context, problems } = await open(MAYA);
+    const restaurant = await page.evaluate(() => document.documentElement.dataset.restaurantName || "Restaurant");
+    await noteToasts(page);
+    const offer = page.locator("[data-notify]");
+    // Nothing is offered until the status is actually changed.
+    expect(await offer.isHidden()).toBe(true);
+
+    await page.selectOption("#application-status", "interview");
+    expect(await offer.isVisible()).toBe(true);
+    expect(await page.locator("#application-notify").isChecked()).toBe(true);
+    expect(await offer.locator("label").innerText()).toBe("Email Maya Thompson about the new status");
+    expect(await page.locator("#application-notify-hint").innerText()).toBe(`Sent to maya.thompson@example.test in the name of ${restaurant}.`);
+    await offer.locator("summary").click();
+    const preview = await offer.locator("details > div").innerText();
+    expect(preview).toContain("Subject: Interview for the Barista position");
+    expect(preview).toContain("Dear Maya,");
+    expect(preview).toContain(`Thank you for your application for the Barista position at ${restaurant}. We would like to invite you to an interview.`);
+    // The preview follows the status chosen; New has no email, so nothing is offered for it.
+    await page.selectOption("#application-status", "rejected");
+    expect(await offer.locator("details > div").innerText()).toContain("we have decided not to move forward");
+    await page.selectOption("#application-status", "new");
+    expect(await offer.isHidden()).toBe(true);
+    const violations = await accessibilityViolations(page);
+    expect(violations, describeViolations(violations)).toEqual([]);
+
+    await page.selectOption("#application-status", "interview");
+    await page.fill("#application-note", "Internal: strong on coffee.");
+    await page.getByRole("button", { name: "Update status" }).click();
+    await page.waitForFunction(() => document.querySelectorAll("ul[data-messages] > li").length === 1);
+    expect((await waitForToast(page, "status changed")).text).toContain("maya.thompson@example.test");
+    const sent = messages(page).first();
+    expect(await sent.locator(".d-badge").innerText()).toBe("Sent");
+    expect(await sent.innerText()).toContain("Interview for the Barista position");
+    await sent.locator("summary").click();
+    // The note stays the restaurant's own: it is not in the email.
+    expect(await sent.locator("details p").innerText()).not.toContain("Internal");
+    const history = await page.locator(".d-timeline").innerText();
+    expect(history).toContain("Status changed from New to Interview");
+    expect(history).toContain("Message sent to the applicant");
+
+    // Unticked, the next change is saved and nothing is written.
+    await page.selectOption("#application-status", "shortlisted");
+    await page.uncheck("#application-notify");
+    await page.getByRole("button", { name: "Update status" }).click();
+    await page.waitForFunction(() => document.querySelector("main#main header .d-badge")?.textContent === "Shortlisted");
+    expect(await messages(page).count()).toBe(1);
+    expect(problems).toEqual([]);
+    await context.close();
+  });
+
+  it("is open to a manager, and fits a phone with controls big enough for a thumb", async () => {
+    const asManager = await open(MAYA, "?demo=manager");
+    expect(await asManager.page.getByRole("button", { name: "Send message" }).count()).toBe(1);
+    await asManager.context.close();
+
+    const { page, context } = await open(DANIEL, "", { width: 390, height: 844 });
+    expect(await hasHorizontalOverflow(page)).toBe(false);
+    const small = await page.evaluate(() =>
+      [...document.querySelectorAll("main#main button, main#main select, main#main textarea, main#main input, main#main a.d-btn")]
+        .filter((node) => node.getClientRects().length > 0 && node.getBoundingClientRect().height < 36).length);
+    expect(small).toBe(0);
+    const box = await page.locator("#message-body").boundingBox();
+    expect(box.width).toBeGreaterThan(280);
+    await context.close();
+  });
+});
+
+// Exporting. The file is made in the page, by the same code the tests in
+// tests/export-files.test.js run under Node; here a real Chromium makes it, under the site's
+// security policy, and the file that lands in the downloads folder is opened and read.
+describe("exporting job applications", () => {
+  const today = () => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  };
+  const openExport = async (page) => {
+    await page.getByRole("button", { name: "Export", exact: true }).click();
+    await dialog(page).waitFor();
+  };
+  const waitForCount = (page, text) => page.waitForFunction((expected) =>
+    document.querySelector("dialog[open] [data-export-count]")?.textContent.includes(expected), text);
+  const exportFile = async (page) => {
+    const [download] = await Promise.all([
+      page.waitForEvent("download"),
+      dialog(page).getByRole("button", { name: /^Export \d+ applications?$/ }).click(),
+    ]);
+    return { download, bytes: new Uint8Array(readFileSync(await download.path())) };
+  };
+
+  it("says exactly how many applications will be exported, then saves a real Excel workbook of them", async () => {
+    const { page, context, problems } = await dashboard("#/applications");
+    await waitForRows(page, 6);
+    await noteToasts(page);
+    await openExport(page);
+    const text = await dialog(page).innerText();
+    expect(text).toContain("Export applications");
+    // What the file holds, said before it is made: the main facts, not the details.
+    expect(text).toContain("Contact details and what applicants wrote stay in the dashboard.");
+    expect(text).toContain("All applications (6)");
+    expect(text).toContain("Excel workbook (.xlsx)");
+    expect(text).toContain("CSV (.csv)");
+    // With no filter and nothing ticked there is one thing to export: everything.
+    expect(await dialog(page).locator('input[name="export-scope"]').count()).toBe(1);
+    await waitForCount(page, "6 applications will be exported.");
+    expect(await page.evaluate(() => document.activeElement.name)).toBe("export-scope");
+
+    const { download, bytes } = await exportFile(page);
+    expect(download.suggestedFilename()).toBe(`demo-job-applications-${today()}.xlsx`);
+    expect(download.url()).toMatch(/^blob:/);
+    await page.waitForFunction(() => !document.querySelector("dialog.d-dialog[open]"));
+    expect((await waitForToast(page, "exported")).text).toBe(`6 applications exported to demo-job-applications-${today()}.xlsx.`);
+
+    // The file itself, as the browser wrote it.
+    const book = readWorkbook(bytes);
+    for (const name of book.names) expect(malformed(book.text(name)), name).toBeNull();
+    expect(book.sheetName).toBe("Applications");
+    expect(book.cell("A1").value).toBe("LUZENA RESTAURANT & CAFE");
+    expect(book.cell("A2").value).toBe("Job Applications");
+    expect(book.cell("A3").value).toMatch(/^Generated: \d{4}-\d{2}-\d{2} \d{2}:\d{2} \(.+\) {3}\| {3}All applications {3}\| {3}Main information only$/);
+    expect(["A", "B", "C", "D", "E", "F", "G"].map((column) => book.cell(`${column}6`).value))
+      .toEqual(["Applicant", "Position", "Looking for", "Experience", "Applied", "CV", "Status"]);
+    expect([7, 8, 9, 10, 11, 12].map((row) => book.cell(`A${row}`).value))
+      .toEqual(["Maya Thompson", "Daniel Ortiz", "Priya Nair", "Omar Haddad", "Lena Fischer", "Chris Wallace"]);
+    expect(["A", "B", "C", "D", "F", "G"].map((column) => book.cell(`${column}10`).value))
+      .toEqual(["Omar Haddad", "Head Chef", "Full-time", "More than 5 years", "Yes", "Interview"]);
+    expect(book.cell("E7").kind).toBe("number");
+    expect(book.cell("E7").format.numberFormat).toBe("yyyy-mm-dd hh:mm");
+    // Total, New, Reviewing, Shortlisted, Interview, Hired, Rejected.
+    expect(["A", "B", "C", "D", "E", "F", "G"].map((column) => book.cell(`${column}5`).value)).toEqual([6, 2, 1, 0, 1, 1, 1]);
+    expect(book.table).toMatchObject({ name: "JobApplications", ref: "A6:G12", filter: "A6:G12" });
+    expect(book.pane).toMatchObject({ ySplit: "6", state: "frozen" });
+    expect(book.lastRow).toBe(12);
+    // No contact details and none of the applicants' own words, anywhere in the file.
+    const everything = book.names.map((name) => book.text(name)).join("\n");
+    expect(everything).not.toMatch(/@example\.test|619 555|espresso|Mediterranean|trial shift/i);
+
+    // Made under the site's own security policy, with nothing refused and nothing failing.
+    expect(problems).toEqual([]);
+
+    // And it is in the activity log: how many and in which format, not whose.
+    await page.locator('aside a[data-nav="#/activity"]').click();
+    await page.waitForSelector("table.d-table tbody tr");
+    const entry = await page.locator("table.d-table tbody tr", { hasText: "Job applications exported" }).first().innerText();
+    expect(entry).toContain("6 applications, XLSX");
+    expect(entry).not.toMatch(/Maya|Omar/);
+    await context.close();
+  });
+
+  it("offers what matches the filters apart from everything, and exports that as CSV", async () => {
+    const { page, context, problems } = await dashboard("#/applications");
+    await waitForRows(page, 6);
+    await page.locator(".d-pill", { hasText: "New" }).click();
+    await waitForRows(page, 2);
+    await openExport(page);
+    // The filtered set is offered first and is what is chosen; "everything" is still there, and says it ignores the filters.
+    const choices = await dialog(page).locator('input[name="export-scope"]').evaluateAll((inputs) => inputs.map((input) => `${input.value}:${input.checked}`));
+    expect(choices).toEqual(["filtered:true", "all:false"]);
+    const text = await dialog(page).innerText();
+    expect(text).toContain("Everything matching the filters (2)");
+    expect(text).toContain("status New. Every page, not only the one on screen.");
+    expect(text).toContain("Every application, ignoring the filters.");
+    await waitForCount(page, "2 applications will be exported.");
+
+    // Choosing the other one counts again, on the server, before anything is made.
+    await dialog(page).locator('input[name="export-scope"][value="all"]').check();
+    await waitForCount(page, "6 applications will be exported.");
+    expect(await dialog(page).getByRole("button", { name: "Export 6 applications" }).isEnabled()).toBe(true);
+    await dialog(page).locator('input[name="export-scope"][value="filtered"]').check();
+    await waitForCount(page, "2 applications will be exported.");
+
+    await dialog(page).locator('input[name="export-format"][value="csv"]').check();
+    const { download, bytes } = await exportFile(page);
+    expect(download.suggestedFilename()).toBe(`demo-job-applications-${today()}.csv`);
+    // The mark that makes Excel read it as UTF-8, then a header and the two rows.
+    expect([...bytes.slice(0, 3)]).toEqual([0xEF, 0xBB, 0xBF]);
+    const lines = new TextDecoder().decode(bytes.slice(3)).split("\r\n");
+    expect(lines[0]).toBe('"Applicant","Position","Looking for","Experience","Applied","CV","Status"');
+    expect(lines.slice(1, 3).map((line) => line.split(",").slice(0, 2).join(","))).toEqual(['"Maya Thompson","Barista"', '"Daniel Ortiz","Line Cook"']);
+    expect(lines.slice(1, 3).every((line) => line.endsWith('"New"'))).toBe(true);
+    expect(lines).toHaveLength(4);
+    expect(lines[3]).toBe("");
+    expect(problems).toEqual([]);
+    await context.close();
+  });
+
+  it("exports only the applications that are ticked, from the list or all at once", async () => {
+    const { page, context } = await dashboard("#/applications");
+    await waitForRows(page, 6);
+    expect(await page.locator("text=applications ticked").count()).toBe(0);
+    await row(page, "Priya Nair").locator('input[type="checkbox"]').check();
+    await row(page, "Lena Fischer").locator('input[type="checkbox"]').check();
+    await page.waitForSelector("text=2 applications ticked");
+    // The box in the heading shows that some, not all, are ticked.
+    const all = page.locator("table.d-table thead input[type=checkbox]");
+    expect(await all.evaluate((box) => [box.checked, box.indeterminate])).toEqual([false, true]);
+    expect(await row(page, "Priya Nair").locator("label.d-tick").innerText()).toBe("Tick Priya Nair's application for export");
+
+    await page.getByRole("button", { name: "Export ticked" }).click();
+    await dialog(page).waitFor();
+    expect(await dialog(page).locator('input[name="export-scope"]:checked').inputValue()).toBe("selected");
+    expect(await dialog(page).innerText()).toContain("The 2 I ticked");
+    await waitForCount(page, "2 applications will be exported.");
+    const { bytes } = await exportFile(page);
+    const book = readWorkbook(bytes);
+    expect([7, 8].map((number) => book.cell(`A${number}`).value)).toEqual(["Priya Nair", "Lena Fischer"]);
+    expect(book.lastRow).toBe(8);
+    expect(book.table.ref).toBe("A6:G8");
+    expect(book.cell("A3").value).toContain("Selected applications");
+    expect(book.cell("A5").value).toBe(2);
+
+    // Ticks survive a change of filter, so a choice can be put together from several views.
+    await page.locator(".d-pill", { hasText: "Hired" }).click();
+    await waitForRows(page, 1);
+    expect(await row(page, "Lena Fischer").locator('input[type="checkbox"]').isChecked()).toBe(true);
+    await page.waitForSelector("text=2 applications ticked");
+    await page.locator(".d-pill", { hasText: "All" }).click();
+    await waitForRows(page, 6);
+
+    // The heading's box ticks the whole page, and unticks it.
+    await all.check();
+    await page.waitForSelector("text=6 applications ticked");
+    expect(await page.locator("table.d-table tbody input[type=checkbox]:checked").count()).toBe(6);
+    await page.getByRole("button", { name: "Clear", exact: true }).click();
+    await page.waitForFunction(() => !document.body.textContent.includes("applications ticked"));
+    expect(await page.locator("table.d-table tbody input[type=checkbox]:checked").count()).toBe(0);
+    expect(await all.evaluate((box) => [box.checked, box.indeterminate])).toEqual([false, false]);
+    await context.close();
+  });
+
+  it("cannot be sent twice, closes with Escape without exporting, and passes the accessibility scan", async () => {
+    const { page, context } = await dashboard("#/applications");
+    await waitForRows(page, 6);
+    await openExport(page);
+    await waitForCount(page, "6 applications will be exported.");
+    const violations = await accessibilityViolations(page);
+    expect(violations, describeViolations(violations)).toEqual([]);
+
+    // The dialog is a form with two labelled groups of choices, worked by the keyboard.
+    expect(await dialog(page).locator("fieldset legend").allInnerTexts()).toEqual(["Which applications", "File format"]);
+    await page.keyboard.press("Tab");
+    expect(await page.evaluate(() => document.activeElement.name)).toBe("export-format");
+    await page.keyboard.press("ArrowDown");
+    expect(await dialog(page).locator('input[name="export-format"]:checked').inputValue()).toBe("csv");
+
+    let downloads = 0;
+    page.on("download", () => { downloads += 1; });
+    await page.keyboard.press("Escape");
+    await page.waitForFunction(() => !document.querySelector("dialog.d-dialog[open]"));
+    expect(downloads).toBe(0);
+
+    // Two presses in a row make one file: the button is off from the first press.
+    await openExport(page);
+    await waitForCount(page, "6 applications will be exported.");
+    const button = dialog(page).getByRole("button", { name: "Export 6 applications" });
+    await Promise.all([page.waitForEvent("download"), button.evaluate((node) => { node.click(); node.click(); })]);
+    await page.waitForFunction(() => !document.querySelector("dialog.d-dialog[open]"));
+    await page.waitForTimeout(800);
+    expect(downloads).toBe(1);
+    await context.close();
+  });
+
+  it("is not offered to a manager, who still reads applications; staff do not see applications at all", async () => {
+    const asManager = await dashboard("?demo=manager#/applications");
+    await waitForRows(asManager.page, 6);
+    expect(await asManager.page.getByRole("button", { name: "Export", exact: true }).count()).toBe(0);
+    expect(await asManager.page.locator('main#main input[type="checkbox"]').count()).toBe(0);
+    expect(await asManager.page.locator('aside a[data-nav="#/team"]').count()).toBe(0);
+    expect(await asManager.page.locator('aside a[data-nav="#/applications"]').count()).toBe(1);
+    // Typing the address of the Team page gets the server's refusal, not the page.
+    await asManager.page.evaluate(() => { location.hash = "#/team"; });
+    await asManager.page.waitForSelector("text=Your role does not allow this action.");
+    expect(await asManager.page.locator("li[data-member]").count()).toBe(0);
+    await asManager.context.close();
+
+    const asStaff = await dashboard("?demo=staff#/");
+    const links = await asStaff.page.locator("aside nav a").evaluateAll((nodes) => nodes.map((node) => node.dataset.nav));
+    expect(links).toEqual(["#/", "#/items", "#/categories", "#/modifiers", "#/labels", "#/clover", "#/security"]);
+    await asStaff.context.close();
+  });
+});
+
+describe("team and access", () => {
+  const members = (page) => page.locator("li[data-member]");
+  const invitations = (page) => page.locator("li[data-invitation]");
+  // A row is found by the address at its head: other rows name the owner too ("invited by").
+  const member = (page, email) => page.locator("li[data-member]").filter({ has: page.locator("p.font-semibold", { hasText: email }) });
+  const invitation = (page, email) => page.locator("li[data-invitation]").filter({ has: page.locator("p.font-semibold", { hasText: email }) });
+  const openTeam = async (size) => {
+    const opened = await dashboard("#/team", size);
+    await opened.page.waitForSelector("li[data-member]");
+    await noteToasts(opened.page);
+    return opened;
+  };
+
+  it("opens from the sidebar and shows who has access, what is waiting, and what each role can do", async () => {
+    const { page, context, problems } = await dashboard();
+    await page.locator('aside a[data-nav="#/team"]').click();
+    await page.waitForSelector("li[data-member]");
+    expect(await page.locator("main#main h1").innerText()).toBe("Team & access");
+    expect(await page.locator('aside a[data-nav="#/team"]').getAttribute("aria-current")).toBe("page");
+    expect(await page.locator("main#main").innerText()).toContain("Who can sign in to the Luzena Restaurant & Cafe dashboard");
+
+    expect(await members(page).count()).toBe(3);
+    const owner = await member(page, "owner@example.com").innerText();
+    expect(owner).toContain("You");
+    expect(owner).toContain("Owner");
+    // An owner's own row offers nothing to press: nobody changes or removes their own access.
+    expect(await member(page, "owner@example.com").locator("button").count()).toBe(0);
+    const sam = await member(page, "sam.rivera@example.test").innerText();
+    expect(sam).toContain("Manager");
+    expect(sam).toContain("invited by owner@example.com");
+    expect(sam).toContain("Last opened the dashboard");
+    expect(await member(page, "lee.park@example.test").innerText()).toContain("Has not opened the dashboard yet.");
+    // Each button says whose it is to a screen reader, since there is one per person.
+    const buttons = await member(page, "sam.rivera@example.test").getByRole("button").allInnerTexts();
+    expect(buttons.map((text) => text.replace(/\s+/g, " ")))
+      .toEqual(["Change role of sam.rivera@example.test", "Remove access of sam.rivera@example.test"]);
+
+    expect(await invitations(page).count()).toBe(2);
+    const waiting = await invitation(page, "jordan.kim@example.test").innerText();
+    expect(waiting).toContain("Waiting");
+    expect(waiting).toContain("Invited as Manager by owner@example.com");
+    expect(waiting).toContain("Open until");
+    expect(await invitation(page, "alex.moreno@example.test").innerText()).toMatch(/Expired[\s\S]*Ran out on|Ran out on[\s\S]*Expired/);
+
+    // The table of roles: every line answered for each role, in words.
+    const table = page.locator('section[aria-labelledby="roles-title"] table');
+    expect(await table.locator("thead th").allInnerTexts()).toEqual(["IN THE DASHBOARD", "OWNER", "MANAGER", "STAFF"]);
+    expect(await table.locator("tbody tr").count()).toBe(12);
+    const line = async (label) => (await table.locator("tbody tr", { hasText: label }).locator("td").allInnerTexts()).join(" ");
+    expect(await line("See the menu in the dashboard")).toBe("Yes Yes Yes");
+    expect(await line("Email an applicant from the dashboard")).toBe("Yes Yes No");
+    expect(await line("Export applications to a file")).toBe("Yes No No");
+    expect(await line("Download an applicant's CV")).toBe("Yes Yes No");
+    expect(await line("Connect or disconnect Clover")).toBe("Yes No No");
+    expect(await line("Invite people, change roles, remove access")).toBe("Yes No No");
+    expect(problems).toEqual([]);
+    await context.close();
+  });
+
+  it("invites someone by email with a role, and refuses a second invitation or someone who already has access", async () => {
+    const { page, context } = await openTeam();
+    await page.getByRole("button", { name: "Invite someone" }).click();
+    const text = await dialog(page).innerText();
+    expect(text).toContain("They choose their own password: none is sent, and you never see it.");
+    expect(text).toContain("The invitation stays open for 7 days.");
+    // Only the roles an owner may give are offered. "Owner" is not one of them.
+    expect(await dialog(page).locator("#dialog-role option").allInnerTexts()).toEqual(["Manager", "Staff"]);
+
+    // An address that is not one never leaves the page.
+    await page.fill("#dialog-email", "not an address");
+    await dialog(page).getByRole("button", { name: "Send invitation" }).click();
+    expect(await page.locator("#dialog-email").evaluate((input) => input.validity.valid)).toBe(false);
+    expect(await dialog(page).count()).toBe(1);
+
+    await page.fill("#dialog-email", "New.Person@example.test");
+    await page.selectOption("#dialog-role", "staff");
+    await dialog(page).getByRole("button", { name: "Send invitation" }).click();
+    await page.waitForFunction(() => !document.querySelector("dialog.d-dialog[open]"));
+    await page.waitForFunction(() => document.querySelectorAll("li[data-invitation]").length === 3);
+    const added = await invitation(page, "new.person@example.test").innerText();
+    expect(added).toContain("Waiting");
+    expect(added).toContain("Invited as Staff by owner@example.com");
+    expect(await page.locator("#invitations-title + p").innerText()).toBe("2 waiting");
+
+    // The same address again, and someone who is already a member: said inside the dialog, which stays.
+    await page.getByRole("button", { name: "Invite someone" }).click();
+    await page.fill("#dialog-email", "new.person@example.test");
+    await dialog(page).getByRole("button", { name: "Send invitation" }).click();
+    await page.waitForSelector('dialog [role="alert"]:not([hidden])');
+    expect(await dialog(page).locator('[role="alert"]').innerText()).toContain("already has an invitation waiting");
+    expect(await page.locator("#dialog-email").inputValue()).toBe("new.person@example.test");
+    await page.fill("#dialog-email", "sam.rivera@example.test");
+    await dialog(page).getByRole("button", { name: "Send invitation" }).click();
+    await page.waitForFunction(() => document.querySelector('dialog [role="alert"]')?.textContent.includes("already has access"));
+    await page.keyboard.press("Escape");
+    expect(await invitations(page).count()).toBe(3);
+    await context.close();
+  });
+
+  it("says so on the invitation when its email could not be sent, and sends it again", async () => {
+    const { page, context } = await openTeam();
+    await page.getByRole("button", { name: "Invite someone" }).click();
+    await page.fill("#dialog-email", "unlucky@fail.test");
+    await dialog(page).getByRole("button", { name: "Send invitation" }).click();
+    await page.waitForFunction(() => document.querySelector('li[data-invitation]')?.textContent.includes("unlucky@fail.test"));
+    // Said as a warning, not as a success.
+    const warned = await waitForToast(page, "could not be sent");
+    expect(warned.text).toMatch(/^The invitation is saved, but the email could not be sent\./);
+    expect(warned.role).toBe("alert");
+    expect(await invitation(page, "unlucky@fail.test").innerText()).toContain("The invitation email could not be sent.");
+
+    await invitation(page, "unlucky@fail.test").getByRole("button", { name: /Send again/ }).click();
+    await page.waitForFunction(() => !document.querySelector("li[data-invitation]").textContent.includes("could not be sent"));
+
+    // An invitation that ran out is opened again by sending it again.
+    expect(await invitation(page, "alex.moreno@example.test").innerText()).toContain("Expired");
+    await invitation(page, "alex.moreno@example.test").getByRole("button", { name: /Send again/ }).click();
+    await page.waitForFunction(() => [...document.querySelectorAll("li[data-invitation]")]
+      .find((node) => node.textContent.includes("alex.moreno@example.test")).textContent.includes("Waiting"));
+    expect(await invitation(page, "alex.moreno@example.test").innerText()).toContain("Open until");
+    await context.close();
+  });
+
+  it("cancels an invitation only after asking, naming the person and the restaurant", async () => {
+    const { page, context } = await openTeam();
+    await invitation(page, "jordan.kim@example.test").getByRole("button", { name: /Cancel invitation/ }).click();
+    const text = await dialog(page).innerText();
+    expect(text).toContain("Cancel the invitation to jordan.kim@example.test?");
+    expect(text).toContain("gets no access to the Luzena Restaurant & Cafe dashboard");
+    // The safe answer has the focus, and is not called "Cancel", which here could mean either.
+    expect(await page.evaluate(() => document.activeElement.textContent)).toBe("Keep it");
+    await dialog(page).getByRole("button", { name: "Keep it" }).click();
+    expect(await invitation(page, "jordan.kim@example.test").innerText()).toContain("Waiting");
+
+    await invitation(page, "jordan.kim@example.test").getByRole("button", { name: /Cancel invitation/ }).click();
+    await dialog(page).getByRole("button", { name: "Cancel invitation" }).click();
+    await page.waitForFunction(() => [...document.querySelectorAll("li[data-invitation]")]
+      .find((node) => node.textContent.includes("jordan.kim@example.test")).textContent.includes("Cancelled"));
+    const cancelled = await invitation(page, "jordan.kim@example.test").innerText();
+    expect(cancelled).toContain("It can no longer be accepted.");
+    // A cancelled invitation offers nothing more to do.
+    expect(await invitation(page, "jordan.kim@example.test").locator("button").count()).toBe(0);
+    expect((await waitForToast(page, "has been cancelled")).text).toBe("The invitation to jordan.kim@example.test has been cancelled. It can no longer be accepted.");
+    await context.close();
+  });
+
+  it("changes a member's role through a dialog that explains the roles", async () => {
+    const { page, context } = await openTeam();
+    await member(page, "sam.rivera@example.test").getByRole("button", { name: /Change role/ }).click();
+    expect(await dialog(page).innerText()).toContain("Change sam.rivera@example.test's role");
+    expect(await dialog(page).innerText()).toContain("Staff: Can look at the menu in the dashboard.");
+    expect(await page.locator("#dialog-role").inputValue()).toBe("manager");
+    await page.selectOption("#dialog-role", "staff");
+    await dialog(page).getByRole("button", { name: "Save role" }).click();
+    await page.waitForFunction(() => !document.querySelector("dialog.d-dialog[open]"));
+    expect((await waitForToast(page, "is now")).text).toBe("sam.rivera@example.test is now Staff.");
+    expect(await member(page, "sam.rivera@example.test").locator(".d-badge").last().innerText()).toBe("Staff");
+    await context.close();
+  });
+
+  it("removes a member's access only after asking, and says what is and is not deleted", async () => {
+    const { page, context } = await openTeam();
+    await member(page, "lee.park@example.test").getByRole("button", { name: /Remove access/ }).click();
+    const text = await dialog(page).innerText();
+    expect(text).toContain("Remove lee.park@example.test's access?");
+    expect(text).toContain("will no longer be able to open the Luzena Restaurant & Cafe dashboard, starting now");
+    expect(text).toContain("Nothing else is deleted");
+    expect(await page.evaluate(() => document.activeElement.textContent)).toBe("Cancel");
+    await dialog(page).getByRole("button", { name: "Cancel" }).click();
+    expect(await members(page).count()).toBe(3);
+
+    await member(page, "lee.park@example.test").getByRole("button", { name: /Remove access/ }).click();
+    await dialog(page).getByRole("button", { name: "Remove access" }).click();
+    await page.waitForFunction(() => document.querySelectorAll("li[data-member]").length === 2);
+    expect((await waitForToast(page, "no longer has access")).text).toBe("lee.park@example.test no longer has access to the dashboard.");
+    expect(await page.locator("#members-title + p").innerText()).toBe("2 people");
+    expect(await page.locator("main#main").innerText()).not.toContain("lee.park@example.test");
+
+    // It is in the activity log.
+    await page.locator('aside a[data-nav="#/activity"]').click();
+    await page.waitForSelector("table.d-table tbody tr");
+    expect(await page.locator("table.d-table tbody").innerText()).toContain("Team member's access removed");
+    await context.close();
+  });
+});
+
+// What someone who has been invited sees, before they have the dashboard: the page the link
+// in their email opens, and the invitation to accept once they have signed in.
+describe("an invited person", () => {
+  const open = async (address, size) => {
+    const opened = await openPage(browser, `${site.url}/dashboard/${address}`, size);
+    await opened.page.waitForSelector("main h1");
+    return opened;
+  };
+
+  it("is taken from the link in the email to a form that sends them a link to choose a password", async () => {
+    const { page, context, problems } = await open("?demo=signed-out#/welcome?email=new.person%40example.test");
+    expect(await page.locator("h1").innerText()).toBe("Set up your access");
+    expect(await page.locator("main").innerText()).toContain("You have been invited to the Luzena Restaurant & Cafe dashboard.");
+    // The address from the link is only filled in. It is not kept in the page's address.
+    expect(await page.locator("#email").inputValue()).toBe("new.person@example.test");
+    expect(new URL(page.url()).hash).toBe("#/");
+    expect(await page.locator("aside").count()).toBe(0);
+
+    await page.getByRole("button", { name: "Send me the link" }).click();
+    await page.waitForSelector('[role="status"]:not([hidden])');
+    // The same answer whoever the address belongs to.
+    expect(await page.locator('[role="status"]').innerText()).toBe("If that address has been invited, a link is on its way. Open it on this device, choose your password, then sign in here.");
+    const violations = await accessibilityViolations(page);
+    expect(violations, describeViolations(violations)).toEqual([]);
+
+    await page.getByRole("button", { name: "I already have a password: sign in" }).click();
+    await page.waitForSelector("#password");
+    expect(await page.locator("h1").innerText()).toBe("Sign in");
+    expect(problems).toEqual([]);
+    await context.close();
+  });
+
+  it("ignores an address in the link that is not one", async () => {
+    const { page, context } = await open('?demo=signed-out#/welcome?email=%22%3E%3Cimg%20src%3Dx%20onerror%3Dalert(1)%3E');
+    expect(await page.locator("h1").innerText()).toBe("Set up your access");
+    expect(await page.locator("#email").inputValue()).toBe("");
+    expect(await page.locator("main img[src='x']").count()).toBe(0);
+    await context.close();
+  });
+
+  it("is shown the invitation to accept after signing in, and gets the dashboard only once it is accepted", async () => {
+    const { page, context, problems } = await open("?demo=invited");
+    expect(await page.locator("h1").innerText()).toBe("You have been invited");
+    const text = await page.locator("main").innerText();
+    expect(text).toContain("Luzena Restaurant & Cafe");
+    expect(text).toContain("owner@example.com invited you as Manager.");
+    expect(text).toContain("Runs the menu, the website's photos and hiring.");
+    // Nothing of the dashboard is drawn behind it.
+    expect(await page.locator("aside").count()).toBe(0);
+    expect(await page.locator("table").count()).toBe(0);
+    const violations = await accessibilityViolations(page);
+    expect(violations, describeViolations(violations)).toEqual([]);
+
+    await page.getByRole("button", { name: "Accept invitation" }).click();
+    await page.waitForSelector("aside nav");
+    expect(await page.locator("main#main h1").innerText()).toBe("Overview");
+    expect(problems).toEqual([]);
+    await context.close();
+  });
+
+  it("is told plainly when an emailed link has expired, and how to get another", async () => {
+    const { page, context } = await open("?demo=signed-out#error=access_denied&error_code=otp_expired&error_description=Email+link+is+invalid+or+has+expired");
+    expect(await page.locator("h1").innerText()).toBe("Sign in");
+    expect(await page.locator('[role="alert"]').innerText()).toBe('That link has expired or has already been used. Choose "Forgot your password?" below to be sent a new one.');
+    expect(new URL(page.url()).hash).toBe("#/");
+    await page.getByRole("button", { name: "Forgot your password?" }).click();
+    expect(await page.locator("h1").innerText()).toBe("Reset password");
     await context.close();
   });
 });
@@ -1444,6 +2169,7 @@ describe("accessibility of each dashboard screen", () => {
     ["modifiers", "#/modifiers", "main#main section.d-card"],
     ["Clover", "#/clover", "text=Demo merchant"],
     ["activity", "#/activity", "table.d-table tbody tr"],
+    ["team and access", "#/team", "li[data-member]"],
   ])("%s passes the WCAG 2.2 AA scan", async (_name, hash, ready) => {
     const { page, context } = await dashboard(hash);
     await page.waitForSelector(ready);
@@ -1489,7 +2215,7 @@ describe("on a phone", () => {
     await page.waitForSelector("#application-status");
     await page.selectOption("#application-status", "shortlisted");
     await page.getByRole("button", { name: "Update status" }).click();
-    await page.waitForFunction(() => document.querySelector(".d-timeline > li")?.textContent.includes("to Shortlisted"));
+    await page.waitForFunction(() => [...document.querySelectorAll(".d-timeline > li")].some((entry) => entry.textContent.includes("to Shortlisted")));
     // Every control on the page is big enough for a thumb, as elsewhere in the dashboard.
     const small = await page.evaluate(() =>
       [...document.querySelectorAll("main#main button, main#main select, main#main textarea, main#main a.d-btn")]
@@ -1515,7 +2241,7 @@ describe("on a phone", () => {
     ["categories", "#/categories"], ["modifiers", "#/modifiers"], ["Clover", "#/clover"], ["activity", "#/activity"],
     ["applications", "#/applications"], ["an application", "#/applications/00000000-0000-4000-8000-000000000004"],
     ["photos", "#/photos"], ["labels", "#/labels"], ["security", "#/security"],
-    ["item order", "#/categories/SAMPLECAT0001/items"],
+    ["item order", "#/categories/SAMPLECAT0001/items"], ["team", "#/team"],
   ])("%s fits every screen width from 360px to 1440px without sideways scrolling", async (_name, hash) => {
     const { page, context } = await dashboard(hash, { width: 360, height: 800 });
     for (const width of VIEWPORT_WIDTHS) {

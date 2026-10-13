@@ -27,9 +27,9 @@ const lastLook = new WeakMap<object, number>();
 // applications past the retention period are deleted with their CVs, and rows that are only
 // of use for a while are cleared (see the housekeeping migration).
 //
-// There is no scheduler, so this is hung on the requests the public website makes whenever
-// anyone opens it. Before, expired applications were deleted only when a new application
-// arrived or an owner opened the dashboard, which in a quiet month could be weeks late.
+// The scheduler does the same chores once a day (scheduled/tasks.ts). This is the second
+// net, hung on the requests the public website makes whenever anyone opens it, so that the
+// retention period is kept even on a project where the schedule has not been created.
 //
 // It never throws and is meant to be handed to `waitUntil`: the visitor's answer has
 // already gone out.

@@ -32,6 +32,7 @@ const env = {
   CLOVER_WEBHOOK_AUTH: "smoke-webhook-auth",
   TOKEN_ENCRYPTION_KEY: Buffer.alloc(32, 3).toString("base64"),
   IP_HASH_SALT: "smoke",
+  CRON_SECRET: "smoke-cron-secret-0123456789-0123456789",
 };
 
 const base = `http://127.0.0.1:${PORT}`;
@@ -114,6 +115,23 @@ const FUNCTIONS = {
       return response.status === 200 ? null : `status ${response.status}`;
     }],
   ],
+  "scheduled-tasks": [
+    ["refuses a call without the scheduler's secret, and one with a wrong secret", async () => {
+      const none = await fetch(`${base}/functions/v1/scheduled-tasks`, { method: "POST" });
+      const wrong = await fetch(`${base}/functions/v1/scheduled-tasks`, { method: "POST", headers: { "x-cron-secret": "not-the-secret-not-the-secret-not-the-secret" } });
+      return none.status === 401 && wrong.status === 401 ? null : `statuses ${none.status}, ${wrong.status}`;
+    }],
+    ["refuses GET", async () => {
+      const response = await fetch(`${base}/functions/v1/scheduled-tasks`);
+      return response.status === 405 ? null : `status ${response.status}`;
+    }],
+    ["runs for the scheduler and answers with counts only, also when the database is down", async () => {
+      const response = await fetch(`${base}/functions/v1/scheduled-tasks`, { method: "POST", headers: { "x-cron-secret": env.CRON_SECRET } });
+      const body = await json(response);
+      if (response.status !== 200 || body?.ok !== true) return `status ${response.status} ${JSON.stringify(body)}`;
+      return JSON.stringify(body).match(/127\.0\.0\.1|ECONN|stack/i) ? "response leaks internals" : null;
+    }],
+  ],
   "dashboard-api": [
     ["refuses a request with no session", async () => {
       const response = await fetch(`${base}/functions/v1/dashboard-api/me`, { headers: { origin: ORIGIN } });
@@ -125,6 +143,19 @@ const FUNCTIONS = {
       const body = await json(response);
       if (response.status !== 401) return `status ${response.status}`;
       return JSON.stringify(body).match(/127\.0\.0\.1|ECONN|stack/i) ? "response leaks internals" : null;
+    }],
+    ["refuses the team, an export and an invitation without a session", async () => {
+      const json = { origin: ORIGIN, "content-type": "application/json" };
+      const attempts = [
+        await fetch(`${base}/functions/v1/dashboard-api/team`, { headers: { origin: ORIGIN } }),
+        await fetch(`${base}/functions/v1/dashboard-api/team/invitations`, { method: "POST", headers: json, body: JSON.stringify({ email: "smoke@example.test", role: "manager" }) }),
+        await fetch(`${base}/functions/v1/dashboard-api/applications/export`, { method: "POST", headers: json, body: JSON.stringify({ scope: "all" }) }),
+        await fetch(`${base}/functions/v1/dashboard-api/account/invitations`, { headers: { origin: ORIGIN } }),
+        await fetch(`${base}/functions/v1/dashboard-api/account/invitations/00000000-0000-4000-8000-000000000000/accept`, { method: "POST", headers: { origin: ORIGIN } }),
+      ];
+      const statuses = attempts.map((response) => response.status);
+      for (const response of attempts) await response.body?.cancel();
+      return statuses.every((status) => status === 401) ? null : `statuses ${statuses.join(", ")}`;
     }],
     ["answers 404 for an unknown route before authenticating", async () => {
       const response = await fetch(`${base}/functions/v1/dashboard-api/no-such-route`);
@@ -192,7 +223,7 @@ for (const [name, checks] of Object.entries(FUNCTIONS)) {
       if (problem) failures += 1;
     }
     // Secrets must never reach the function's own log output.
-    if (/smoke-secret-value|smoke-test-not-a-real-key/.test(output())) {
+    if (/smoke-secret-value|smoke-test-not-a-real-key|smoke-cron-secret/.test(output())) {
       console.log("  FAIL  a secret appeared in the function's log output");
       failures += 1;
     } else {

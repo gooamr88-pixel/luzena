@@ -283,6 +283,12 @@ Inside `.d-dark` (sidebar, drawer, sign-in screen) `text`, `muted`, `line`, `bra
 | File button | A `label.d-btn` for a visually hidden `<input type="file">` placed just before it (`peer`), so the button reads in English in every browser and takes the focus ring. Used for "Choose a photo", "Replace photo" and "Add photos". |
 | Sidebar count (`.d-nav-count`) | A gold number beside a sidebar link: how many are waiting. Used for new applications. |
 | Stage badges | An application's stage: New (blue), Reviewing (amber), Shortlisted and Interview (`.d-badge-accent`, gold: going well, not finished), Hired (green), Rejected (plain) |
+| Choice row (`.d-choice`) | One of several choices as a row that is all target: a radio button, a name in semibold and a line of explanation in `muted`. The chosen row takes a `brand` border and the cream tint of a ticked icon tile; the keyboard's focus ring is drawn on the row. Used in the export dialog for "which applications" and "file format". |
+| Tick box (`.d-tick`) | A tick box on its own in a table row or on a card: the box is 16 px, its target 40 px, and its label is for screen readers ("Tick Maya Thompson's application for export"). The box in a table's heading ticks the whole page and shows a dash when only some are ticked. |
+| Selection bar | A card above a list while anything is ticked: how many, "Clear", and the action for them in gold. Absent when nothing is ticked. |
+| People list | Team & access: one row per person or invitation inside a card, divided by hairlines. Address in semibold with a plain "You" badge on one's own row, a line of `muted` facts under it, then the role or state badge and small buttons, which wrap under the text on a phone. No table: nothing here needs comparing down a column. |
+| Role badges | Owner (`.d-badge-accent`), Manager (blue), Staff (plain). Invitation states: Waiting (blue), Expired (amber), Cancelled (plain). |
+| Roles table | "What each role can do": a `.d-table` with a line per ability and Yes (green, semibold) or No (`muted`) under each role. Words, not ticks, so it reads the same to a screen reader. |
 | Also | `.d-icon-btn`, `.d-badge-*`, `.d-alert-*`, `.d-switch`, `.d-nav-link`, `.d-dialog`, `.d-drawer`, `.d-skeleton`, `.d-source` |
 
 Icons are the dashboard's own small set in `src/dashboard/ui.js`, drawn at the public

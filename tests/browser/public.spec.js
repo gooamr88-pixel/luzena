@@ -375,7 +375,7 @@ describe("the menu page without a backend", () => {
 });
 
 describe("join our team, with applications open", () => {
-  it("publishes the application form alone, with all 18 roles to choose from and its privacy policy", async () => {
+  it("publishes the application form alone, with all 17 roles to choose from and its privacy policy", async () => {
     const { page, context } = await openPage(browser, `${site.url}/careers/`);
     expect(await page.locator("form[data-apply-form]").count()).toBe(1);
     expect(await page.locator('input[type="file"]').count()).toBe(1);
@@ -383,8 +383,10 @@ describe("join our team, with applications open", () => {
     // The page is the form: no page header, no list of roles, no second column.
     expect(await page.locator("main .page-hero, main details, main aside").count()).toBe(0);
     expect(await page.locator("main h1").innerText()).toBe("Join Our Team");
-    // Every role is still offered, in the form's own list.
-    expect(await page.locator("#position optgroup option").count()).toBe(18);
+    // Every role is still offered, in the form's own list. Cashier is not one of them: the
+    // restaurant has no such job (the client, 2026-10-13), so nobody can apply for it.
+    expect(await page.locator("#position optgroup option").count()).toBe(17);
+    expect(await page.locator("#position").innerText()).not.toMatch(/cashier/i);
     expect(await page.locator('form a[href="/privacy/"]').count()).toBe(1);
     // The page that receives applications is told to the form by the build, never the inbox.
     expect(await page.content()).not.toMatch(/recruitment|@gmail/i);

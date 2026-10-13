@@ -191,7 +191,7 @@ export async function cloverView(outlet) {
             ? h("span", { class: "text-bad" }, `${connection.last_error_code} at ${formatDateTime(connection.last_error_at, state.locale)}`)
             : "None")),
         h("div", { class: "mt-5 flex flex-wrap gap-2" },
-          connection.connected && connection.status === "active" && can("menu.write") && button("Sync now", "d-btn-primary", sync),
+          connection.connected && connection.status === "active" && can("clover.sync") && button("Sync now", "d-btn-primary", sync),
           manage && configured && !connection.connected && button("Connect Clover", "d-btn-primary", connect),
           manage && configured && connection.connected && button("Reconnect", connection.status === "needs_reauth" ? "d-btn-primary" : "", connect),
           manage && connection.connected && button("Disconnect", "", disconnect))),

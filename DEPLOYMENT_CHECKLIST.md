@@ -170,7 +170,10 @@ For each project (`<ref>` is the project reference; every command below names it
       email provider's switch is called `enable_signup` in `config.toml`, and with it off
       nobody can sign in at all, the owner included.
 - [ ] Authentication > Email: a custom SMTP sender (Resend works) so password-reset emails
-      are delivered reliably. Supabase's built-in sender is rate limited.
+      are delivered reliably. Supabase's built-in sender is rate limited, and delivers only
+      to members of the Supabase organisation: **required before anyone is invited from
+      the dashboard's Team page** (section 11a), because an invited person sets their
+      password through such an email.
 - [ ] Deploy the functions (`--use-api` bundles on Supabase's side; this machine has no
       Docker):
       `supabase functions deploy dashboard-api public-menu public-site job-application clover-webhook --project-ref <ref> --use-api`
@@ -494,11 +497,172 @@ and `npm run verify:site` passes with `EXPECT_ORDERING_URL` set to that address.
       bucket is **private** (opening the file's public URL fails).
 - [ ] View the source of the home, Contact, Locations and Careers pages: no email address.
 
-Optional, if deletion must happen on a fixed schedule: enable `pg_cron` and `pg_net`, store
-a long random token as a database setting and as a function secret, add a small Edge
-Function that checks the token and calls the retention clean-up, and schedule a daily call
-to it. This is not built; today the clean-up runs when an application arrives and when an
-owner opens the dashboard.
+Deletion on a fixed schedule is built since 2026-10-13: the daily schedule of section 11b
+runs it every day, whether or not anyone visits.
+
+## 11a. Team access and the export of applications (built 2026-10-13; on TEST, see 11b)
+
+**Done on TEST on 2026-10-13, together with 11b**, by scripts run from this machine with
+the client's access token (the migration applied through the Management API and recorded
+in the migration ledger as `supabase db push` records it; the functions deployed with the
+CLI). What follows is the manual check list; the steps that were run are ticked in 11b.
+
+One migration, the `dashboard-api` function, and the website (the dashboard is part of it).
+No new secret and no new environment variable. **TEST first, all of it, then PRODUCTION.**
+
+Before anything, on each project:
+
+- [ ] **Authentication > Email: a custom SMTP sender is set** (section 2). This is no
+      longer optional. An invited person chooses their password through a link Supabase
+      Auth emails them, and Supabase's built-in sender only delivers to members of the
+      Supabase organisation. Without it, someone who is invited and misses the one-click
+      link in their invitation gets no email at all, and nothing says so.
+- [ ] `RESEND_API_KEY` and `EMAIL_FROM` are set (section 4): the invitation itself is sent
+      through Resend. Without them an invitation is saved and marked "email not sent".
+- [ ] `ALLOWED_ORIGINS` is right: the link in an invitation is built from it.
+- [ ] "Allow new users to sign up" is still **off**. Nothing here needs it on.
+
+The order, on TEST and then on PRODUCTION:
+
+- [ ] `supabase db push --dry-run`: it must name exactly
+      `20261013001400_team_access_and_application_export.sql` and nothing else. Then
+      `supabase db push`.
+- [ ] `npm run verify:database` (needs `DATABASE_URL`): every check passes; **22 tables**;
+      "every restaurant still has an owner"; the line `team now:` shows the members and how
+      many have no address yet (it is filled in when each next opens the dashboard).
+- [ ] `supabase functions deploy dashboard-api --project-ref <ref> --use-api`. Only this
+      function changed.
+- [ ] `npm run verify:functions`: every check passes, including "refuses the team, an
+      export and an invitation without a session".
+- [ ] Only now the website: push, then `deploy.sh` on the VPS.
+
+**The backend must go first.** The migration only adds things and replaces
+`dash_applications_list` with a version that answers exactly as before, so the dashboard
+that is live keeps working against it. The new dashboard against the old backend would
+call routes that do not exist.
+
+**Check, signed in as the owner, on TEST before PRODUCTION:**
+
+- [ ] The sidebar has **Team**. The page lists the owner, marked "You", as Owner.
+- [ ] Invite an address you control as Manager. The email arrives from the `EMAIL_FROM`
+      address, names the restaurant and the role, and has a "Choose your password" button.
+- [ ] In a private window, follow that button within the hour: the dashboard asks for a new
+      password. Set one, sign in: "You have been invited" is shown. Accept: the dashboard
+      opens, with no Team link, no Export button, and Clover showing no Connect/Disconnect.
+- [ ] Do it again for another address, but this time ignore the button: open the dashboard,
+      choose "Forgot your password?", and confirm **the email from Supabase arrives**. This
+      is the check that the SMTP sender works for people outside the organisation.
+- [ ] Back as the owner: change the manager to Staff. In the manager's window, press
+      anything: the page says access has changed and the Applications link is gone.
+- [ ] Remove their access. In their window, press anything: "This account has no access to
+      a dashboard".
+- [ ] Invite someone, then cancel the invitation; signing in with that address afterwards
+      shows no invitation.
+- [ ] Applications > **Export**: the dialog says how many will be exported; the file opens
+      in Excel **with no "We found a problem with some content" message**, has the summary
+      row, filter buttons on the headings, and the headings stay in view while scrolling.
+      This is the one check no test here could make: no spreadsheet program was available
+      where the code was written.
+- [ ] The same export as CSV opens in Excel with accented and Arabic names readable.
+- [ ] Activity shows "Team member invited", "Job applications exported" and the rest.
+
+To undo: the website with `deploy.sh --rollback`; the function by deploying the previous
+commit. The migration can stay: it adds a table, four columns and functions that the
+previous code does not use, and the one function it replaces answers as before. To take
+access away from everyone invited, without undoing anything:
+`delete from public.restaurant_users where role <> 'owner';`
+To take the migration itself back: section 11b, "Rolling back".
+
+## 11b. Messages to applicants, the monthly report, the daily schedule, Brevo (built 2026-10-13; backend live on TEST and PRODUCTION)
+
+One more migration (`20261014001500_applicant_messages_and_monthly_reports.sql`), a sixth
+function (`scheduled-tasks`), two new function secrets (`BREVO_API_KEY`, `CRON_SECRET`),
+the schedule (`supabase/schedule-daily-tasks.sql`, run by hand), and the website.
+
+**On TEST, 2026-10-13 (done, in this order):**
+
+- [x] Both migrations applied, 1400 then 1500, each in one transaction with its ledger row.
+- [x] The rollback files (`supabase/rollback/`) run, 1500 then 1400: TEST's schema was then
+      identical to PRODUCTION's (tables, columns, constraints, indexes, functions and their
+      bodies, rights; the one difference, `rls_auto_enable`, is an event trigger Supabase
+      put on TEST only). Both migrations applied again: TEST identical to before.
+- [x] The database checks of `verify:database`, made through the Management API: all pass,
+      24 tables.
+- [x] `CRON_SECRET` set (48 random characters, TEST's own); the six functions deployed with
+      `supabase functions deploy ... --project-ref <test> --use-api`.
+- [x] `npm run verify:functions`: all pass (two skipped by design: the public-key check needs
+      `SUPABASE_PUBLIC_KEY`; the form is open on TEST).
+- [x] The schedule created from `schedule-daily-tasks.sql`; seen to run twice (set to every
+      minute for two minutes): pg_cron `succeeded`, the function answered 200 both times;
+      put back to daily, 13:15 UTC.
+- [x] The end-to-end run: 65 of 65 (`TESTING.md`).
+- [ ] **Blocked (`BLOCKERS.md` B-10):** `BREVO_API_KEY` and `EMAIL_FROM`. Then the email
+      checks below.
+
+**On PRODUCTION, 2026-10-13 (done, after TEST had passed whole):**
+
+- [x] A copy of the rows the migrations touch taken first (restaurants, memberships).
+- [x] Both migrations applied; the database checks 15 of 15 (24 tables); the 17
+      applications and the owner untouched; the owner's address filled in by the migration.
+- [x] PRODUCTION's own `CRON_SECRET`; the six functions deployed (`scheduled-tasks` new).
+- [x] `npm run verify:functions` with `ALLOWED_ORIGIN=https://luzenarestaurant.com`: all
+      pass (two skipped by design).
+- [x] The schedule created; one scheduled run seen to succeed (200); back to daily.
+- [x] The Data API serves `public` and `graphql_public` only, on both projects.
+- [ ] **The website**: the commit is pushed; `deploy.sh` on the VPS is the client's step
+      (section 7). Until it runs, the live dashboard is the previous one, which works
+      unchanged against the new backend.
+- [ ] Blocked (B-10): `BREVO_API_KEY` and `EMAIL_FROM`.
+- [ ] Not run on PRODUCTION, on purpose: the end-to-end run (it makes data).
+
+**Once Brevo works (B-10), on TEST first, then PRODUCTION:**
+
+- [ ] `supabase secrets set BREVO_API_KEY=... EMAIL_FROM="Luzena Restaurant & Cafe <address>" --project-ref <ref>`
+      (the address verified in Brevo). Nothing else changes: the functions pick the key up.
+- [ ] Apply for a job on the website with an address you control. The notification
+      reaches the recruitment inbox; the application shows no "not sent" mark.
+- [ ] Open it in the dashboard, write to the applicant ("Start from: We have received your
+      application"), send. It shows **Sent**. The email arrives, from the restaurant's
+      name, with your words, and "Reply" goes to the recruitment inbox. Open the
+      application again a minute later: it shows **Delivered**, which is Brevo's own report
+      (Brevo: Transactional > Logs shows the same message).
+- [ ] Write to an address that does not exist (an application made for it): it shows
+      **Not delivered** with Brevo's reason, once Brevo has reported the bounce.
+- [ ] Invite an address you control: the invitation arrives with its "Choose your password"
+      button (B-8 still applies to the password email Supabase sends by itself).
+- [ ] The monthly report: on TEST, `delete from public.monthly_reports;` then call the
+      function by hand: `select net.http_post(url := (select decrypted_secret from
+      vault.decrypted_secrets where name = 'scheduled_tasks_url'), headers :=
+      jsonb_build_object('content-type', 'application/json', 'x-cron-secret', (select
+      decrypted_secret from vault.decrypted_secrets where name = 'scheduled_tasks_secret')),
+      body := '{}'::jsonb);` The report for last month arrives at the report address; the
+      row in `monthly_reports` says `sent`; calling again sends nothing (`skipped`). On
+      PRODUCTION, simply wait for the next daily run.
+- [ ] If the report should go somewhere other than the recruitment address:
+      `update public.restaurants set report_email = '<address>' where slug = 'luzena';`
+      If the restaurant's months are not on Pacific time:
+      `update public.restaurants set timezone = '<IANA zone>' where slug = 'luzena';`
+
+**Watching it:** `cron.job_run_details` (did the database make the call),
+`net._http_response` (what the function answered, kept a few hours), `monthly_reports`
+(what was sent), the dashboard's Activity page ("Monthly report emailed"), and the
+function's log in Supabase (Edge Functions > scheduled-tasks > Logs).
+
+### Rolling back 11a and 11b
+
+Newest first, and the backend before the database:
+
+1. `select cron.unschedule('luzena-daily-tasks');`
+2. Deploy the functions of the commit before this work (`git checkout <commit> --
+   supabase/functions`, `supabase functions deploy dashboard-api public-menu public-site
+   job-application clover-webhook --project-ref <ref> --use-api`), and the website of that
+   commit (`deploy.sh <commit>`). The old dashboard works against the new database; the new
+   dashboard does not work against the old.
+3. Only if the database must go back too: `supabase/rollback/20261014001500_...down.sql`,
+   then `supabase/rollback/20261013001400_...down.sql`, in the SQL editor. Each says at its
+   top what it deletes for good (messages, report records, invitations, and the access of
+   everyone who joined by invitation; never an owner, an application or a CV). Both were
+   run on TEST and proven to restore the earlier schema exactly.
 
 ## 12. After go-live
 
@@ -523,7 +687,7 @@ owner opens the dashboard.
 | Site | On the VPS: `sudo -u luzena bash /var/www/luzenarestaurant.com/repo/deploy/deploy.sh --rollback` puts the previous release back at once (`--list` shows what is kept: the last five). To publish a specific older commit: the same script with that commit as its argument. |
 | Nginx configuration | Copy the previous version of `deploy/nginx/luzenarestaurant.com.conf` back, `sudo nginx -t`, reload. To take the site off the server entirely: remove its link in `/etc/nginx/sites-enabled/`, `sudo nginx -t`, reload. |
 | Functions | Check out the previous commit, `supabase functions deploy ...` |
-| Database | Migrations only add objects. To undo one, write a new migration that reverses it. Back up before any migration that changes existing rows. |
+| Database | Migrations only add objects. To undo one, write a new migration that reverses it. Back up before any migration that changes existing rows. The two of 2026-10-13 have tested rollback files in `supabase/rollback/` (section 11b). |
 | Clover connection | Dashboard > Clover > Disconnect. The site keeps showing the last synced menu. |
 | Job applications | Unset `JOB_APPLICATIONS_ENABLED`. The form then answers "not open yet" immediately. |
 

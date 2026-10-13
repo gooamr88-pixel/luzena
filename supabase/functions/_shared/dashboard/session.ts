@@ -2,28 +2,56 @@
 import { CLOVER_MESSAGES, CloverError, RETRYABLE_KINDS } from "../clover/errors.ts";
 import { sha256Hex } from "../crypto.ts";
 import { ApiError, json } from "../http.ts";
-import type { Deps, Membership, Role, Session } from "../types.ts";
+import type { AuthUser, Deps, Membership, Role, Session } from "../types.ts";
 
 export type Permission =
-  | "menu.read" | "menu.write" | "clover.manage" | "activity.read"
-  | "applications.read" | "applications.manage"
-  | "site.manage";
+  | "menu.read" | "menu.write" | "clover.manage" | "clover.sync" | "activity.read"
+  | "applications.read" | "applications.manage" | "applications.cv" | "applications.export" | "applications.message"
+  | "site.manage" | "team.manage";
 
-// Server-side role model. Only "owner" is assigned today; the other roles exist so adding
-// staff later is a data change, not a code change. Job applications are personal data:
-// the people who hire (owners and managers) may read them, staff may not.
+// Server-side role model: what each role may do, and nothing a request says can add to it.
+//
+//   owner    everything in their restaurant, including who else has access.
+//   manager  runs the menu, the website and hiring day to day. Not the Clover connection,
+//            not the team, and not taking every applicant's details away in one file.
+//   staff    looks at the menu. Job applications are personal data: the people who hire
+//            (owners and managers) may read them, staff may not.
+//
+// Each sensitive thing has a permission of its own, so that giving or withholding it is a
+// decision made here in the open and not a side effect of another one: reading a CV is not
+// implied by reading the list, exporting is not implied by reading, and starting a Clover
+// synchronisation is not implied by editing the menu.
 const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
-  owner: ["menu.read", "menu.write", "clover.manage", "activity.read", "applications.read", "applications.manage", "site.manage"],
-  manager: ["menu.read", "menu.write", "activity.read", "applications.read", "applications.manage", "site.manage"],
+  owner: [
+    "menu.read", "menu.write", "clover.manage", "clover.sync", "activity.read",
+    "applications.read", "applications.manage", "applications.cv", "applications.export", "applications.message",
+    "site.manage", "team.manage",
+  ],
+  // Writing to an applicant goes with hiring: the people who interview are the ones who write.
+  manager: [
+    "menu.read", "menu.write", "clover.sync", "activity.read",
+    "applications.read", "applications.manage", "applications.cv", "applications.message", "site.manage",
+  ],
   staff: ["menu.read"],
 };
 
+// The roles each role may hand out, by invitation or by changing a member. Nobody hands out
+// "owner": an owner is made by the operator (supabase/provision-restaurant.sql), outside
+// this API. Managers and staff hand out nothing.
+const GRANTABLE_ROLES: Record<Role, Role[]> = {
+  owner: ["manager", "staff"],
+  manager: [],
+  staff: [],
+};
+
+export const grantableRoles = (role: Role): Role[] => GRANTABLE_ROLES[role] ?? [];
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-// Identity comes from the verified JWT. The restaurant comes from the user's memberships in
-// the database. The x-restaurant-id header only selects among restaurants the user already
-// belongs to; it can never grant access.
-export async function authenticate(request: Request, deps: Deps, requestId: string): Promise<Session> {
+// Who is asking, and nothing more: the account behind a session that Supabase Auth vouches
+// for. Used on its own only by the two routes an account with no restaurant yet may call
+// (seeing and accepting its own invitations); every other route goes on to `authenticate`.
+export async function authenticateAccount(request: Request, deps: Deps): Promise<AuthUser> {
   const header = request.headers.get("authorization") ?? "";
   const token = header.toLowerCase().startsWith("bearer ") ? header.slice(7).trim() : "";
   if (!token) throw new ApiError(401, "unauthenticated", "Sign in to continue.");
@@ -38,6 +66,15 @@ export async function authenticate(request: Request, deps: Deps, requestId: stri
   if (user.twoStep && user.level !== "aal2") {
     throw new ApiError(403, "mfa_required", "Enter the code from your authenticator app to continue.");
   }
+  return user;
+}
+
+// Identity comes from the verified JWT. The restaurant comes from the user's memberships in
+// the database, read afresh on every request: a membership taken away is gone at the next
+// request, whatever session its holder still has. The x-restaurant-id header only selects
+// among restaurants the user already belongs to; it can never grant access.
+export async function authenticate(request: Request, deps: Deps, requestId: string): Promise<Session> {
+  const user = await authenticateAccount(request, deps);
 
   const memberships = await deps.db.rpc<Membership[]>("user_memberships", { p_user: user.id });
   if (memberships.length === 0) {
@@ -61,13 +98,16 @@ export async function authenticate(request: Request, deps: Deps, requestId: stri
   return { user, restaurant, requestId };
 }
 
+export const permissionsOf = (role: Role): Permission[] => ROLE_PERMISSIONS[role] ?? [];
+
+export const hasPermission = (session: Session, permission: Permission): boolean =>
+  permissionsOf(session.restaurant.role).includes(permission);
+
 export function requirePermission(session: Session, permission: Permission): void {
-  if (!ROLE_PERMISSIONS[session.restaurant.role]?.includes(permission)) {
+  if (!hasPermission(session, permission)) {
     throw new ApiError(403, "forbidden", "Your role does not allow this action.");
   }
 }
-
-export const permissionsOf = (role: Role): Permission[] => ROLE_PERMISSIONS[role] ?? [];
 
 export async function rateLimit(deps: Deps, key: string, max: number, windowSeconds: number): Promise<void> {
   const allowed = await deps.db.rpc<boolean>("rate_limit_hit", {
@@ -80,11 +120,19 @@ export async function rateLimit(deps: Deps, key: string, max: number, windowSeco
 
 export type AuditResult = "success" | "failed" | "partial" | "conflict";
 
+// Who did it and in which restaurant. A session is one; so is an account accepting an
+// invitation, which has no session yet but does have a restaurant: the one it is joining.
+export interface AuditActor {
+  user: Pick<AuthUser, "id" | "email">;
+  restaurant: { restaurant_id: string };
+  requestId: string;
+}
+
 // Audit writes never fail a request: the owner's change has already happened by the time
 // this runs. A failed audit write is logged so it can be noticed.
 export async function audit(
   deps: Deps,
-  session: Session,
+  session: AuditActor,
   entry: {
     action: string;
     entityType: string;
@@ -96,22 +144,33 @@ export async function audit(
   },
 ): Promise<void> {
   try {
-    await deps.db.rpc("audit_write", {
-      p_restaurant: session.restaurant.restaurant_id,
-      p_user: session.user.id,
-      p_actor_email: session.user.email,
-      p_action: entry.action,
-      p_entity_type: entry.entityType,
-      p_entity_id: entry.entityId ?? null,
-      p_old: entry.oldValues ?? null,
-      p_new: entry.newValues ?? null,
-      p_result: entry.result,
-      p_sync_status: entry.syncStatus ?? null,
-      p_request_id: session.requestId,
-    });
+    await auditRequired(deps, session, entry);
   } catch (error) {
     deps.log.error("audit_write_failed", { action: entry.action, error_message: String(error) });
   }
+}
+
+// The same entry, for the one case where the record must exist BEFORE the thing it records:
+// handing over many people's details at once (the export of job applications). This one
+// throws, and the caller then hands over nothing.
+export async function auditRequired(
+  deps: Deps,
+  session: AuditActor,
+  entry: Parameters<typeof audit>[2],
+): Promise<void> {
+  await deps.db.rpc("audit_write", {
+    p_restaurant: session.restaurant.restaurant_id,
+    p_user: session.user.id,
+    p_actor_email: session.user.email,
+    p_action: entry.action,
+    p_entity_type: entry.entityType,
+    p_entity_id: entry.entityId ?? null,
+    p_old: entry.oldValues ?? null,
+    p_new: entry.newValues ?? null,
+    p_result: entry.result,
+    p_sync_status: entry.syncStatus ?? null,
+    p_request_id: session.requestId,
+  });
 }
 
 // What the dashboard needs to explain a Clover failure honestly:

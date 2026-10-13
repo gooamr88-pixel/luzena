@@ -6,9 +6,11 @@
 // leaves no applicant's details behind.
 import { fileSize, label, LABELS, STATUSES } from "../../js/lib/application.js";
 import { formatDateTime, timeAgo } from "../../js/lib/format.js";
-import { api, downloadFile } from "../api.js";
+import { api, downloadFile, explain, newIdempotencyKey } from "../api.js";
+import { describeScope } from "../export/applications.js";
 import { can, state } from "../state.js";
 import { append, badge, clear, confirmDialog, errorBlock, h, icon, loadingBlock, pageHeader, stateBlock, toast, toastFailure } from "../ui.js";
+import { exportDialog } from "./export-dialog.js";
 
 const PAGE_SIZE = 25;
 const STATUS_TONE = { new: "info", reviewing: "warn", shortlisted: "accent", interview: "accent", hired: "ok", rejected: "" };
@@ -34,9 +36,16 @@ export async function applicationsView(outlet, _match, query) {
     position: "", from: "", to: "", offset: 0,
   };
   let data = null;
+  // Exporting is the owner's: nobody else is shown the button, the tick boxes or the bar.
+  // (The server refuses the export to anyone else whatever this page shows.)
+  const exportable = can("applications.export");
+  // The applications ticked for export. Kept while the owner pages and filters, so a
+  // choice can be put together from several pages; gone when the page is left.
+  const selected = new Set();
 
   const statusBar = h("div", { class: "d-pills mb-4", role: "group", "aria-label": "Filter by status" });
   const toolbar = h("div", { class: "d-card mb-4 p-3 sm:p-4" });
+  const selectionBar = h("div", { "aria-live": "polite" });
   const listRegion = h("div", { "aria-live": "polite" });
   const positionSelect = h("select", { class: "d-input", id: "filter-position" });
 
@@ -46,6 +55,70 @@ export async function applicationsView(outlet, _match, query) {
     filters.offset = 0;
     load();
   };
+
+  // The filters as the API takes them: a day becomes the instants it starts and ends at,
+  // in this browser's time zone. The list and the export are sent the same ones.
+  function apiFilters() {
+    const sent = {};
+    if (filters.search) sent.search = filters.search;
+    if (filters.status) sent.status = filters.status;
+    if (filters.position) sent.position = filters.position;
+    if (filters.from) sent.from = dayStart(filters.from);
+    if (filters.to) sent.to = dayEnd(filters.to);
+    return sent;
+  }
+
+  // Opens the export dialog with what can be exported at this moment. Each choice says
+  // plainly what it covers, so that "this page" is never mistaken for "everything that
+  // matches": the dialog then shows the server's own count for the one that is picked.
+  function openExport(initial) {
+    if (!data) return;
+    const everything = Object.values(data.counts).reduce((sum, number) => sum + number, 0);
+    const onPage = data.applications.map((application) => application.id);
+    const choices = [];
+    if (selected.size > 0) {
+      choices.push({ value: "selected", kind: "selected", name: `The ${selected.size} I ticked`, hint: "Only the applications ticked in the list, on any page.", request: { scope: "selected", ids: [...selected] } });
+    }
+    if (isFiltered()) {
+      choices.push({ value: "filtered", kind: "filtered", name: `Everything matching the filters (${data.total})`, hint: `${describeScope("filtered", filters).replace(/^Filtered: /, "")}. Every page, not only the one on screen.`, request: { scope: "filtered", filters: apiFilters() } });
+    }
+    if (data.total > onPage.length && onPage.length > 0) {
+      choices.push({ value: "page", kind: "page", name: `This page only (${onPage.length})`, hint: `The ${onPage.length} applications on screen now, out of ${data.total}.`, request: { scope: "selected", ids: onPage } });
+    }
+    choices.push({ value: "all", kind: "all", name: `All applications (${everything})`, hint: isFiltered() ? "Every application, ignoring the filters." : "Every application.", request: { scope: "all" } });
+    exportDialog({ choices, initial: initial ?? (selected.size > 0 ? "selected" : isFiltered() ? "filtered" : "all"), filters });
+  }
+
+  function drawSelection() {
+    clear(selectionBar);
+    if (!exportable || selected.size === 0) return;
+    const clearButton = h("button", { type: "button", class: "d-btn d-btn-sm d-btn-quiet" }, "Clear");
+    clearButton.addEventListener("click", () => {
+      selected.clear();
+      drawSelection();
+      if (data) draw();
+    });
+    append(selectionBar, h("div", { class: "d-card mb-4 flex flex-wrap items-center justify-between gap-3 px-4 py-3" },
+      h("p", { class: "text-sm font-semibold" }, selected.size === 1 ? "1 application ticked" : `${selected.size} applications ticked`),
+      h("div", { class: "flex flex-wrap gap-2" },
+        clearButton,
+        h("button", { type: "button", class: "d-btn d-btn-sm d-btn-primary", onClick: () => openExport("selected") }, icon("export", 16), "Export ticked"))));
+  }
+
+  // A tick box for one application. Ticking redraws only the bar and the "all" box, so the
+  // keyboard stays on the box that was pressed.
+  function tick(application, onChange) {
+    const input = h("input", { type: "checkbox", checked: selected.has(application.id), dataset: { tick: application.id } });
+    input.addEventListener("change", () => {
+      if (input.checked) selected.add(application.id);
+      else selected.delete(application.id);
+      // The same application is drawn twice (a table row and a card): keep both in step.
+      for (const twin of listRegion.querySelectorAll(`[data-tick="${application.id}"]`)) twin.checked = input.checked;
+      drawSelection();
+      onChange?.();
+    });
+    return h("label", { class: "d-tick" }, input, h("span", { class: "sr-only" }, `Tick ${application.full_name}'s application for export`));
+  }
   positionSelect.addEventListener("change", () => change("position", positionSelect.value));
 
   function drawToolbar() {
@@ -121,13 +194,35 @@ export async function applicationsView(outlet, _match, query) {
       ? h("span", { class: "inline-flex items-center gap-1.5 text-brand" }, icon("file", 16), "CV")
       : h("span", { class: "text-muted" }, "No CV"));
 
+    // The box in the table's heading ticks or unticks every application on this page. It
+    // shows a dash when only some are ticked.
+    const allBox = exportable ? h("input", { type: "checkbox" }) : null;
+    const syncAll = () => {
+      if (!allBox) return;
+      const ticked = data.applications.filter((application) => selected.has(application.id)).length;
+      allBox.checked = ticked === data.applications.length;
+      allBox.indeterminate = ticked > 0 && ticked < data.applications.length;
+    };
+    allBox?.addEventListener("change", () => {
+      for (const application of data.applications) {
+        if (allBox.checked) selected.add(application.id);
+        else selected.delete(application.id);
+      }
+      for (const input of listRegion.querySelectorAll("[data-tick]")) input.checked = allBox.checked;
+      drawSelection();
+      syncAll();
+    });
+    syncAll();
+
     const table = h("div", { class: "d-card hidden overflow-x-auto xl:block" },
       h("table", { class: "d-table" },
         h("caption", { class: "sr-only" }, "Job applications, newest first"),
         h("thead", {}, h("tr", {},
+          allBox && h("th", { scope: "col", class: "w-12" }, h("label", { class: "d-tick" }, allBox, h("span", { class: "sr-only" }, "Tick every application on this page for export"))),
           ["Applicant", "Position", "Experience", "Applied", "CV", "Status"].map((title) => h("th", { scope: "col" }, title)),
           h("th", { scope: "col", class: "text-right" }, h("span", { class: "sr-only" }, "Open")))),
         h("tbody", {}, data.applications.map((application) => h("tr", {},
+          exportable && h("td", { class: "w-12" }, tick(application, syncAll)),
           h("th", { scope: "row", class: "text-left font-semibold" },
             h("a", { href: open(application), class: "hover:text-brand hover:underline" }, application.full_name),
             h("div", { class: "mt-0.5 text-[0.82rem] font-normal text-muted" }, label("employment_type", application.employment_type))),
@@ -144,9 +239,11 @@ export async function applicationsView(outlet, _match, query) {
     const cards = h("ul", { class: "grid gap-3 md:grid-cols-2 xl:hidden" }, data.applications.map((application) =>
       h("li", { class: "d-card flex flex-col p-4" },
         h("div", { class: "flex flex-1 items-start justify-between gap-3" },
-          h("div", { class: "min-w-0" },
-            h("a", { href: open(application), class: "font-semibold hover:text-brand hover:underline" }, application.full_name),
-            h("p", { class: "text-sm text-muted" }, application.position)),
+          h("div", { class: "flex min-w-0 items-start gap-1" },
+            exportable && h("div", { class: "-mt-2 -ml-2 shrink-0" }, tick(application, syncAll)),
+            h("div", { class: "min-w-0" },
+              h("a", { href: open(application), class: "font-semibold hover:text-brand hover:underline" }, application.full_name),
+              h("p", { class: "text-sm text-muted" }, application.position))),
           statusBadge(application.status)),
         h("dl", { class: "mt-3 grid grid-cols-2 gap-x-3 gap-y-2 border-t border-line pt-3 text-sm" },
           h("div", {}, h("dt", { class: "text-[0.78rem] text-muted" }, "Applied"), h("dd", {}, timeAgo(application.created_at))),
@@ -170,17 +267,15 @@ export async function applicationsView(outlet, _match, query) {
   async function load() {
     clear(listRegion);
     append(listRegion, loadingBlock("Loading applications"));
-    const params = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String(filters.offset) });
-    if (filters.search) params.set("search", filters.search);
-    if (filters.status) params.set("status", filters.status);
-    if (filters.position) params.set("position", filters.position);
-    if (filters.from) params.set("from", dayStart(filters.from));
-    if (filters.to) params.set("to", dayEnd(filters.to));
+    const params = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String(filters.offset), ...apiFilters() });
+    exportButton.disabled = true;
     try {
       data = await api("GET", `/applications?${params}`);
       draw();
+      exportButton.disabled = false;
       announceChange(data.counts.new ?? 0);
     } catch (failure) {
+      data = null;
       clear(listRegion);
       append(listRegion, errorBlock(failure, load));
     }
@@ -188,12 +283,15 @@ export async function applicationsView(outlet, _match, query) {
 
   const refresh = h("button", { type: "button", class: "d-btn" }, icon("clover", 16), "Refresh");
   refresh.addEventListener("click", load);
+  // Off until the list has loaded: the dialog is built from what the list holds.
+  const exportButton = h("button", { type: "button", class: "d-btn d-btn-primary", disabled: true }, icon("export", 16), "Export");
+  exportButton.addEventListener("click", () => openExport());
 
   append(outlet,
-    pageHeader({ title: "Job applications", actions: refresh }),
+    pageHeader({ title: "Job applications", actions: [exportable && exportButton, refresh] }),
     h("p", { class: "-mt-3 mb-6 max-w-2xl text-sm text-muted" },
       "Everyone who has applied through the Join Our Team page, newest first. Open an application to read it in full, download the CV and set where it stands."),
-    statusBar, toolbar, listRegion);
+    statusBar, toolbar, selectionBar, listRegion);
   drawToolbar();
   await load();
 }
@@ -205,6 +303,35 @@ const EVENT_TITLES = {
   status_changed: (event) => `Status changed from ${label("status", event.from_status)} to ${label("status", event.to_status)}`,
   note: () => "Note added",
   cv_downloaded: () => "CV downloaded",
+  message_sent: () => "Message sent to the applicant",
+  message_failed: () => "A message to the applicant could not be sent",
+};
+
+// What a message to an applicant can start from. Each is a beginning, in the restaurant's
+// name, for the person writing to finish: nothing is sent that they have not read.
+const firstName = (application) => application.full_name.trim().split(/\s+/)[0];
+const MESSAGE_TEMPLATES = [
+  { kind: "reply", name: "A message of my own", subject: (a, r) => `Your application to ${r}`, body: (a, r) => `Dear ${firstName(a)},\n\n\n\nKind regards,\n${r}` },
+  {
+    kind: "acknowledgment", name: "We have received your application", subject: () => "We have received your application",
+    body: (a, r) => `Dear ${firstName(a)},\n\nThank you for applying for the ${a.position} position at ${r}. We have received your application and will read it carefully.\n\nWe will write to you again if we would like to take it further.\n\nKind regards,\n${r}`,
+  },
+  {
+    kind: "interview", name: "An invitation to an interview", subject: (a) => `Interview for the ${a.position} position`,
+    body: (a, r) => `Dear ${firstName(a)},\n\nThank you for your application for the ${a.position} position. We would like to invite you to an interview.\n\nDate and time: \nPlace: \n\nPlease reply to this email to confirm, or to suggest another time.\n\nKind regards,\n${r}`,
+  },
+  {
+    kind: "more_information", name: "A request for more information", subject: (a) => `Your application for the ${a.position} position`,
+    body: (a, r) => `Dear ${firstName(a)},\n\nThank you for your application for the ${a.position} position. Before we take it further, could you tell us a little more about:\n\n\n\nYou can simply reply to this email.\n\nKind regards,\n${r}`,
+  },
+  {
+    kind: "status_update", name: "An update on the application", subject: (a) => `An update on your application for the ${a.position} position`,
+    body: (a, r) => `Dear ${firstName(a)},\n\nThank you for your interest in the ${a.position} position at ${r}, and for the time you put into your application.\n\n\n\nKind regards,\n${r}`,
+  },
+];
+const MESSAGE_STATUS = {
+  sending: ["Sending", "warn"], sent: ["Sent", "info"], delivered: ["Delivered", "ok"],
+  failed: ["Not sent", "bad"], bounced: ["Not delivered", "bad"], blocked: ["Not delivered", "bad"],
 };
 
 export async function applicationDetailView(outlet, match) {
@@ -263,7 +390,8 @@ export async function applicationDetailView(outlet, match) {
           h("div", { class: "min-w-0" },
             h("p", { class: "truncate font-medium" }, application.cv.name || "CV"),
             h("p", { class: "text-sm text-muted" }, fileSize(application.cv.size)))),
-        download);
+        // Taking the file is a permission of its own; the server checks it on every download.
+        can("applications.cv") ? download : h("p", { class: "text-sm text-muted" }, "Your role does not include downloading CVs."));
     }
 
     // ---- status ----------------------------------------------------------------------------
@@ -273,15 +401,39 @@ export async function applicationDetailView(outlet, match) {
         STATUSES.map((status) => h("option", { value: status, selected: application.status === status }, LABELS.status[status])));
       const note = h("textarea", { class: "d-input", id: "application-note", rows: 3, maxlength: 500, "aria-describedby": "application-note-hint" });
       const save = h("button", { type: "submit", class: "d-btn d-btn-primary w-full", disabled: true }, "Update status");
+
+      // Telling the applicant about the new status. Offered for every status that has an
+      // email (all but New), to someone who may write to applicants, and ticked to begin
+      // with. The email is the server's own text for that status, shown here exactly as it
+      // will be sent; the note above is never part of it.
+      const emailsFor = can("applications.message") ? application.status_emails ?? {} : {};
+      const notify = h("input", { type: "checkbox", id: "application-notify", class: "mt-0.5 size-4 shrink-0", checked: true, "aria-describedby": "application-notify-hint" });
+      const previewSubject = h("p", { class: "font-semibold" });
+      const previewBody = h("p", { class: "mt-2 whitespace-pre-line" });
+      const notifyBlock = h("div", { class: "rounded-md border border-line px-3 py-3", hidden: true, dataset: { notify: "" } },
+        h("label", { class: "flex items-start gap-2.5 text-sm font-medium", for: "application-notify" }, notify,
+          h("span", {}, `Email ${application.full_name} about the new status`)),
+        h("p", { class: "d-hint", id: "application-notify-hint" }, `Sent to ${application.email} in the name of ${state.me.restaurant.name}.`),
+        h("details", { class: "mt-2 text-sm" },
+          h("summary", { class: "cursor-pointer font-medium text-brand" }, "See the email"),
+          h("div", { class: "mt-2 rounded-md bg-canvas px-3 py-2 break-words" }, previewSubject, previewBody)));
+
       const sync = () => {
         const changed = select.value !== application.status;
         save.disabled = !changed && note.value.trim() === "";
         save.textContent = changed || note.value.trim() === "" ? "Update status" : "Add note";
+        const email = changed ? emailsFor[select.value] : null;
+        notifyBlock.hidden = !email;
+        if (email) {
+          previewSubject.textContent = `Subject: ${email.subject}`;
+          previewBody.textContent = email.body;
+        }
       };
       select.addEventListener("change", sync);
       note.addEventListener("input", sync);
       statusBlock = h("form", { class: "space-y-4", novalidate: true },
         h("div", {}, h("label", { class: "d-label", for: "application-status" }, "Status"), select),
+        notifyBlock,
         h("div", {}, h("label", { class: "d-label", for: "application-note" }, "Note", h("span", { class: "font-normal text-muted" }, "(optional)")), note,
           h("p", { class: "d-hint", id: "application-note-hint" }, "Kept in the history below. The applicant never sees it.")),
         save);
@@ -290,8 +442,10 @@ export async function applicationDetailView(outlet, match) {
         save.disabled = true;
         save.textContent = "Saving...";
         try {
-          const result = await api("PATCH", `/applications/${id}`, { status: select.value, note: note.value.trim() || null });
-          toast(result.message);
+          const request = { status: select.value, note: note.value.trim() || null };
+          if (!notifyBlock.hidden && notify.checked) request.notify_applicant = true;
+          const result = await api("PATCH", `/applications/${id}`, request);
+          toast(result.message, result.email?.result === "failed" ? "warn" : "ok");
           announceChange();
           draw(result.application);
         } catch (failure) {
@@ -332,6 +486,114 @@ export async function applicationDetailView(outlet, match) {
         remove);
     }
 
+    // ---- messages to the applicant -------------------------------------------------------------
+    // What has been written to them from here, newest first, each with what became of it.
+    // "Delivered" is shown only when the email provider itself reports it.
+    const messages = application.messages ?? [];
+    const restaurant = state.me.restaurant.name;
+    const writes = can("applications.message");
+    const messageList = h("ul", { class: "divide-y divide-line", dataset: { messages: "" } }, [...messages].reverse().map((message) => {
+      const [text, tone] = MESSAGE_STATUS[message.status] ?? [message.status, ""];
+      const retry = writes && message.status === "failed" && h("button", { type: "button", class: "d-btn d-btn-sm" }, "Try again");
+      if (retry) {
+        retry.addEventListener("click", async () => {
+          retry.disabled = true;
+          try {
+            const result = await api("POST", `/applications/${id}/messages/${message.id}/retry`);
+            toast(result.notice, result.result === "sent" ? "ok" : "bad");
+            await load();
+          } catch (failure) {
+            toastFailure(failure);
+            retry.disabled = false;
+          }
+        });
+      }
+      return h("li", { class: "py-4 first:pt-0 last:pb-0" },
+        h("div", { class: "flex flex-wrap items-start justify-between gap-x-3 gap-y-2" },
+          h("p", { class: "min-w-0 font-semibold break-words" }, message.subject),
+          h("div", { class: "flex items-center gap-2" }, badge(text, tone), retry)),
+        h("p", { class: "mt-0.5 text-[0.82rem] text-muted" },
+          `To ${message.to_email}`, message.sent_by_email ? `, by ${message.sent_by_email}` : "", `, ${formatDateTime(message.created_at, state.locale)}`,
+          message.delivered_at ? `. Delivered ${formatDateTime(message.delivered_at, state.locale)}.` : "."),
+        message.status_detail && h("p", { class: "mt-1 text-[0.82rem] font-medium text-bad" }, message.status_detail),
+        h("details", { class: "mt-2 text-sm" },
+          h("summary", { class: "cursor-pointer font-medium text-brand" }, "Read the message"),
+          h("p", { class: "mt-2 rounded-md bg-canvas px-3 py-2 break-words whitespace-pre-line" }, message.body)));
+    }));
+
+    let composer = null;
+    if (writes) {
+      const template = h("select", { class: "d-input", id: "message-template" },
+        MESSAGE_TEMPLATES.map((entry) => h("option", { value: entry.kind }, entry.name)));
+      const subject = h("input", { class: "d-input", id: "message-subject", type: "text", maxlength: 150, required: true });
+      const body = h("textarea", { class: "d-input", id: "message-body", rows: 9, maxlength: 5000, required: true, "aria-describedby": "message-hint" });
+      const send = h("button", { type: "submit", class: "d-btn d-btn-primary" }, icon("mail", 16), "Send message");
+      const problem = h("div", { class: "d-alert d-alert-bad", role: "alert", hidden: true });
+      // The beginning in use and what it put in the boxes, to tell typing from it apart.
+      let chosen = template.value;
+      let filled = { subject: "", body: "" };
+      // One key per message: pressing Send twice, or trying again after a lost answer,
+      // sends one email. A new key is made only once a message has gone.
+      let key = newIdempotencyKey();
+      const fill = () => {
+        const entry = MESSAGE_TEMPLATES.find((candidate) => candidate.kind === template.value);
+        chosen = entry.kind;
+        filled = { subject: entry.subject(application, restaurant), body: entry.body(application, restaurant) };
+        subject.value = filled.subject;
+        body.value = filled.body;
+      };
+      template.addEventListener("change", async () => {
+        const typed = subject.value !== filled.subject || body.value !== filled.body;
+        if (typed && !(await confirmDialog({ title: "Replace what you have written?", body: "Choosing another beginning replaces the subject and the message in the boxes.", confirmLabel: "Replace" }))) {
+          template.value = chosen;
+          return;
+        }
+        fill();
+      });
+      fill();
+      composer = h("form", { class: "space-y-4", novalidate: true },
+        h("div", {}, h("label", { class: "d-label", for: "message-template" }, "Start from"), template),
+        h("div", {}, h("label", { class: "d-label", for: "message-subject" }, "Subject"), subject),
+        h("div", {}, h("label", { class: "d-label", for: "message-body" }, "Message"), body,
+          h("p", { class: "d-hint", id: "message-hint" },
+            `Sent to ${application.email} in the name of ${restaurant}. Their answer comes to the restaurant's recruitment inbox.`)),
+        problem,
+        h("div", {}, send));
+      composer.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        problem.hidden = true;
+        if (subject.value.trim() === "" || body.value.trim() === "") {
+          problem.textContent = "Write a subject and a message first.";
+          problem.hidden = false;
+          return (subject.value.trim() === "" ? subject : body).focus();
+        }
+        const confirmed = await confirmDialog({
+          title: `Send this message to ${application.full_name}?`,
+          body: [`It will be emailed to ${application.email} from ${restaurant}, and kept on this application.`, `Subject: ${subject.value.trim()}`],
+          confirmLabel: "Send message",
+        });
+        if (!confirmed) return;
+        send.disabled = true;
+        try {
+          const result = await api("POST", `/applications/${id}/messages`, { kind: chosen, subject: subject.value.trim(), body: body.value.trim() }, { "idempotency-key": key });
+          key = newIdempotencyKey();
+          toast(result.notice, result.result === "sent" ? "ok" : "bad");
+          await load();
+        } catch (failure) {
+          problem.textContent = failure.details?.fields ? Object.entries(failure.details.fields).map(([name, text]) => `The ${name} ${text}.`).join(" ") : explain(failure);
+          problem.hidden = false;
+          send.disabled = false;
+        }
+      });
+    }
+    const messagesSection = (writes || messages.length > 0) && h("section", { class: "d-card p-5 sm:p-6", "aria-labelledby": "messages-title" },
+      h("h2", { id: "messages-title", class: "d-title mb-4" }, "Messages to the applicant"),
+      composer,
+      messages.length > 0
+        ? h("div", { class: composer ? "mt-6 border-t border-line pt-5" : "" },
+            h("h3", { class: "d-section-title mb-3" }, messages.length === 1 ? "1 message sent from here" : `${messages.length} messages sent from here`), messageList)
+        : !composer && h("p", { class: "text-sm text-muted" }, "Nothing has been written to this applicant from the dashboard."));
+
     // ---- history, newest first ---------------------------------------------------------------
     const history = h("ol", { class: "d-timeline" }, [...application.events].reverse().map((event) =>
       h("li", {},
@@ -368,7 +630,8 @@ export async function applicationDetailView(outlet, match) {
               fact("Authorized to work in the US", application.work_authorized === null ? "Not answered" : application.work_authorized ? "Yes" : "No"))),
           section("Relevant experience", prose(application.experience, "The applicant did not describe their experience.")),
           section("Introduction", prose(application.message, "The applicant did not write an introduction.")),
-          section("Resume / CV", cvBlock)),
+          section("Resume / CV", cvBlock),
+          messagesSection),
 
         h("aside", { class: "space-y-5 lg:sticky lg:top-24" },
           section("Contact",

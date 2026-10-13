@@ -626,7 +626,9 @@ describe("job application form (applications switched on)", () => {
     const { page, context } = await open((route) => route.fulfill({ status: 200, json: { ok: true } }));
     const groups = await page.locator("#position optgroup").evaluateAll((nodes) => nodes.map((node) => [node.label, node.children.length]));
     expect(groups.map(([label]) => label)).toEqual(["Management", "Kitchen", "Cafe", "Front of House", "Support"]);
-    expect(groups.reduce((total, [, count]) => total + count, 0)).toBe(18);
+    // Seventeen since 2026-10-13: Cashier is not a job at this restaurant, so it is not offered.
+    expect(groups.reduce((total, [, count]) => total + count, 0)).toBe(17);
+    expect(await page.locator('#position option[value="Cashier"]').count()).toBe(0);
     expect(await page.locator('#position > option[value="Other"]').count()).toBe(1);
     await page.selectOption("#position", "Pastry Chef / Baker");
     expect(await page.locator("#position").inputValue()).toBe("Pastry Chef / Baker");

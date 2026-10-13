@@ -11,16 +11,39 @@ const LABELS = {
   MODIFIER_CREATED: "Modifier created", MODIFIER_UPDATED: "Modifier updated",
   SYNC_STARTED: "Sync started", SYNC_COMPLETED: "Sync completed", SYNC_FAILED: "Sync failed",
   APPLICATION_STATUS_CHANGED: "Job application status changed", APPLICATION_CV_DOWNLOADED: "Job application CV downloaded",
-  APPLICATION_DELETED: "Job application deleted",
+  APPLICATION_DELETED: "Job application deleted", APPLICATION_MESSAGE_SENT: "Message written to an applicant",
+  MONTHLY_REPORT_SENT: "Monthly report emailed", MONTHLY_REPORT_FAILED: "Monthly report could not be emailed",
   SITE_PHOTO_SET: "Website photo changed", SITE_PHOTO_REMOVED: "Website photo removed",
   CATEGORY_IMAGE_UPDATED: "Category photo changed", CATEGORY_IMAGE_REMOVED: "Category photo removed",
   LABEL_CREATED: "Menu label added", LABEL_UPDATED: "Menu label changed", LABEL_DELETED: "Menu label deleted",
   ALLERGY_NOTICE_UPDATED: "Allergy notice changed",
   CLOVER_CONNECTED: "Clover connected", CLOVER_DISCONNECTED: "Clover disconnected", CLOVER_CONNECT_FAILED: "Clover connection failed",
+  APPLICATIONS_EXPORTED: "Job applications exported",
+  MEMBER_INVITED: "Team member invited", INVITATION_RESENT: "Invitation sent again", INVITATION_CANCELLED: "Invitation cancelled",
+  INVITATION_ACCEPTED: "Invitation accepted", MEMBER_ROLE_CHANGED: "Team member's role changed", MEMBER_REMOVED: "Team member's access removed",
 };
 
 // Where on the website a photo is, as the Photos page names it.
 const PHOTO_SLOTS = { hero: "Home page photo", story: "Our story photo", gallery: "Gallery photo" };
+
+// What an entry about the team or an export says beside its action. An export says how
+// many applications and in which format, never whose. An entry about the team names the
+// person only to an owner: for anyone else the server has already taken the name out.
+function recordNote(entry) {
+  // A monthly report is recorded under the first day of the month it covers.
+  if (entry.entity_type === "monthly_report") {
+    const month = new Date(`${entry.entity_id}T00:00:00Z`);
+    return Number.isNaN(month.getTime()) ? "" : new Intl.DateTimeFormat(state.locale, { month: "long", year: "numeric", timeZone: "UTC" }).format(month);
+  }
+  if (entry.entity_type === "application_export") {
+    const number = entry.new_values?.count;
+    const format = String(entry.new_values?.format ?? "").toUpperCase();
+    return typeof number === "number" ? `${number} ${number === 1 ? "application" : "applications"}${format ? `, ${format}` : ""}` : "";
+  }
+  const who = entry.new_values?.email ?? entry.old_values?.email ?? "";
+  const role = entry.new_values?.role;
+  return who && role && entry.action !== "INVITATION_CANCELLED" ? `${who} (${role})` : who;
+}
 
 export function actionLabel(action) {
   if (LABELS[action]) return LABELS[action];
@@ -63,7 +86,9 @@ export async function activityView(outlet) {
                 ? h("a", { href: `#/applications/${entry.entity_id}`, class: "hover:underline" }, "Open application")
                 : entry.entity_type === "site_photo"
                   ? h("a", { href: "#/photos", class: "hover:underline" }, PHOTO_SLOTS[entry.entity_id] ?? "Website photos")
-                  : entry.entity_id ?? ""),
+                  : ["application_export", "team_member", "team_invitation", "monthly_report"].includes(entry.entity_type)
+                    ? recordNote(entry)
+                    : entry.entity_id ?? ""),
             h("td", {}, resultBadge(entry.result)),
             h("td", { class: "text-muted" }, entry.sync_status ?? "")))))),
       hasMore && h("div", { class: "mt-4 text-center" }, more));
