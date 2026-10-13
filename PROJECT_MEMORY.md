@@ -1855,3 +1855,16 @@ empty). B-8 (Auth's own SMTP sender) still stands.
 **The website** (new dashboard screens, Cashier removed) is committed and pushed; it goes
 live when the client runs `deploy.sh` on the VPS. The old dashboard works unchanged against
 the new backend until then.
+
+**Update, later that evening: email works.** The client fixed Brevo and sent a new API key
+("for all"). Account "event waw", free plan (300 emails a day, shared with two other
+businesses); `luzenarestaurant.com` authenticated (DKIM, DMARC). `BREVO_API_KEY` and
+`EMAIL_FROM = Luzena Restaurant & Cafe <info@luzenarestaurant.com>` set on TEST, then, after
+a real-email run passed there (15 of 15: notification, message, status email, invitation,
+monthly report, each **delivered** by Brevo's own events), on PRODUCTION. TEST's restaurant
+now points at `luznarestocafe+test-recruitment@gmail.com` and `+test-report@`, so TEST never
+emails the owner. PRODUCTION's addresses are unchanged (recruitment = the owner's,
+`report_email` empty): **its first monthly report, for September 2026, goes at 13:15 UTC on
+2026-10-14 to the owner's address.** B-7 and B-10 closed. Still open: what
+`luznarestocafe@gmail.com` is for; B-8 (Auth's own password emails need a custom SMTP sender,
+which needs Brevo's SMTP key, not the API key); the workbook in Excel; `deploy.sh`.

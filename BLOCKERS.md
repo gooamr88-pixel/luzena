@@ -244,7 +244,7 @@ would win. What follows is the entry as it stood.
   refusals were exercised locally; its build and switch steps, and the Nginx file, were
   not. Expect to fix small things on first contact, as with the functions on TEST.
 
-### B-7. An email provider — NEEDED for every email the backend sends · INFRASTRUCTURE
+### B-7. An email provider — RESOLVED 2026-10-13: Brevo, on TEST and PRODUCTION
 
 - **Since 2026-10-13 the provider is Brevo** (the client's choice; Resend is still
   understood). What it needs is B-10 below. Every email goes through it: the notification
@@ -291,7 +291,18 @@ would win. What follows is the entry as it stood.
   (no spreadsheet program here; `DEPLOYMENT_CHECKLIST.md` section 11a), and everything that
   needs a working email provider (B-10).
 
-### B-10. The Brevo API key is refused — BLOCKING every email · CLIENT INPUT
+### B-10. The Brevo API key — RESOLVED 2026-10-13 (evening)
+
+- **Resolved:** the client supplied a new key the same evening. It works; the domain
+  `luzenarestaurant.com` is authenticated in Brevo (DKIM, DMARC). `BREVO_API_KEY` and
+  `EMAIL_FROM` (`Luzena Restaurant & Cafe <info@luzenarestaurant.com>`) are set on TEST and
+  PRODUCTION. On TEST, every kind of email was sent to tagged test addresses and Brevo
+  reported each one **delivered** (`TESTING.md`). Brevo's free plan: 300 emails a day,
+  shared with the account's two other businesses.
+- **What remains of it:** the question of what `luznarestocafe@gmail.com` is for (it
+  received the test emails; it is in no production setting).
+
+What was found first, kept for the record:
 
 - **Found 2026-10-13.** The API key supplied (`xkeysib-...`) is answered by Brevo with
   401 "Key not found", on every endpoint, asked twice hours apart. It looks shortened when

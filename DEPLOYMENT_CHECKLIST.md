@@ -596,8 +596,15 @@ the schedule (`supabase/schedule-daily-tasks.sql`, run by hand), and the website
       minute for two minutes): pg_cron `succeeded`, the function answered 200 both times;
       put back to daily, 13:15 UTC.
 - [x] The end-to-end run: 65 of 65 (`TESTING.md`).
-- [ ] **Blocked (`BLOCKERS.md` B-10):** `BREVO_API_KEY` and `EMAIL_FROM`. Then the email
-      checks below.
+- [x] `BREVO_API_KEY` and `EMAIL_FROM` set (the evening of 2026-10-13, after the client fixed
+      the key). TEST's restaurant first pointed at tagged test addresses
+      (`luznarestocafe+test-recruitment@gmail.com`, `+test-report@`), so that nothing from
+      TEST reaches the owner.
+- [x] Real email on TEST (`scratchpad/e2e-email.mjs`, not in Git): a notification, a
+      message to the applicant, a status email, an invitation and the monthly report, each
+      to a tagged address of `luznarestocafe@gmail.com`, each reported **delivered** by Brevo's
+      own events; the dashboard then showed both messages as Delivered; the scheduled job
+      called twice sent the report once. 15 of 15.
 
 **On PRODUCTION, 2026-10-13 (done, after TEST had passed whole):**
 
@@ -612,8 +619,14 @@ the schedule (`supabase/schedule-daily-tasks.sql`, run by hand), and the website
 - [ ] **The website**: the commit is pushed; `deploy.sh` on the VPS is the client's step
       (section 7). Until it runs, the live dashboard is the previous one, which works
       unchanged against the new backend.
-- [ ] Blocked (B-10): `BREVO_API_KEY` and `EMAIL_FROM`.
-- [ ] Not run on PRODUCTION, on purpose: the end-to-end run (it makes data).
+- [x] `BREVO_API_KEY` and `EMAIL_FROM` set, after the real-email run on TEST had passed;
+      `verify:functions` run again: all pass. From now on PRODUCTION sends: a new
+      application's notification to the recruitment address, messages and status emails,
+      invitations, and the monthly report. **The first report (September 2026) goes at the
+      next daily run, 13:15 UTC on 2026-10-14, to the recruitment address** (`report_email` is
+      empty). Check it afterwards in `monthly_reports` and in Brevo's logs.
+- [ ] Not run on PRODUCTION, on purpose: the end-to-end runs (they make data and would
+      email the owner).
 
 **Once Brevo works (B-10), on TEST first, then PRODUCTION:**
 

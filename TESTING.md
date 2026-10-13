@@ -110,11 +110,20 @@ owner untouched), the six functions deployed, `verify:functions` 20 passed and 2
 the schedule created and one scheduled run seen to succeed (200). No end-to-end run there:
 it would make data in the live project.
 
-**What these runs could not prove:** any email actually arriving. There is no working
-email provider on either project (`BLOCKERS.md` B-10: the Brevo key supplied is refused).
-Every path that sends email was exercised live up to the provider and seen to report,
-truthfully, "not sent"; the provider's side is covered by the unit tests with a stand-in.
-Opening the workbook in Excel also remains to be done by a person.
+**Real email, later the same evening**, once the client had fixed the Brevo key
+(`scratchpad/e2e-email.mjs`, TEST only, **15 of 15**). A restaurant made for the run,
+with its addresses tagged copies of `luznarestocafe@gmail.com`: an application through the
+real form (its notification), a message written to the applicant, a status change with
+the email ticked, an invitation, and the monthly report through the scheduled function as
+the scheduler calls it. Brevo's own event log then reported **delivered** for all five
+(the notification, both applicant emails, the invitation, the report), with no bounce or
+block; the dashboard, asking Brevo itself, showed both applicant emails as Delivered. The
+scheduled function called a second time sent nothing. Everything the run made was deleted.
+On PRODUCTION the same key and sender were then set and `verify:functions` passed; no email
+was sent there by a test.
+
+**Still to be done by a person:** opening the workbook in Excel, and looking at the test
+emails in the `luznarestocafe@gmail.com` inbox to judge how they read.
 
 ## The run before: 2026-10-13, team access and the export of job applications
 

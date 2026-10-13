@@ -221,9 +221,15 @@ naming the project every time.
 | `TOKEN_ENCRYPTION_KEY` | n/a | freshly generated | freshly generated, **different from test** |
 | `MENU_SYNC_TTL_SECONDS` | n/a | `300` | `300` |
 | `IP_HASH_SALT` | n/a | random | random, different from test |
-| `BREVO_API_KEY` | n/a | Brevo API key (`xkeysib-...`). **Not set yet: the key supplied is refused (`BLOCKERS.md` B-10)** | the same account's key |
+| `BREVO_API_KEY` | n/a | Brevo API key (`xkeysib-...`) of the "event waw" Brevo account, set 2026-10-13 | the same key |
 | `RESEND_API_KEY` | n/a | only if Brevo is not used | only if Brevo is not used |
-| `EMAIL_FROM` | n/a | a sender verified in Brevo | `Luzena Restaurant & Cafe <an address verified in Brevo>`: the name applicants see |
+| `EMAIL_FROM` | n/a | `Luzena Restaurant & Cafe <info@luzenarestaurant.com>` | the same. `luzenarestaurant.com` is authenticated in Brevo (DKIM, DMARC), so any address on it may send |
+
+**Brevo's limits:** the account is on Brevo's free plan, **300 emails a day for the whole
+account**, which it shares with two other businesses' senders. A busy day of applications,
+messages and invitations stays far below that; a mass mailing from the same account would
+eat into it. Brevo refuses mail over the limit, and the dashboard then shows it as "Not
+sent" with a "Try again".
 | `CRON_SECRET` | n/a | 48 random characters, set 2026-10-13, also in that project's Vault | its own, different from test |
 | `JOB_APPLICATIONS_ENABLED` | n/a | `true` | `true` since 2026-10-06 |
 | `JOB_APPLICATION_RETENTION_DAYS` | n/a | `90` | `90`: the client's decision (2026-10-06), and the number the privacy policy states |
