@@ -1317,6 +1317,8 @@ describe("team and access", () => {
     expect(owner).toContain("Owner");
     // An owner's own row offers nothing to press: nobody changes or removes their own access.
     expect(await member(page, "owner@example.com").locator("button").count()).toBe(0);
+    expect(owner).toContain("Your own access is changed by another owner, never by you");
+    expect(await page.locator("#members-title + p").innerText()).toBe("3 people: 1 owner, 1 manager, 1 staff");
     const sam = await member(page, "sam.rivera@example.test").innerText();
     expect(sam).toContain("Manager");
     expect(sam).toContain("invited by owner@example.com");
@@ -1355,8 +1357,9 @@ describe("team and access", () => {
     const text = await dialog(page).innerText();
     expect(text).toContain("They choose their own password: none is sent, and you never see it.");
     expect(text).toContain("The invitation stays open for 7 days.");
-    // Only the roles an owner may give are offered. "Owner" is not one of them.
-    expect(await dialog(page).locator("#dialog-role option").allInnerTexts()).toEqual(["Manager", "Staff"]);
+    // The roles an owner may give: all three. Manager is chosen to begin with, never Owner.
+    expect(await dialog(page).locator("#dialog-role option").allInnerTexts()).toEqual(["Owner", "Manager", "Staff"]);
+    expect(await page.locator("#dialog-role").inputValue()).toBe("manager");
 
     // An address that is not one never leaves the page.
     await page.fill("#dialog-email", "not an address");
@@ -1465,7 +1468,7 @@ describe("team and access", () => {
     await dialog(page).getByRole("button", { name: "Remove access" }).click();
     await page.waitForFunction(() => document.querySelectorAll("li[data-member]").length === 2);
     expect((await waitForToast(page, "no longer has access")).text).toBe("lee.park@example.test no longer has access to the dashboard.");
-    expect(await page.locator("#members-title + p").innerText()).toBe("2 people");
+    expect(await page.locator("#members-title + p").innerText()).toBe("2 people: 1 owner, 1 manager");
     expect(await page.locator("main#main").innerText()).not.toContain("lee.park@example.test");
 
     // It is in the activity log.
@@ -1473,6 +1476,98 @@ describe("team and access", () => {
     await page.waitForSelector("table.d-table tbody tr");
     expect(await page.locator("table.d-table tbody").innerText()).toContain("Team member's access removed");
     await context.close();
+  });
+
+  it("makes someone an owner only after saying what an owner can do, and can make them a manager again", async () => {
+    const { page, context, problems } = await openTeam();
+    await member(page, "sam.rivera@example.test").getByRole("button", { name: /Change role/ }).click();
+    expect(await dialog(page).locator("#dialog-role option").allInnerTexts()).toEqual(["Owner", "Manager", "Staff"]);
+    expect(await dialog(page).innerText()).toContain("Owner: Everything, including the Clover connection and who else has access");
+    await page.selectOption("#dialog-role", "owner");
+    await dialog(page).getByRole("button", { name: "Save role" }).click();
+
+    // A second question, over the first: what an owner can do, yours included.
+    await page.waitForFunction(() => document.querySelectorAll("dialog.d-dialog[open]").length === 2);
+    const asked = await dialog(page).last().innerText();
+    expect(asked).toContain("Make sam.rivera@example.test an owner?");
+    expect(asked).toContain("change anyone's role or remove anyone's access, yours included");
+    // Not now: the role form stays, with the choice still made, and nothing changed.
+    await dialog(page).last().getByRole("button", { name: "Cancel" }).click();
+    await page.waitForFunction(() => document.querySelectorAll("dialog.d-dialog[open]").length === 1);
+    expect(await page.locator("#dialog-role").inputValue()).toBe("owner");
+    expect(await member(page, "sam.rivera@example.test").locator(".d-badge").last().innerText()).toBe("Manager");
+
+    await dialog(page).getByRole("button", { name: "Save role" }).click();
+    await page.waitForFunction(() => document.querySelectorAll("dialog.d-dialog[open]").length === 2);
+    await dialog(page).last().getByRole("button", { name: "Make owner" }).click();
+    await page.waitForFunction(() => !document.querySelector("dialog.d-dialog[open]"));
+    expect((await waitForToast(page, "is now")).text).toBe("sam.rivera@example.test is now Owner.");
+    expect(await member(page, "sam.rivera@example.test").locator(".d-badge").last().innerText()).toBe("Owner");
+    expect(await page.locator("#members-title + p").innerText()).toBe("3 people: 2 owners, 1 staff");
+    // Another owner can still be changed and removed by an owner; only your own row is closed.
+    expect(await member(page, "sam.rivera@example.test").getByRole("button").count()).toBe(2);
+
+    // Back to manager: no second question for taking the owner role away.
+    await member(page, "sam.rivera@example.test").getByRole("button", { name: /Change role/ }).click();
+    await page.selectOption("#dialog-role", "manager");
+    await dialog(page).getByRole("button", { name: "Save role" }).click();
+    await page.waitForFunction(() => !document.querySelector("dialog.d-dialog[open]"));
+    expect(await member(page, "sam.rivera@example.test").locator(".d-badge").last().innerText()).toBe("Manager");
+    expect(problems).toEqual([]);
+    await context.close();
+  });
+
+  it("invites someone as an owner after the same question", async () => {
+    const { page, context } = await openTeam();
+    await page.getByRole("button", { name: "Invite someone" }).click();
+    await page.fill("#dialog-email", "co.owner@example.test");
+    await page.selectOption("#dialog-role", "owner");
+    await dialog(page).getByRole("button", { name: "Send invitation" }).click();
+    await page.waitForFunction(() => document.querySelectorAll("dialog.d-dialog[open]").length === 2);
+    expect(await dialog(page).last().innerText()).toContain("Invite co.owner@example.test as an owner?");
+    await dialog(page).last().getByRole("button", { name: "Invite as owner" }).click();
+    await page.waitForFunction(() => document.querySelectorAll("li[data-invitation]").length === 3);
+    expect(await invitation(page, "co.owner@example.test").innerText()).toContain("Invited as Owner by owner@example.com");
+    await context.close();
+  });
+});
+
+// Every signed-in person can see their own role and what it allows, as the server reports it.
+describe("your role", () => {
+  it("is shown beside your address, and the page it leads to lists what you can and cannot do", async () => {
+    const { page, context, problems } = await dashboard();
+    const link = page.locator("header a[data-role]");
+    expect(await link.innerText()).toBe("Owner");
+    expect(await link.getAttribute("aria-label")).toBe("Your role: Owner. See what it allows.");
+    await link.click();
+    await page.waitForSelector("#your-role");
+    const section = await page.locator("#your-role").innerText();
+    expect(section).toContain("You are signed in as an owner of Luzena Restaurant & Cafe.");
+    expect(section).toContain("Owners decide who else has access, and as what, on the Team page.");
+    expect(await page.locator("#your-role").getByText("You cannot").count()).toBe(0);
+    const violations = await accessibilityViolations(page);
+    expect(violations, describeViolations(violations)).toEqual([]);
+    expect(problems).toEqual([]);
+    await context.close();
+  });
+
+  it("tells a manager and staff what their role allows and what it does not, and whom to ask", async () => {
+    const asManager = await dashboard("?demo=manager#/security");
+    await asManager.page.waitForSelector("#your-role");
+    expect(await asManager.page.locator("header a[data-role]").innerText()).toBe("Manager");
+    const manager = await asManager.page.locator("#your-role").innerText();
+    expect(manager).toContain("You are signed in as a manager of Luzena Restaurant & Cafe.");
+    expect(manager).toMatch(/YOU CAN[\s\S]*Read job applications[\s\S]*YOU CANNOT[\s\S]*Export applications to a file/i);
+    expect(manager).toContain("If you need to do more, ask an owner of the restaurant.");
+    await asManager.context.close();
+
+    const asStaff = await dashboard("?demo=staff#/security");
+    await asStaff.page.waitForSelector("#your-role");
+    expect(await asStaff.page.locator("header a[data-role]").innerText()).toBe("Staff");
+    const staff = await asStaff.page.locator("#your-role").innerText();
+    expect(staff).toContain("You are signed in as a member of staff");
+    expect(staff).toMatch(/YOU CAN[\s\S]*See the menu in the dashboard[\s\S]*YOU CANNOT[\s\S]*Read job applications/i);
+    await asStaff.context.close();
   });
 });
 

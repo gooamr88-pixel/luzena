@@ -155,7 +155,8 @@ export function confirmDialog({ title, body, confirmLabel = "Confirm", cancelLab
 }
 
 // A small form in a dialog. onSubmit returns nothing on success, or throws an ApiFailure,
-// which is shown inside the dialog so the owner's input is not lost.
+// which is shown inside the dialog so the owner's input is not lost. Returning false keeps
+// the dialog open with nothing shown: for a step the person chose not to take after all.
 export function formDialog({ title, intro, fields, submitLabel = "Save", onSubmit }) {
   const errorBox = h("div", { class: "d-alert d-alert-bad", role: "alert", hidden: true });
   const submit = h("button", { type: "submit", class: "d-btn d-btn-primary" }, submitLabel);
@@ -190,8 +191,7 @@ export function formDialog({ title, intro, fields, submitLabel = "Save", onSubmi
     const label = submit.textContent;
     submit.textContent = "Saving...";
     try {
-      await onSubmit(Object.fromEntries(new FormData(form)));
-      dialog.close();
+      if ((await onSubmit(Object.fromEntries(new FormData(form)))) !== false) dialog.close();
     } catch (failure) {
       errorBox.textContent = failure.details?.fields ? Object.values(failure.details.fields).join(" ") : explain(failure);
       errorBox.hidden = false;

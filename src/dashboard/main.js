@@ -2,7 +2,8 @@
 import { createClient } from "@supabase/supabase-js";
 import { api, ApiFailure, explain } from "./api.js";
 import { state } from "./state.js";
-import { append, clear, h, icon, loadingBlock, stateBlock, toast } from "./ui.js";
+import { ROLE_TONE, roleName } from "./roles.js";
+import { append, badge, clear, h, icon, loadingBlock, stateBlock, toast } from "./ui.js";
 import { activityView } from "./views/activity.js";
 import { applicationDetailView, applicationsView } from "./views/applications.js";
 import { categoriesView } from "./views/categories.js";
@@ -156,11 +157,14 @@ function renderShell() {
       h("div", { class: "flex min-w-0 flex-1 flex-col" },
         h("header", { class: "d-topbar" },
           h("button", { type: "button", class: "d-icon-btn -ml-2 lg:hidden", "aria-label": "Open navigation", onClick: () => drawer.showModal() }, icon("menu")),
-          h("p", { class: "truncate font-display text-[1.2rem] lg:hidden" }, state.me.restaurant.name),
-          h("div", { class: "ml-auto flex items-center gap-3" },
+          h("p", { class: "min-w-0 truncate font-display text-[1.2rem] lg:hidden" }, state.me.restaurant.name),
+          h("div", { class: "ml-auto flex shrink-0 items-center gap-3" },
             // The account that is signed in: its initial in a ring, then the address.
             email && h("span", { class: "hidden size-8 shrink-0 items-center justify-center rounded-full border border-brand/35 text-[0.8rem] font-semibold text-brand uppercase sm:flex", "aria-hidden": "true" }, email[0]),
             h("span", { class: "hidden max-w-56 truncate text-sm text-muted sm:block", title: email }, email),
+            // The account's role here, as the server reported it, linking to what it allows.
+            h("a", { href: "#/security", class: "d-role-link", dataset: { role: state.me.role }, title: "Your role in this dashboard, and what it allows",
+              "aria-label": `Your role: ${roleName(state.me.role)}. See what it allows.` }, badge(roleName(state.me.role), ROLE_TONE[state.me.role])),
             h("button", { type: "button", class: "d-btn d-btn-sm", onClick: signOut }, "Sign out"))),
         state.demo && h("p", { class: "border-b border-warn/30 bg-warn-bg px-4 py-2 text-center text-sm font-medium text-warn sm:px-6" },
           "Demo mode. Sample data only: not connected to Clover or a database, and nothing is saved."),
@@ -266,6 +270,7 @@ async function accessChanged() {
   checkingAccess = true;
   try {
     const before = JSON.stringify([state.me.role, state.me.permissions]);
+    const roleBefore = state.me.role;
     let now = null;
     try {
       const me = await api("GET", "/me");
@@ -279,7 +284,11 @@ async function accessChanged() {
     state.me = null;
     state.leaveGuard = null;
     await startSession();
-    if (state.me) toast("Your access to this dashboard has changed. It now shows what you can do.", "warn");
+    if (state.me) {
+      toast(state.me.role !== roleBefore
+        ? `An owner has changed your role: you are now ${roleName(state.me.role)}. The dashboard now shows what you can do.`
+        : "Your access to this dashboard has changed. It now shows what you can do.", "warn");
+    }
   } finally {
     checkingAccess = false;
   }

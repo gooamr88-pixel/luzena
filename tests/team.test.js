@@ -213,22 +213,25 @@ describe("inviting someone", () => {
     expect(h.sent[0].text).toContain(`${ORIGIN}/dashboard/#/welcome?email=`);
   });
 
-  it("only accepts the roles an owner may give: never an owner, never a role that does not exist", async () => {
+  it("offers the three roles an owner may give, an owner among them, and nothing that does not exist", async () => {
     const before = await count("public.team_invitations");
-    const ownerAttempt = await invite("boss@example.test", "owner");
-    expect(ownerAttempt.status).toBe(403);
-    expect(ownerAttempt.body.error).toMatchObject({ code: "role_not_allowed", message: "An owner cannot be added from the dashboard." });
     for (const role of ["admin", "platform_admin", "superuser", "OWNER", "", null, 1, ["manager"]]) {
       expect((await invite("role@example.test", role)).status, JSON.stringify(role)).toBe(422);
     }
-    // And the database would not hold it even if the backend asked.
+    // The database holds the three roles and nothing else, whoever asks.
     await expect(h.pg.query(
-      "insert into public.team_invitations (restaurant_id, email, role, expires_at) values ($1, 'direct@example.test', 'owner', now() + interval '1 day')", [alpha]))
+      "insert into public.team_invitations (restaurant_id, email, role, expires_at) values ($1, 'direct@example.test', 'admin', now() + interval '1 day')", [alpha]))
       .rejects.toThrow(/check constraint/);
     expect(await h.db.rpc("team_invitation_create", {
-      p_restaurant: alpha, p_email: "direct@example.test", p_role: "owner", p_actor_email: null, p_ttl_seconds: 60, p_max_open: 25, p_dry_run: false,
+      p_restaurant: alpha, p_email: "direct@example.test", p_role: "platform_admin", p_actor_email: null, p_ttl_seconds: 60, p_max_open: 25, p_dry_run: false,
     })).toEqual({ refused: "role" });
     expect(await count("public.team_invitations")).toBe(before);
+
+    const asOwner = await invite("partner@example.test", "owner");
+    expect(asOwner.status).toBe(200);
+    expect(await invitationFor("partner@example.test")).toMatchObject({ role: "owner", status: "pending", invited_by_email: owner.email });
+    expect(h.sent.at(-1).text).toContain("to the Alpha Kitchen dashboard as Owner.");
+    expect(h.sent.at(-1).text).toContain("You will be able to do everything in the dashboard");
   });
 
   it("refuses anything in the request that is not an address and a role", async () => {
@@ -577,10 +580,25 @@ describe("changing a role", () => {
     expect((await h.api(dana, "GET", "/applications")).status).toBe(200);
   });
 
-  it("can never make an owner, change an owner, or change one's own role", async () => {
-    const promote = await h.api(owner, "PATCH", `/team/members/${dana.id}`, { role: "owner" });
-    expect(promote.status).toBe(403);
-    expect(promote.body.error.code).toBe("role_not_allowed");
+  it("makes a member an owner, with everything an owner may do, at their very next request", async () => {
+    const promoted = await h.api(owner, "PATCH", `/team/members/${dana.id}`, { role: "owner" });
+    expect(promoted.status).toBe(200);
+    expect(promoted.body.message).toBe("dana.lee@example.test is now Owner.");
+    const me = (await h.api(dana, "GET", "/me")).body;
+    expect(me.role).toBe("owner");
+    expect([...me.permissions].sort()).toEqual([...ROLE_PERMISSIONS.owner].sort());
+    expect((await h.api(dana, "GET", "/team")).status).toBe(200);
+    expect((await h.api(dana, "POST", "/applications/export/preview", { scope: "all" })).status).toBe(200);
+    const { rows } = await h.pg.query("select new_values from public.audit_logs where action = 'MEMBER_ROLE_CHANGED' and entity_id = $1 order by id desc limit 1", [dana.id]);
+    expect(rows[0].new_values).toEqual({ role: "owner" });
+
+    // An owner may change or remove another owner, as long as one remains: here, two do.
+    expect((await h.api(owner, "PATCH", `/team/members/${dana.id}`, { role: "manager" })).status).toBe(200);
+    expect((await h.api(dana, "GET", "/team")).status).toBe(403);
+    expect(await memberships(dana.id)).toEqual([{ restaurant_id: alpha, role: "manager" }]);
+  });
+
+  it("never changes anyone's own role, nor a role that does not exist", async () => {
     for (const role of ["admin", "platform_admin", "", null, 3]) {
       expect((await h.api(owner, "PATCH", `/team/members/${dana.id}`, { role })).status, JSON.stringify(role)).toBe(422);
     }
@@ -589,21 +607,41 @@ describe("changing a role", () => {
 
     const self = await h.api(owner, "PATCH", `/team/members/${owner.id}`, { role: "staff" });
     expect(self.status).toBe(403);
-    expect(self.body.error.code).toBe("self_change");
+    expect(self.body.error).toMatchObject({ code: "self_change", message: "You cannot change or remove your own access. Ask another owner." });
+    expect(await memberships(owner.id)).toEqual([{ restaurant_id: alpha, role: "owner" }]);
+  });
 
-    // A second owner, as the operator would add one. Neither owner can touch the other.
-    const partner = await h.addUser(alpha, "owner");
-    const other = await h.api(owner, "PATCH", `/team/members/${partner.id}`, { role: "staff" });
-    expect(other.status).toBe(403);
-    expect(other.body.error).toMatchObject({ code: "owner_protected", message: "An owner's access cannot be changed from the dashboard." });
-    expect((await h.api(owner, "DELETE", `/team/members/${partner.id}`)).body.error.code).toBe("owner_protected");
+  it("always leaves the restaurant an owner, also when two owners act on each other at once", async () => {
+    const partner = await join("partner.two@example.test", "owner");
     expect(await memberships(partner.id)).toEqual([{ restaurant_id: alpha, role: "owner" }]);
-    // The database functions refuse the same, whoever calls them.
-    expect(await h.db.rpc("team_member_set_role", { p_restaurant: alpha, p_user: partner.id, p_role: "staff", p_actor: NOBODY })).toEqual({ refused: "owner" });
-    expect(await h.db.rpc("team_member_set_role", { p_restaurant: alpha, p_user: dana.id, p_role: "owner", p_actor: NOBODY })).toEqual({ refused: "role" });
-    expect(await h.db.rpc("team_member_remove", { p_restaurant: alpha, p_user: partner.id, p_actor: NOBODY })).toEqual({ refused: "owner" });
     expect(await count("public.restaurant_users where restaurant_id = $1 and role = 'owner'", [alpha])).toBe(2);
+
+    // Each makes the other staff at the same moment. The database takes them one after the
+    // other: the first goes through, and by the second its sender is no longer an owner.
+    const results = await Promise.all([
+      h.api(owner, "PATCH", `/team/members/${partner.id}`, { role: "staff" }),
+      h.api(partner, "PATCH", `/team/members/${owner.id}`, { role: "staff" }),
+    ]);
+    expect(results.map((result) => result.status).sort()).toEqual([200, 403]);
+    expect(await count("public.restaurant_users where restaurant_id = $1 and role = 'owner'", [alpha])).toBe(1);
+
+    // Put the restaurant back as the rest of this file expects it.
+    await h.pg.query("update public.restaurant_users set role = 'owner' where user_id = $1", [owner.id]);
     await h.pg.query("delete from public.restaurant_users where user_id = $1", [partner.id]);
+  });
+
+  it("is refused by the database to anyone who is not, or no longer, an owner, and to anyone acting on themselves", async () => {
+    // Why the last owner can never go: the one acting must be an owner, cannot act on
+    // themselves, and holds the restaurant's lock while acting, so another owner (they) remains.
+    for (const actor of [NOBODY, manager.id, staff.id, betaOwner.id]) {
+      expect(await h.db.rpc("team_member_set_role", { p_restaurant: alpha, p_user: owner.id, p_role: "staff", p_actor: actor }), actor).toEqual({ refused: "not_owner" });
+      expect(await h.db.rpc("team_member_set_role", { p_restaurant: alpha, p_user: dana.id, p_role: "owner", p_actor: actor }), actor).toEqual({ refused: "not_owner" });
+      expect(await h.db.rpc("team_member_remove", { p_restaurant: alpha, p_user: owner.id, p_actor: actor }), actor).toEqual({ refused: "not_owner" });
+    }
+    expect(await h.db.rpc("team_member_set_role", { p_restaurant: alpha, p_user: owner.id, p_role: "staff", p_actor: owner.id })).toEqual({ refused: "self" });
+    expect(await h.db.rpc("team_member_remove", { p_restaurant: alpha, p_user: owner.id, p_actor: owner.id })).toEqual({ refused: "self" });
+    expect(await memberships(owner.id)).toEqual([{ restaurant_id: alpha, role: "owner" }]);
+    expect(await memberships(dana.id)).toEqual([{ restaurant_id: alpha, role: "manager" }]);
   });
 
   it("is refused to managers and staff, who cannot promote themselves or anyone else", async () => {
@@ -720,14 +758,23 @@ describe("taking access away", () => {
     expect((await h.api(leaver, "GET", `/applications/${application}/cv`)).status).toBe(403);
   });
 
-  it("is never something a person does to themselves or to an owner", async () => {
+  it("is never something a person does to themselves, and removes another owner only while one remains", async () => {
     const self = await h.api(owner, "DELETE", `/team/members/${owner.id}`);
     expect(self.status).toBe(403);
     expect(self.body.error.code).toBe("self_change");
     expect(await h.db.rpc("team_member_remove", { p_restaurant: alpha, p_user: owner.id, p_actor: owner.id })).toEqual({ refused: "self" });
-    expect(await h.db.rpc("team_member_remove", { p_restaurant: alpha, p_user: owner.id, p_actor: NOBODY })).toEqual({ refused: "owner" });
+    expect(await h.db.rpc("team_member_remove", { p_restaurant: alpha, p_user: owner.id, p_actor: NOBODY })).toEqual({ refused: "not_owner" });
     expect(await memberships(owner.id)).toEqual([{ restaurant_id: alpha, role: "owner" }]);
     expect((await h.api(owner, "GET", "/team")).status).toBe(200);
+
+    // A second owner is removed by the first: their access ends at once, the first stays.
+    const coOwner = await join("co.owner@example.test", "owner");
+    expect((await h.api(coOwner, "GET", "/team")).status).toBe(200);
+    const removed = await h.api(owner, "DELETE", `/team/members/${coOwner.id}`);
+    expect(removed.status).toBe(200);
+    expect(removed.body.message).toBe("co.owner@example.test no longer has access to the dashboard.");
+    expect((await h.api(coOwner, "GET", "/team")).status).toBe(403);
+    expect(await count("public.restaurant_users where restaurant_id = $1 and role = 'owner'", [alpha])).toBe(1);
   });
 });
 
@@ -737,7 +784,7 @@ describe("one restaurant and another", () => {
     expect(mine.members.map((member) => member.email)).toEqual([betaOwner.email]);
     expect(mine.invitations).toEqual([]);
     expect(mine.you).toBe(betaOwner.id);
-    expect(mine.roles).toEqual(["manager", "staff"]);
+    expect(mine.roles).toEqual(["owner", "manager", "staff"]);
     expect(JSON.stringify(mine)).not.toMatch(/dana\.lee|alpha|Alpha Kitchen/);
     // Asking for the other restaurant by its id is refused outright.
     expect((await h.api(betaOwner, "GET", "/team", undefined, { "x-restaurant-id": alpha })).status).toBe(403);

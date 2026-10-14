@@ -94,6 +94,10 @@ describe("public menu", () => {
 
   it("limits how fast one address can ask for the menu, with the same safe answer", async () => {
     const from = (ip) => menu("alpha", { headers: { origin: ORIGIN, "x-forwarded-for": ip } });
+    // The limit counts per clock minute. A burst that crossed into the next minute would be
+    // counted afresh halfway (this failed once, on a slow machine): start it well inside one.
+    const intoMinute = Date.now() % 60_000;
+    if (intoMinute > 40_000) await new Promise((resolve) => setTimeout(resolve, 60_500 - intoMinute));
     const statuses = [];
     for (let i = 0; i < 122; i++) statuses.push((await from("198.51.100.7")).status);
     expect(statuses.slice(0, 120).every((status) => status === 200)).toBe(true);

@@ -35,11 +35,12 @@ const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
   staff: ["menu.read"],
 };
 
-// The roles each role may hand out, by invitation or by changing a member. Nobody hands out
-// "owner": an owner is made by the operator (supabase/provision-restaurant.sql), outside
-// this API. Managers and staff hand out nothing.
+// The roles each role may hand out, by invitation or by changing a member. Since 2026-10-14
+// an owner may make another owner (the client's request); the database then makes sure that
+// nobody changes their own access and that a restaurant always keeps an owner (migration
+// 20261014001600). Managers and staff hand out nothing.
 const GRANTABLE_ROLES: Record<Role, Role[]> = {
-  owner: ["manager", "staff"],
+  owner: ["owner", "manager", "staff"],
   manager: [],
   staff: [],
 };

@@ -8,8 +8,11 @@
 
 export const ROLE_NAMES = { owner: "Owner", manager: "Manager", staff: "Staff" };
 
+// The colour of each role's badge, the same wherever a role is shown.
+export const ROLE_TONE = { owner: "accent", manager: "info", staff: "" };
+
 export const ROLE_SUMMARIES = {
-  owner: "Everything, including the Clover connection and who else has access.",
+  owner: "Everything, including the Clover connection and who else has access: an owner can make other owners, and change or remove anyone but themselves.",
   manager: "Runs the menu, the website's photos and hiring. Cannot change the Clover connection, export applications or manage the team.",
   staff: "Can look at the menu in the dashboard. Cannot change anything, and cannot see job applications.",
 };

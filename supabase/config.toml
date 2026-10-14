@@ -23,6 +23,11 @@ refresh_token_reuse_interval = 10
 minimum_password_length = 12
 
 [auth.email]
+# Not written here, and set on each project by scripts/auth-emails.mjs instead: the mail
+# server Supabase Auth sends through (Brevo's SMTP relay, as "Luzena Restaurant & Cafe"
+# <info@luzenarestaurant.com>), the restaurant's subjects and templates for every Auth email,
+# the security notices (password changed, two-step sign-in on or off, address changed), and
+# the limit of 30 Auth emails an hour. Both projects have them since 2026-10-14.
 # This switch is the email PROVIDER, not sign-ups: with it off, Supabase refuses every
 # email sign-in ("Email logins are disabled") and the owner cannot get in. It must stay on.
 # New accounts are already impossible because of enable_signup = false above.

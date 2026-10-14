@@ -168,8 +168,9 @@ those fields.
 
 - Every tenant-owned row has `restaurant_id`. Composite primary keys start with it.
 - A user's restaurants come from `restaurant_users` (roles `owner`, `manager`, `staff`).
-  An owner is linked by the operator (`supabase/provision-restaurant.sql`); managers and
-  staff are invited by an owner from the dashboard (see "Team and access" in section 5).
+  The first owner is linked by the operator (`supabase/provision-restaurant.sql`); after
+  that an owner invites owners, managers and staff from the dashboard (see "Team and
+  access" in section 5).
   There is no platform-wide role inside this API: the operator works in Supabase itself.
 - Per request, `dashboard-api` verifies the JWT with Supabase Auth, loads the user's
   memberships, and picks the restaurant. The `x-restaurant-id` header can only choose among
@@ -321,9 +322,18 @@ table (`src/dashboard/roles.js`); a test fails if the two differ.
 | See the activity log | `activity.read` | yes | yes | no |
 | Invite people, change roles, remove access | `team.manage` | yes | no | no |
 
-An owner may give `manager` or `staff` (`GRANTABLE_ROLES`); nobody may give `owner`. An
-owner is made, changed and removed only by the operator, outside this API: no function
-writes the role `owner` or touches a row that has it, and the invitation table cannot hold it.
+An owner may give any of the three roles (`GRANTABLE_ROLES`; owner since 2026-10-14, at the
+client's request; migration 20261014001600). Managers and staff give none. Whatever is
+asked, the database keeps three rules, under the restaurant's row lock: the person acting
+must be an owner at that moment; nobody changes or removes their own access; a restaurant
+always keeps at least one owner. The dashboard asks a second time before anyone is made an
+owner, by invitation or by a change of role.
+
+Everyone can see their own role: beside their address in the top bar (a link to "Your role"
+on the Security page, which lists what the role allows and what it does not, from the
+server's own permission list for the session), and an owner sees how many people hold each
+role on the Team page. When a role changes while the person is signed in, their next action
+reloads the dashboard for the new role and says so.
 
 ```
 Owner -> Team > Invite someone -> POST /team/invitations
@@ -370,7 +380,7 @@ Invited person -> link in the email -> /dashboard/#/welcome?email=... -> "Send m
 | `POST /team/invitations` | team.manage | `{email, role}`. 403 `role_not_allowed`, 409 `already_member`, `already_invited`, `too_many_invitations`, 502 `account_unavailable`. |
 | `POST /team/invitations/{uuid}/resend` | team.manage | Sends it again and gives it a fresh week. 404 once accepted or cancelled. |
 | `DELETE /team/invitations/{uuid}` | team.manage | Cancels it. It can no longer be accepted, sent again or cancelled. |
-| `PATCH /team/members/{uuid}` | team.manage | `{role}`. 403 `self_change`, `owner_protected`, `role_not_allowed`; 404 for anyone who is not this restaurant's member. |
+| `PATCH /team/members/{uuid}` | team.manage | `{role}` (owner, manager, staff). 403 `self_change`, `role_not_allowed`; 409 `last_owner`; 404 for anyone who is not this restaurant's member. |
 | `DELETE /team/members/{uuid}` | team.manage | Removes the membership. Same refusals. |
 | `GET /account/invitations` | a session; no restaurant needed | The invitations waiting for the caller's own confirmed address. |
 | `POST /account/invitations/{uuid}/accept` | a session; no restaurant needed | 404 unless it is addressed to the caller; 410 `invitation_expired`, `invitation_revoked`; 409 `invitation_used`, `account_in_use`. |
@@ -658,7 +668,7 @@ Defined in `supabase/migrations/`. Twenty-two tables:
 | Table | Holds |
 |---|---|
 | `restaurants`, `restaurant_users` | Tenants and memberships. A membership also carries, for display only, the member's address, who invited them and when they last opened the dashboard. |
-| `team_invitations` | An owner's offer of a role to an address: `manager` or `staff`, who offered it, when it runs out, whether it was accepted or cancelled. Grants nothing by itself. |
+| `team_invitations` | An owner's offer of a role to an address: `owner`, `manager` or `staff`, who offered it, when it runs out, whether it was accepted or cancelled. Grants nothing by itself. |
 | `clover_connections` | One Clover merchant per restaurant, encrypted tokens, sync state and locks |
 | `oauth_states` | One-time nonces for connecting Clover |
 | `menu_categories`, `menu_items`, `menu_item_categories` | Mirror plus website data |

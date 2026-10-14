@@ -163,10 +163,13 @@ try {
   report(!teamList.error && Array.isArray(teamList.rows[0].r?.members), "service_role can call team_list", teamList.error ?? "");
   const exportCount = await as("service_role", `select public.dash_applications_export(${nobody}, null, null, null, null, null, null, 10, true) as r`);
   report(!exportCount.error && exportCount.rows[0].r?.count === 0, "service_role can call dash_applications_export", exportCount.error ?? "");
+  // Since 20261014001600 an invitation may offer owner, manager or staff, and nothing else.
   const invitationRoles = await as("service_role",
-    `insert into public.team_invitations (restaurant_id, email, role, expires_at) values (${nobody}, 'verify-probe@example.test', 'owner', now())`);
-  report(Boolean(invitationRoles.error) && /check constraint/.test(invitationRoles.error), "an invitation cannot hold the role owner",
+    `insert into public.team_invitations (restaurant_id, email, role, expires_at) values (${nobody}, 'verify-probe@example.test', 'admin', now())`);
+  report(Boolean(invitationRoles.error) && /check constraint/.test(invitationRoles.error), "an invitation cannot hold a role that does not exist",
     invitationRoles.error ? "" : "the insert was accepted (rolled back)");
+  const lastOwner = await as("service_role", `select public.team_member_remove(${nobody}, ${nobody}, '00000000-0000-4000-8000-000000000001'::uuid) as r`);
+  report(!lastOwner.error && lastOwner.rows[0].r?.refused === "not_owner", "team changes are refused to anyone who is not an owner of the restaurant", lastOwner.error ?? JSON.stringify(lastOwner.rows?.[0]?.r));
 
   // Messages to applicants and monthly reports (migration 20261014001500). The backend's
   // role must be able to use both; a message cannot be made for an application that is

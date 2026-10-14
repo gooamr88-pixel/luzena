@@ -7,8 +7,9 @@
 //    person's access at their next request (session.ts reads the row on every one).
 // 2. Nothing a browser sends decides a role or a restaurant. The restaurant is the caller's
 //    own, from their membership. The roles a caller may give are a fixed list for their own
-//    role (session.ts, `grantableRoles`); "owner" is on nobody's list, and the database
-//    refuses to store it in an invitation or to write an owner's row.
+//    role (session.ts, `grantableRoles`): an owner gives any of the three, nobody else gives
+//    any. The database checks again, under a lock, that the caller is still an owner, that
+//    nobody changes their own access, and that the restaurant keeps at least one owner.
 // 3. This system handles no password and no invitation token. It asks Supabase Auth to make
 //    an account without a password; the person chooses one through Supabase Auth's own link
 //    and signs in; that sign-in is the proof of who they are. So there is no secret here to
@@ -56,9 +57,7 @@ interface InvitationRecord {
 // not depend on who or what the request names.
 function assertGrantable(session: Session, role: Role): void {
   if (!grantableRoles(session.restaurant.role).includes(role)) {
-    throw new ApiError(403, "role_not_allowed", role === "owner"
-      ? "An owner cannot be added from the dashboard."
-      : "Your role does not allow giving this role.");
+    throw new ApiError(403, "role_not_allowed", "Your role does not allow giving this role.");
   }
 }
 
@@ -237,8 +236,10 @@ export async function cancelInvitation(deps: Deps, session: Session, id: string)
 // the same "not found" as one that belongs to nobody: there is nothing to learn from it.
 const MEMBER_REFUSALS: Record<string, () => ApiError> = {
   role: () => new ApiError(403, "role_not_allowed", "This role cannot be given."),
-  self: () => new ApiError(403, "self_change", "You cannot change or remove your own access."),
-  owner: () => new ApiError(403, "owner_protected", "An owner's access cannot be changed from the dashboard."),
+  self: () => new ApiError(403, "self_change", "You cannot change or remove your own access. Ask another owner."),
+  last_owner: () => new ApiError(409, "last_owner", "The restaurant must keep at least one owner. Make someone else an owner first."),
+  // The caller stopped being an owner after this request was checked (another owner changed it).
+  not_owner: () => new ApiError(403, "forbidden", "Your role does not allow this action."),
   not_found: () => new ApiError(404, "not_found", "This person is not a member of this restaurant."),
 };
 

@@ -43,6 +43,7 @@ const MIGRATIONS = [
   "20261008001300_menu_labels_and_notice.sql",
   "20261013001400_team_access_and_application_export.sql",
   "20261014001500_applicant_messages_and_monthly_reports.sql",
+  "20261014001600_owners_can_appoint_owners.sql",
 ];
 
 // `upTo` stops after the named migration: a database as it was before a later one, for a

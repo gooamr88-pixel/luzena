@@ -59,6 +59,55 @@ deployed, and the Nginx configuration has never been loaded by an Nginx.
 The browser tests need a Chromium. They use one already installed by Playwright under
 `%LOCALAPPDATA%\ms-playwright`, or the executable named in `CHROME_PATH`.
 
+## 2026-10-14: owners appointing owners, and everyone seeing their own role
+
+- `tests/team.test.js`: the owner rules (an invitation may offer owner; a member is made an
+  owner and has every permission at their next request; owners change and remove other
+  owners; nobody changes their own access; two owners acting on each other at once leave
+  exactly one owner; the database refuses anyone who is not, or no longer, an owner).
+  `tests/rollback.test.js`: the new migration's rollback restores the earlier schema exactly,
+  withdraws owner invitations and leaves every owner an owner.
+- Browser (`dashboard.spec.js`): "makes someone an owner only after saying what an owner can
+  do" (the second question, cancelling it keeps the form, the counts by role), "invites
+  someone as an owner after the same question", and "your role" (the badge beside the
+  address, and the list of what an owner, a manager and staff can and cannot do).
+- **The whole suite on the final tree:** lint, typecheck, check:content clean; `npm test`
+  590 tests in 23 files, all passing (one, a rate-limit test that failed once when its burst
+  crossed a clock minute, made to start inside one, then 38 of 38 in its file); Deno checks
+  pass; browser 323 (public 151, sample 53, dashboard 119). Run with at most two test files
+  at once: with 0.4 GB of memory free, more workers than that could not start.
+- Found by those tests and fixed: the invitation form chose Owner to begin with (now
+  Manager: the role that gives everything is never the default); the role badge's hover
+  faded it below the contrast minimum (now an outline).
+- **PRODUCTION:** a copy of the touched rows; the migration; the database checks (16 of 16);
+  `dashboard-api` deployed; `verify:functions` passes.
+- **TEST, live:** migration 20261014001600 applied; its rollback run on the real database
+  (TEST then identical to PRODUCTION) and the migration applied again (TEST identical to
+  before); the database checks pass; `dashboard-api` deployed; an end-to-end run of 10 of 10
+  (`scratchpad/e2e-owners.mjs`): an owner invites an owner, who joins with every permission;
+  a manager is made an owner and back; a manager cannot make or invite an owner; nobody
+  changes their own role; two owners demoting each other at once leave one owner; all in the
+  activity log. Everything made was deleted.
+
+## 2026-10-14: the password reset through Brevo
+
+- `tests/auth-emails.test.js` (7): every Auth email uses only the placeholders Supabase
+  fills in for that kind of email (one it does not have stops the email being sent), carries
+  its link or code twice (button and written out), says how long the link works from the
+  project's own setting, fetches nothing, escapes the restaurant's name; only template,
+  subject and notice settings are written.
+- **TEST, live, 10 of 10** (`scratchpad/reset-check.mjs`, not in Git): an account at a
+  tagged address of `luznarestocafe@gmail.com` asked for a reset; Brevo reported the email
+  delivered, from info@luzenarestaurant.com, in the restaurant's design; its button,
+  followed through Brevo's click counter exactly as a click is, led to Supabase's one-time
+  link, which opened the dashboard as a reset; the new password was saved and signs in, the
+  old one does not; the link was refused a second time; the "password changed" notice was
+  delivered. Account deleted, TEST's email sign-in put back off.
+- **PRODUCTION:** the settings written and read back (32 of 32; email sign-in, sign-ups and
+  two-step unchanged); one reset email to a temporary tagged account confirmed delivered by
+  Brevo; the account deleted. Its link was not followed.
+- `npm run lint`: clean.
+
 ## Latest run: 2026-10-13 (evening), messages to applicants, status emails, the monthly report, the schedule
 
 Everything below was run on the final tree (after `npm audit fix` and the last change).

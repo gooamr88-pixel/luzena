@@ -1872,5 +1872,24 @@ PRODUCTION's `recruitment_email` and `report_email` are now `luznarestocafe@gmai
 matches, so re-running it cannot bring the old address back. New-application emails,
 applicants' replies and the monthly report all go there. The owner's sign-in account
 (`fadi.auchi@gmail.com`) was not changed: that is a separate decision, not yet asked for.
+**2026-10-14, "make forgot password work professionally":** Supabase Auth on both projects
+now sends through Brevo's SMTP relay (the client's SMTP key) as "Luzena Restaurant & Cafe"
+<info@luzenarestaurant.com>, with the restaurant's templates for every Auth email and the
+security notices on (password changed, two-step on/off, address changed), 30 an hour
+(`scripts/auth-emails.mjs`, which writes only those fields and checks that email sign-in,
+sign-ups and two-step did not move). TEST's site address set to what `config.toml` gives it
+(`http://localhost:4173/dashboard/`). Verified: a real reset end to end on TEST (10 of 10),
+a delivered reset email on PRODUCTION (temporary account, deleted). B-8 closed. Brevo routes
+links through its click counter (account-wide setting, shared; left on); the reset works
+through it.
+**2026-10-14, "add ability to make someone owner also and ability to detect the roles,
+professionally":** owners may now give the owner role (invitation or change of role) and
+change or remove other owners (migration 20261014001600; `GRANTABLE_ROLES.owner` is all
+three). The database enforces, under the restaurant's row lock: the actor must be an owner
+at that moment, nobody acts on themselves, an owner always remains. The dashboard asks a
+second time before anyone becomes an owner. Everyone sees their role in the top bar (a link
+to "Your role" on the Security page: what the role can and cannot do, from the server's
+permission list) and is told when an owner changes it; the Team page counts each role.
+Verified on TEST (database round trip exact, live run 10 of 10).
 Still open: B-8 (Auth's own password emails need a custom SMTP sender,
 which needs Brevo's SMTP key, not the API key); the workbook in Excel; `deploy.sh`.

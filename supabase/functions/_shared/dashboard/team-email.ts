@@ -13,6 +13,7 @@ export const ROLE_NAMES: Record<string, string> = { owner: "Owner", manager: "Ma
 
 // What each role can do, in the words the dashboard's team page uses.
 export const ROLE_SUMMARIES: Record<string, string> = {
+  owner: "You will be able to do everything in the dashboard, including the Clover connection, exporting job applications, and deciding who else has access and as what.",
   manager: "You will be able to manage the menu and the website's photos, and read and handle job applications.",
   staff: "You will be able to look at the menu as the dashboard shows it. You will not be able to change anything.",
 };

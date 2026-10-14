@@ -260,7 +260,15 @@ would win. What follows is the entry as it stood.
   have been invited to the dashboard goes the same way. Without it an invitation is saved
   and marked "email not sent".
 
-### B-8. A mail sender for Supabase Auth — BLOCKING for inviting anyone · INFRASTRUCTURE
+### B-8. A mail sender for Supabase Auth — RESOLVED 2026-10-14
+
+- **Done on TEST, then PRODUCTION** (`scripts/auth-emails.mjs`): Supabase Auth sends
+  through Brevo's SMTP relay as "Luzena Restaurant & Cafe" <info@luzenarestaurant.com>, to
+  any address, 30 an hour, with the restaurant's own templates and the security notices on.
+  On TEST a real reset was done end to end (10 of 10); on PRODUCTION a reset email to a
+  temporary tagged account was confirmed delivered and the account deleted.
+
+What it was:
 
 - **Needed:** a custom SMTP sender set in each Supabase project (Authentication > Emails;
   Resend's SMTP works). It has been on the checklist as "recommended"; team access makes it

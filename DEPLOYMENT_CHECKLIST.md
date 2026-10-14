@@ -664,6 +664,25 @@ the schedule (`supabase/schedule-daily-tasks.sql`, run by hand), and the website
 (what was sent), the dashboard's Activity page ("Monthly report emailed"), and the
 function's log in Supabase (Edge Functions > scheduled-tasks > Logs).
 
+**Owners appointing owners (2026-10-14):** migration
+`20261014001600_owners_can_appoint_owners.sql` and `dashboard-api`, TEST first (done: the
+migration, its rollback and re-application, the database checks, the function, a live run),
+then PRODUCTION. Backwards compatible: the dashboard that is live keeps working (it simply
+offers "Owner" in the invitation form without the second question until the new website is
+deployed). Rollback: `supabase/rollback/20261014001600_owners_can_appoint_owners.down.sql`
+(withdraws owner invitations; everyone who is an owner stays one).
+
+**Supabase Auth's emails (2026-10-14, done on TEST then PRODUCTION):**
+
+- [x] `node scripts/auth-emails.mjs --project-ref <ref> --smtp` with `SUPABASE_ACCESS_TOKEN`,
+      `SMTP_USER` (the Brevo SMTP login) and `SMTP_PASS` (the Brevo SMTP key) in the
+      environment: mail server, templates, notices, 30 an hour. It reads everything back.
+- [x] A real reset on TEST, end to end; a reset email on PRODUCTION confirmed delivered.
+- To change the wording later: edit `scripts/auth-emails.mjs`, `npm test`, run it again on
+  TEST, try a reset, then PRODUCTION. To change the Brevo SMTP key: run it again with
+  `--smtp`. To go back to Supabase's own sender: Authentication > Emails > SMTP in the
+  Supabase dashboard, switched off (resets then reach the organisation's members only).
+
 ### Rolling back 11a and 11b
 
 Newest first, and the backend before the database:

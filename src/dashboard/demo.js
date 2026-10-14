@@ -7,7 +7,7 @@
 import sample from "../../content/sample-menu.json";
 import { statusEmail, statusEmails } from "../../supabase/functions/_shared/dashboard/status-emails.ts";
 import { ApiFailure } from "./api.js";
-import { ROLE_PERMISSIONS } from "./roles.js";
+import { ROLE_PERMISSIONS, roleName } from "./roles.js";
 
 const DIETARY = ["vegetarian", "vegan", "gluten-free", "dairy-free", "nut-free", "halal", "spicy"];
 
@@ -228,11 +228,11 @@ export function installDemo(state) {
     { id: "30000000-0000-4000-8000-000000000002", email: "alex.moreno@example.test", role: "staff", status: "expired", invited_by_email: "owner@example.com",
       email_status: "sent", created_at: stamp(60 * 24 * 12), sent_at: stamp(60 * 24 * 12), expires_at: stamp(60 * 24 * 5), revoked_at: null },
   ];
-  const team = () => ({ members, invitations, you: "demo-user", roles: ["manager", "staff"], limits: { invitation_days: INVITATION_DAYS } });
+  const team = () => ({ members, invitations, you: "demo-user", roles: ["owner", "manager", "staff"], limits: { invitation_days: INVITATION_DAYS } });
   const findMember = (id) => {
     const found = members.find((entry) => entry.id === id);
     if (!found) throw new ApiFailure(404, { code: "not_found", message: "This person is not a member of this restaurant." });
-    if (found.id === "demo-user") throw new ApiFailure(403, { code: "self_change", message: "You cannot change or remove your own access." });
+    if (found.id === "demo-user") throw new ApiFailure(403, { code: "self_change", message: "You cannot change or remove your own access. Ask another owner." });
     return found;
   };
   const findInvitation = (id) => {
@@ -373,7 +373,7 @@ export function installDemo(state) {
         const changed = found.role !== body.role;
         Object.assign(found, { role: body.role, role_changed_at: changed ? stamp() : found.role_changed_at });
         if (changed) log("MEMBER_ROLE_CHANGED", "team_member", found.id, { role: body.role, email: found.email });
-        return { result: "saved", team: team(), message: changed ? `${found.email} is now ${body.role === "manager" ? "Manager" : "Staff"}.` : "Nothing changed." };
+        return { result: "saved", team: team(), message: changed ? `${found.email} is now ${roleName(body.role)}.` : "Nothing changed." };
       }
     }
 

@@ -143,9 +143,9 @@ project**: see "Not verified" at the end of this section.
 | Risk | What stops it | Test (`tests/team.test.js` unless said) |
 |---|---|---|
 | A restaurant user gains platform-wide access | There is no such role. The role column accepts three values (a check constraint), every route is bound to the caller's own restaurant, and naming another is refused. | "has no platform-wide role" |
-| Someone is made an owner from the dashboard | `owner` is on nobody's list of roles to give (`GRANTABLE_ROLES`); the invitation table cannot store it; no SQL function writes it or touches an owner's row. | "only accepts the roles an owner may give", "can never make an owner, change an owner, or change one's own role" |
+| Someone is made an owner who should not be | **Since 2026-10-14 an owner may make another owner** (the client's request): by invitation or by changing a member's role. Only an owner can (`GRANTABLE_ROLES`, `team.manage`), and the database checks again, under the restaurant's lock, that the person asking is still an owner at that moment. The dashboard asks a second time, saying that an owner can do everything, including removing the asker. Each such change is in the activity log. | "makes a member an owner...", "offers the three roles an owner may give", "is refused by the database to anyone who is not, or no longer, an owner"; browser "makes someone an owner only after saying what an owner can do" |
 | A manager or staff member promotes themselves, or anyone | Every team route needs `team.manage`, which only an owner has. A role is never read from the request. | "is refused to managers and staff", the 22-route table in "gives a manager the day-to-day work" |
-| An owner locks themselves out, or removes another owner | Nobody changes or removes their own access; an owner's row is never written. The existing owner's access cannot be lost through this API. | "is never something a person does to themselves or to an owner"; the migration test |
+| An owner locks themselves out, or the restaurant is left with no owner | Nobody changes or removes their own access, ever. Owners may change or remove *other* owners; the one acting must be an owner and is not the one changed, so an owner always remains. Two owners acting on each other at the same moment are taken one after the other (the restaurant's row lock), and the second finds it is no longer an owner. The database also refuses outright a change that would leave no owner. | "always leaves the restaurant an owner, also when two owners act on each other at once", "is never something a person does to themselves..."; rollback test (migration 20261014001600) |
 | An invitation is used by the wrong person | There is no token. It is found only for the account signed in with exactly that address, and only once Supabase Auth has confirmed the address. Knowing its id is no use to anyone else. | "is only for the account whose own, confirmed address it was sent to" |
 | An invitation is used after it should be dead | Expired, cancelled and already-used invitations are refused by the one function that makes memberships; a removed member cannot replay the invitation they once accepted. | "cannot be accepted once it has expired", "...once the owner has cancelled it", "cannot be undone by replaying" |
 | One restaurant reaches into another's team | Every function takes the caller's restaurant; another restaurant's member or invitation id is "not found", exactly like a made-up one. | "one restaurant and another" (both tests) |
@@ -175,7 +175,7 @@ project**: see "Not verified" at the end of this section.
 | Proposed | Built | Why |
 |---|---|---|
 | A Platform Admin role | None | Nothing in the product needs one; the operator already works in Supabase. A role that crosses restaurants is the one thing here that could breach tenant isolation by design. |
-| Owner can assign owners: "denied by default" | Denied, with no switch | An owner is the operator's to provision. |
+| Owner can assign owners: "denied by default" | Denied until 2026-10-14; **allowed to owners since**, at the client's request | With the protections in the table above: never oneself, never the last owner, the actor re-checked in the database under a lock, a second confirmation, and the activity log. A restaurant with two owners is two people with full control: each can remove the other. |
 | Manager's Clover sync: "only if explicitly authorized" | Allowed, by its own permission `clover.sync` | A manager already writes prices to Clover; refusing them a re-read of it would protect nothing. It is now a permission of its own rather than a side effect of `menu.write`. |
 | Manager's export: "denied unless explicitly authorized" | Denied | There are no per-person grants; adding them would be a second permission system. One line in `ROLE_PERMISSIONS` changes it if the owner wants it. |
 | Invitation tokens | None | The sign-in is the proof. A token would be one more secret to protect, for no gain. |
@@ -257,7 +257,27 @@ request is given as little to decide as possible.
   looks at again stays "Sent" in the dashboard (and is counted as not confirmed in the
   monthly report), although it may well have arrived.
 
-### 4d. The scheduled function and the monthly report (added 2026-10-13)
+### 4e. Supabase Auth's own emails (added 2026-10-14)
+
+Password resets and Auth's security notices go through Brevo's SMTP relay as "Luzena
+Restaurant & Cafe" <info@luzenarestaurant.com> (`scripts/auth-emails.mjs`; the SMTP key is
+a secret of each project's Auth settings, never in Git). What this changes for security:
+
+- **A reset reaches anyone with an account**, not only members of the Supabase organisation,
+  so an owner or a member who forgets a password can get back in without the operator.
+- **The person is told when it matters**: "your password was changed", "two-step sign-in was
+  turned on / off", "your sign-in address was changed" are now sent (all were off). Each
+  says what to do if it was not them.
+- **The reset email says what it is and what to do if it was not asked for**; the link works
+  once and for one hour (unchanged), and a used or expired link is refused and the dashboard
+  says so (checked live on TEST).
+- **Unchanged:** sign-ups stay closed, email sign-in stays on, two-step sign-in stays as it
+  was; the script checks all three after writing and fails if any moved.
+- **Brevo's click counter.** Brevo routes every link in the emails through its own
+  address (`*.sendibt2.com`) before forwarding to the real one, and counts the click. The
+  reset still works through it (checked live), and the real link is written out in the
+  email for anyone who prefers to copy it. Turning click tracking off is a setting of the
+  Brevo account, which other businesses share, so it was left as it is.
 
 | Risk | What stops it | Test (`tests/monthly-report.test.js`) |
 |---|---|---|

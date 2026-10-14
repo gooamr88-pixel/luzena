@@ -9,11 +9,26 @@
 // accept. That is why there is nothing on this page to copy and send to anyone.
 import { formatDateTime, timeAgo } from "../../js/lib/format.js";
 import { api } from "../api.js";
-import { CAPABILITIES, ROLE_PERMISSIONS, ROLE_SUMMARIES, roleName } from "../roles.js";
+import { CAPABILITIES, ROLE_PERMISSIONS, ROLE_SUMMARIES, ROLE_TONE, roleName } from "../roles.js";
 import { state } from "../state.js";
 import { append, badge, clear, confirmDialog, errorBlock, formDialog, h, icon, loadingBlock, pageHeader, toast, toastFailure } from "../ui.js";
 
-const ROLE_TONE = { owner: "accent", manager: "info", staff: "" };
+// Asked before anyone is given the owner role, by invitation or by a change of role: an
+// owner can do everything, including taking the asker's own access away.
+const confirmOwner = (who, restaurant, invited) => confirmDialog({
+  title: invited ? `Invite ${who} as an owner?` : `Make ${who} an owner?`,
+  body: [
+    `An owner can do everything in the ${restaurant} dashboard that you can: connect or disconnect Clover, export job applications, invite people, and change anyone's role or remove anyone's access, yours included.`,
+    "Only make someone an owner if you would trust them with the whole dashboard. You can change it later.",
+  ],
+  confirmLabel: invited ? "Invite as owner" : "Make owner",
+});
+// "2 owners, 1 manager, 3 staff"
+const roleCounts = (members) => ["owner", "manager", "staff"]
+  .map((role) => [role, members.filter((member) => member.role === role).length])
+  .filter(([, count]) => count > 0)
+  .map(([role, count]) => (role === "staff" ? `${count} staff` : `${count} ${roleName(role).toLowerCase()}${count === 1 ? "" : "s"}`))
+  .join(", ");
 const INVITATION_STATUS = {
   pending: ["Waiting", "info"],
   expired: ["Expired", "warn"],
@@ -60,9 +75,11 @@ export async function teamView(outlet) {
       submitLabel: "Send invitation",
       fields: [
         { name: "email", label: "Their email address", type: "email", required: true, maxlength: 254, placeholder: "name@example.com", inputmode: "email" },
-        { name: "role", label: "Role", options: roleChoices(team.roles), value: team.roles[0], required: true, hint: roleNotes(team.roles) },
+        // Manager to begin with: the role that gives everything is never the default.
+        { name: "role", label: "Role", options: roleChoices(team.roles), value: team.roles.includes("manager") ? "manager" : team.roles[0], required: true, hint: roleNotes(team.roles) },
       ],
       onSubmit: async (values) => {
+        if (values.role === "owner" && !(await confirmOwner(values.email.trim(), state.me.restaurant.name, true))) return false;
         const result = await api("POST", "/team/invitations", { email: values.email.trim(), role: values.role });
         team = result.team;
         toast(result.message, result.email_sent === false ? "warn" : "ok");
@@ -76,7 +93,9 @@ export async function teamView(outlet) {
     const you = member.id === team.you;
     const name = member.email ?? "Address not recorded yet";
     const actions = [];
-    if (!you && member.role !== "owner" && team.roles.length > 0) {
+    // Anyone but yourself, owners included. The server keeps at least one owner whatever
+    // is asked, and nobody can change their own access.
+    if (!you && team.roles.length > 0) {
       const changeRole = h("button", { type: "button", class: "d-btn d-btn-sm" }, "Change role", h("span", { class: "sr-only" }, ` of ${name}`));
       changeRole.addEventListener("click", () => {
         formDialog({
@@ -85,6 +104,7 @@ export async function teamView(outlet) {
           submitLabel: "Save role",
           fields: [{ name: "role", label: "Role", options: roleChoices(team.roles), value: member.role, required: true, hint: roleNotes(team.roles) }],
           onSubmit: async (values) => {
+            if (values.role === "owner" && member.role !== "owner" && !(await confirmOwner(name, state.me.restaurant.name, false))) return false;
             const result = await api("PATCH", `/team/members/${member.id}`, { role: values.role });
             team = result.team;
             toast(result.message);
@@ -98,8 +118,9 @@ export async function teamView(outlet) {
           title: `Remove ${name}'s access?`,
           body: [
             `${name} will no longer be able to open the ${state.me.restaurant.name} dashboard, starting now, including on a device where they are signed in.`,
+            member.role === "owner" ? `${name} is an owner. The restaurant keeps its other owners, you among them.` : null,
             "Nothing else is deleted: the menu, the applications and the record of what they changed all stay. You can invite them again later.",
-          ],
+          ].filter(Boolean),
           confirmLabel: "Remove access", danger: true,
         });
         if (confirmed) change(remove, () => api("DELETE", `/team/members/${member.id}`));
@@ -114,7 +135,7 @@ export async function teamView(outlet) {
           `Joined ${day(member.joined_at)}`,
           member.invited_by_email ? `, invited by ${member.invited_by_email}` : "",
           member.last_seen_at ? `. Last opened the dashboard ${timeAgo(member.last_seen_at)}.` : ". Has not opened the dashboard yet."),
-        member.role === "owner" && !you && h("p", { class: "mt-0.5 text-[0.82rem] text-muted" }, "Owners are added and removed by the site administrator.")),
+        you && h("p", { class: "mt-0.5 text-[0.82rem] text-muted" }, "Your own access is changed by another owner, never by you, so nobody locks themselves out by mistake.")),
       h("div", { class: "flex flex-wrap items-center gap-2" }, badge(roleName(member.role), ROLE_TONE[member.role]), actions));
   }
 
@@ -182,7 +203,8 @@ export async function teamView(outlet) {
       h("section", { class: "d-card", "aria-labelledby": "members-title" },
         h("div", { class: "flex flex-wrap items-center justify-between gap-3 p-5 sm:p-6" },
           h("h2", { id: "members-title", class: "d-title" }, "People with access"),
-          h("p", { class: "text-sm text-muted" }, team.members.length === 1 ? "1 person" : `${team.members.length} people`)),
+          h("p", { class: "text-sm text-muted", dataset: { roleCounts: "" } },
+            `${team.members.length === 1 ? "1 person" : `${team.members.length} people`}: ${roleCounts(team.members)}`)),
         h("ul", { class: "divide-y divide-line border-t border-line" }, team.members.map(memberRow))),
 
       h("section", { class: "d-card mt-5", "aria-labelledby": "invitations-title" },
@@ -191,7 +213,7 @@ export async function teamView(outlet) {
           h("p", { class: "text-sm text-muted" }, waiting === 0 ? "None waiting" : waiting === 1 ? "1 waiting" : `${waiting} waiting`)),
         team.invitations.length === 0
           ? h("p", { class: "border-t border-line px-5 py-6 text-sm text-muted sm:px-6" },
-              "No invitations are waiting. Use \"Invite someone\" to give a manager or a member of staff their own sign-in, so that nobody shares yours.")
+              "No invitations are waiting. Use \"Invite someone\" to give an owner, a manager or a member of staff their own sign-in, so that nobody shares yours.")
           : h("ul", { class: "divide-y divide-line border-t border-line" }, team.invitations.map(invitationRow))),
 
       rolesTable());

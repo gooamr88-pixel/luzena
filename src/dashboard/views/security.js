@@ -8,6 +8,7 @@
 import { state } from "../state.js";
 import { append, badge, clear, confirmDialog, errorBlock, h, loadingBlock, pageHeader, toast } from "../ui.js";
 import { formatDateTime } from "../../js/lib/format.js";
+import { yourRoleSection } from "./your-role.js";
 
 const CODE = /^[0-9]{6}$/;
 // What Supabase's answers are turned into for the owner. Its own wording is not shown.
@@ -18,7 +19,8 @@ export async function securityView(outlet) {
   append(outlet,
     pageHeader({ title: "Account security" }),
     h("p", { class: "-mt-3 mb-6 max-w-2xl text-sm text-muted" },
-      "How this account signs in to the dashboard. These settings are for your own account, ", state.me?.user.email ?? "", ", and no one else's."),
+      "Your role in this dashboard, and how this account signs in. These settings are for your own account, ", state.me?.user.email ?? "", ", and no one else's."),
+    yourRoleSection(),
     region);
   const mfa = state.supabase.auth.mfa;
 
