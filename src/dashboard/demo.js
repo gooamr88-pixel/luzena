@@ -714,7 +714,16 @@ export function installDemo(state) {
       refreshSession: async () => ({ data: { session: signedIn ? session : null } }),
       // A new sign-in starts at the password alone, as a real one does.
       signInWithPassword: async () => { signedIn = true; level = "aal1"; listener("SIGNED_IN", session); return { error: null }; },
-      signOut: async () => { signedIn = false; level = "aal1"; listener("SIGNED_OUT", null); },
+      // As Supabase's: { scope: "local" | "global" }. A browser test can see which was asked
+      // for, and can make the sign-in service unreachable to see what the page says then.
+      signOut: async (options) => {
+        window.demoSignOutScope = options?.scope ?? "local";
+        if (window.demoSignOutFails) return { error: { message: "Failed to fetch", status: 0 } };
+        signedIn = false;
+        level = "aal1";
+        listener("SIGNED_OUT", null);
+        return { error: null };
+      },
       mfa,
       resetPasswordForEmail: async () => ({ error: null }),
       // As Supabase does: with two-step sign-in on, the password changes only at aal2.

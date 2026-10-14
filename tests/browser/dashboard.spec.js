@@ -51,6 +51,11 @@ const waitForToast = async (page, text) => {
   await page.waitForFunction((expected) => window.toastsSeen.some((seen) => seen.text.includes(expected)), text);
   return (await toastsSeen(page)).find((seen) => seen.text.includes(text));
 };
+// The dashboard's own "Sign out" asks first; this answers yes.
+const signOut = async (page) => {
+  await page.locator("header").getByRole("button", { name: "Sign out" }).click();
+  await page.locator("dialog.d-dialog[open]").getByRole("button", { name: "Sign out" }).click();
+};
 const rows = (page) => page.locator("table.d-table tbody tr");
 const row = (page, name) => page.locator("table.d-table tbody tr", { hasText: name });
 const waitForRows = (page, count) => page.waitForFunction((expected) =>
@@ -70,7 +75,7 @@ describe("signing in and out", () => {
   it("signs out to the sign-in form, shows nothing behind it, and signs back in", async () => {
     const { page, context } = await dashboard("#/items");
     await waitForRows(page, 12);
-    await page.getByRole("button", { name: "Sign out" }).click();
+    await signOut(page);
     await page.waitForSelector("#password");
 
     expect(await page.locator("h1").innerText()).toBe("Sign in");
@@ -93,9 +98,72 @@ describe("signing in and out", () => {
     await context.close();
   });
 
+  it("asks before signing out, saying which account it is and what it takes to come back, and stays when told to", async () => {
+    const { page, context, problems } = await dashboard("#/items");
+    await waitForRows(page, 12);
+    await page.locator("header").getByRole("button", { name: "Sign out" }).click();
+    const text = await dialog(page).innerText();
+    expect(text).toContain("Sign out of the dashboard?");
+    expect(text).toContain("You are signed in as owner@example.com (Owner).");
+    expect(text).toContain("To come back you will need your password.");
+    expect(text).toContain("Also sign out on my other devices");
+    expect(await page.locator("#sign-out-everywhere").isChecked()).toBe(false);
+    // The safe answer has the focus.
+    expect(await page.evaluate(() => document.activeElement.textContent)).toBe("Stay signed in");
+    const violations = await accessibilityViolations(page);
+    expect(violations, describeViolations(violations)).toEqual([]);
+
+    // "Stay signed in" and Escape both leave everything as it was.
+    await dialog(page).getByRole("button", { name: "Stay signed in" }).click();
+    expect(await dialog(page).count()).toBe(0);
+    expect(await rows(page).count()).toBe(12);
+    await page.locator("header").getByRole("button", { name: "Sign out" }).click();
+    await page.keyboard.press("Escape");
+    expect(await dialog(page).count()).toBe(0);
+    expect(await page.locator("aside nav").count()).toBe(1);
+
+    // Signed out everywhere: Supabase Auth is asked to end every session of the account.
+    await page.locator("header").getByRole("button", { name: "Sign out" }).click();
+    await page.check("#sign-out-everywhere");
+    await dialog(page).getByRole("button", { name: "Sign out" }).click();
+    await page.waitForSelector("#password");
+    expect(await page.evaluate(() => window.demoSignOutScope)).toBe("global");
+    expect(await dialog(page).count()).toBe(0);
+    expect(problems).toEqual([]);
+    await context.close();
+  });
+
+  it("says so, and stays signed in, when the sign-in service cannot be reached", async () => {
+    const { page, context } = await dashboard();
+    await page.evaluate(() => { window.demoSignOutFails = true; });
+    await signOut(page);
+    await page.waitForSelector('dialog.d-dialog[open] [role="alert"]:not([hidden])');
+    expect(await dialog(page).locator('[role="alert"]').innerText()).toBe("You could not be signed out: the sign-in service could not be reached. Check your connection and try again.");
+    expect(await page.evaluate(() => window.demoSignOutScope)).toBe("local");
+    expect(await dialog(page).getByRole("button", { name: "Sign out" }).isEnabled()).toBe(true);
+    expect(await page.locator("aside nav").count()).toBe(1);
+    // Once it can be reached again, the same button signs out.
+    await page.evaluate(() => { window.demoSignOutFails = false; });
+    await dialog(page).getByRole("button", { name: "Sign out" }).click();
+    await page.waitForSelector("#password");
+    await context.close();
+  });
+
+  it("warns about unsaved changes in the same question, and asks nothing more after it", async () => {
+    const { page, context } = await dashboard("#/items/SAMPLEITEM005");
+    await page.waitForSelector("#name");
+    await page.fill("#name", "A name not saved yet");
+    await page.locator("header").getByRole("button", { name: "Sign out" }).click();
+    expect(await dialog(page).locator("[data-unsaved]").innerText()).toBe("You have changes on this page that are not saved. Signing out now discards them.");
+    await dialog(page).getByRole("button", { name: "Discard changes and sign out" }).click();
+    await page.waitForSelector("#password");
+    expect(await dialog(page).count()).toBe(0);
+    await context.close();
+  });
+
   it("offers a password reset that does not reveal whether an account exists", async () => {
     const { page, context } = await dashboard();
-    await page.getByRole("button", { name: "Sign out" }).click();
+    await signOut(page);
     await page.getByRole("button", { name: "Forgot your password?" }).click();
     await page.fill("#email", "nobody@example.com");
     await page.getByRole("button", { name: "Send reset link" }).click();
@@ -2184,7 +2252,10 @@ describe("two-step sign-in", () => {
   it("asks for the code after the password at the next sign-in, and shows nothing of the dashboard until it is right", async () => {
     const { page, context } = await securityPage();
     await turnOn(page);
-    await page.getByRole("button", { name: "Sign out" }).click();
+    // The question before signing out now says that the code will be needed to come back.
+    await page.locator("header").getByRole("button", { name: "Sign out" }).click();
+    expect(await dialog(page).innerText()).toContain("To come back you will need your password and a code from your authenticator app.");
+    await dialog(page).getByRole("button", { name: "Sign out" }).click();
     await page.waitForSelector("#password");
     await page.fill("#email", "owner@example.com");
     await page.fill("#password", "a-long-demo-password");
@@ -2221,13 +2292,14 @@ describe("two-step sign-in", () => {
   it("lets the owner sign out from the code step, and turn two-step sign-in off again after asking", async () => {
     const { page, context } = await securityPage();
     await turnOn(page);
-    await page.getByRole("button", { name: "Sign out" }).click();
+    await signOut(page);
     await page.waitForSelector("#password");
     await page.fill("#email", "owner@example.com");
     await page.fill("#password", "a-long-demo-password");
     await page.getByRole("button", { name: "Sign in" }).click();
     await page.waitForSelector("#code");
-    // Signing out from here goes back to the password, not into the dashboard.
+    // Signing out from here goes back to the password, not into the dashboard. Nothing is
+    // asked: it only abandons a sign-in that was not finished.
     await page.getByRole("button", { name: "Sign out" }).click();
     await page.waitForSelector("#password");
     expect(await page.locator("h1").innerText()).toBe("Sign in");

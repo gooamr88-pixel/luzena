@@ -17,6 +17,7 @@ import { modifiersView } from "./views/modifiers.js";
 import { overviewView } from "./views/overview.js";
 import { photosView } from "./views/photos.js";
 import { securityView } from "./views/security.js";
+import { askToSignOut } from "./views/sign-out.js";
 import { teamView } from "./views/team.js";
 
 const app = document.getElementById("app");
@@ -135,11 +136,8 @@ function renderShell() {
       h("nav", { "aria-label": "Dashboard" }, navLinks(() => drawer.close())),
       h("div", { class: "mt-auto border-t border-line pt-4" }, websiteLink())));
 
-  const signOut = async () => {
-    if (state.leaveGuard && !(await state.leaveGuard())) return;
-    state.leaveGuard = null;
-    await state.supabase.auth.signOut();
-  };
+  // Asks first: which account, what it takes to come back, other devices, unsaved edits.
+  const signOut = () => askToSignOut();
 
   // Focus moves here after each navigation so screen readers start at the new page. It is
   // a container, not a control, so it shows no focus ring.

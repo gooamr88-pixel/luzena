@@ -59,6 +59,17 @@ deployed, and the Nginx configuration has never been loaded by an Nginx.
 The browser tests need a Chromium. They use one already installed by Playwright under
 `%LOCALAPPDATA%\ms-playwright`, or the executable named in `CHROME_PATH`.
 
+## 2026-10-14: asking before signing out
+
+The dashboard's "Sign out" now asks first (`src/dashboard/views/sign-out.js`): which account
+and role, what it takes to come back (the code too, when two-step sign-in is on), an option
+to sign out on every other device (Supabase Auth's global sign-out), and, on a page with
+unsaved edits, that they will be discarded, in the same question. "Stay signed in" has the
+focus; Escape keeps everything; a sign-in service that cannot be reached is said plainly and
+nothing changes. Three new browser tests and four updated; `dashboard.spec.js` 122 of 122;
+lint clean. ("Sign out" on the code step and the invitation screen does not ask: it only
+abandons a sign-in that was not finished.)
+
 ## 2026-10-14: owners appointing owners, and everyone seeing their own role
 
 - `tests/team.test.js`: the owner rules (an invitation may offer owner; a member is made an
