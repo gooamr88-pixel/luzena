@@ -209,6 +209,28 @@ export function installDemo(state) {
   const GALLERY_LIMIT = 24;
   const sitePhotos = { hero: null, story: null, gallery: [] };
 
+  // Special offers: two to begin with, one on the website and one switched off.
+  const OFFER_LIMIT = 12;
+  const offer = (fields) => ({
+    id: crypto.randomUUID(), active: true, badge: "", highlight: "", description: "", cta_label: "View Offer", cta_url: "/menu/",
+    fine_print: "", starts_at: null, ends_at: null, image: null, created_at: stamp(900), updated_at: stamp(900), ...fields,
+  });
+  let offers = [
+    offer({ badge: "This week at Luzena", highlight: "15% OFF", title: "Family Platters", description: "Gather around great food. Enjoy 15% off our family platters, perfect for sharing.", fine_print: "Valid through Sunday" }),
+    offer({ active: false, badge: "Every morning", highlight: "Breakfast Combo", title: "Eggs, Bread & Coffee", description: "Any breakfast plate with a specialty coffee, 8 AM to noon.", cta_label: "See Breakfast" }),
+  ];
+  const offerList = () => offers.map((entry, index) => ({ ...entry, sort_order: index + 1 }));
+  const findOffer = (id) => {
+    const found = offers.find((entry) => entry.id === id);
+    if (!found) throw new ApiFailure(404, { code: "not_found", message: "This offer does not exist." });
+    return found;
+  };
+  const checkSchedule = (fields) => {
+    if (fields.starts_at && fields.ends_at && Date.parse(fields.ends_at) <= Date.parse(fields.starts_at)) {
+      throw new ApiFailure(422, { code: "validation_failed", message: "The last day must come after the first day.", fields: { ends_at: "must come after the first day" } });
+    }
+  };
+
   // The team: the owner, two people who accepted an invitation, one invitation waiting and
   // one that ran out. Invented people at an address that cannot exist.
   const INVITATION_DAYS = 7;
@@ -645,6 +667,51 @@ export function installDemo(state) {
       else sitePhotos.gallery = sitePhotos.gallery.filter((entry) => entry !== photo);
       log("SITE_PHOTO_REMOVED", "site_photo", photo.id, null);
       return { result: "saved", photos: sitePhotos, message: "Demo: photo removed." };
+    }
+
+    if (path === "/site/offers" && method === "GET") return { offers: offerList(), timezone: "America/Los_Angeles", limits: { offers: OFFER_LIMIT } };
+    if (path === "/site/offers" && method === "POST") {
+      if (offers.length >= OFFER_LIMIT) throw new ApiFailure(409, { code: "offers_full", message: `The website holds ${OFFER_LIMIT} offers. Remove one to add another.` });
+      checkSchedule(body);
+      const added = offer({ ...body, created_at: stamp(), updated_at: stamp() });
+      offers.push(added);
+      log("SITE_OFFER_CREATED", "site_offer", added.id, { title: added.title });
+      return { result: "saved", id: added.id, offers: offerList(), message: "Demo: offer added in this browser tab only." };
+    }
+    if (path === "/site/offers/reorder") {
+      offers = body.ids.map((id) => findOffer(id));
+      return { result: "saved", offers: offerList(), message: "Demo: order saved." };
+    }
+    if ((match = path.match(/^\/site\/offers\/([0-9a-f-]{36})\/image$/))) {
+      const found = findOffer(match[1]);
+      if (method === "DELETE") {
+        found.image = null;
+        return { result: "saved", offers: offerList(), message: "Demo: photo removed." };
+      }
+      // The chosen file is shown straight from the browser's memory. It is uploaded nowhere.
+      const small = body.get("file_small");
+      found.image = {
+        path: URL.createObjectURL(body.get("file")), small_path: small ? URL.createObjectURL(small) : null,
+        width: Number(body.get("width")), height: Number(body.get("height")), small_width: Number(body.get("small_width")) || null,
+        alt: body.has("alt") ? body.get("alt") : found.image?.alt ?? "",
+      };
+      log("SITE_OFFER_PHOTO_SET", "site_offer", found.id, null);
+      return { result: "saved", offers: offerList(), message: "Demo: photo set in this browser tab only." };
+    }
+    if ((match = path.match(/^\/site\/offers\/([0-9a-f-]{36})$/))) {
+      const found = findOffer(match[1]);
+      if (method === "DELETE") {
+        offers = offers.filter((entry) => entry !== found);
+        log("SITE_OFFER_REMOVED", "site_offer", found.id, { title: found.title });
+        return { result: "saved", offers: offerList(), message: "Demo: offer removed." };
+      }
+      const { alt, ...fields } = body;
+      checkSchedule({ starts_at: found.starts_at, ends_at: found.ends_at, ...fields });
+      Object.assign(found, fields, { updated_at: stamp() });
+      if (alt !== undefined && found.image) found.image.alt = alt;
+      log("SITE_OFFER_UPDATED", "site_offer", found.id, body);
+      const onlySwitch = Object.keys(body).length === 1 && "active" in body;
+      return { result: "saved", offers: offerList(), message: onlySwitch ? (body.active ? "Demo: offer switched on." : "Demo: offer switched off.") : "Demo: offer saved in this browser tab only." };
     }
 
     if (path === "/activity") return { entries: query.get("before") ? [] : activity.slice(0, 30) };

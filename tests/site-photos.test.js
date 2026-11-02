@@ -48,7 +48,7 @@ describe("what the website is told", () => {
   it("says nothing is set until the owner chooses a photo, so each page keeps its own", async () => {
     const response = await publicSite();
     expect(response.status).toBe(200);
-    expect(response.body).toEqual({ version: 1, photos: { hero: null, story: null, gallery: [] } });
+    expect(response.body).toEqual({ version: 1, photos: { hero: null, story: null, gallery: [] }, offers: [] });
     expect(response.headers.get("cache-control")).toBe("public, max-age=60, s-maxage=60, stale-while-revalidate=300");
     expect(response.headers.get("access-control-allow-origin")).toBe(ORIGIN);
   });

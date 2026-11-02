@@ -14,6 +14,7 @@ import { itemsView } from "./views/items.js";
 import { labelsView } from "./views/labels.js";
 import { invitationView, loginView, secondStepView, setPasswordView, welcomeView } from "./views/login.js";
 import { modifiersView } from "./views/modifiers.js";
+import { offersView } from "./views/offers.js";
 import { overviewView } from "./views/overview.js";
 import { photosView } from "./views/photos.js";
 import { securityView } from "./views/security.js";
@@ -31,6 +32,7 @@ const NAV = [
   { href: "#/modifiers", label: "Modifiers", icon: "modifiers", match: /^#\/modifiers/ },
   { href: "#/labels", label: "Labels", icon: "tag", match: /^#\/labels/ },
   { href: "#/photos", label: "Photos", icon: "image", match: /^#\/photos/, permission: "site.manage" },
+  { href: "#/offers", label: "Offers", icon: "offer", match: /^#\/offers/, permission: "site.manage" },
   { href: "#/applications", label: "Applications", icon: "applications", match: /^#\/applications/, permission: "applications.read", count: true },
   { href: "#/clover", label: "Clover", icon: "clover", match: /^#\/clover/ },
   { href: "#/activity", label: "Activity", icon: "activity", match: /^#\/activity/, permission: "activity.read" },
@@ -48,6 +50,7 @@ const ROUTES = [
   { pattern: /^#\/modifiers$/, view: modifiersView },
   { pattern: /^#\/labels$/, view: labelsView },
   { pattern: /^#\/photos$/, view: photosView },
+  { pattern: /^#\/offers$/, view: offersView },
   { pattern: /^#\/applications$/, view: applicationsView },
   { pattern: /^#\/applications\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/, view: applicationDetailView },
   { pattern: /^#\/clover$/, view: cloverView },

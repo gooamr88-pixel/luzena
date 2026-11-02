@@ -26,7 +26,7 @@
       <div class="glow absolute inset-0 -z-20" aria-hidden="true"></div>
       <div class="leaf-mark absolute top-1/2 -right-24 -z-10 size-[24rem] -translate-y-1/2 opacity-[0.08] sm:size-[30rem] lg:right-[5%] lg:size-[36rem]" aria-hidden="true"></div>
       {{/if}}
-      <div class="container-x py-14 sm:py-20">
+      <div class="container-x hero-grid py-14 sm:py-20">
         <div class="max-w-2xl">
           {{#if site.hero.eyebrow}}<p class="eyebrow max-sm:text-[0.68rem] max-sm:tracking-[0.12em]">{{site.hero.eyebrow}}</p>{{/if}}
           <h1 id="hero-title" class="h-display mt-4">{{site.hero.headline}}</h1>
@@ -37,6 +37,32 @@
             {{#if site.primaryLocation}}<a href="{{site.primaryLocation.directionsUrl}}" class="btn btn-on-photo" target="_blank" rel="noopener">{{> icon name="pin"}}Get Directions<span class="sr-only"> (opens in a new tab)</span></a>{{/if}}
           </div>
         </div>
+
+        <!-- Special offers, managed in the dashboard. Filled and shown by offers.js only when
+             there is at least one to show now; otherwise the hero is as above. -->
+        <section class="offers" aria-roledescription="carousel" aria-label="Special offers" data-offers{{#if site.primaryLocation.timezone}} data-timezone="{{site.primaryLocation.timezone}}"{{/if}} hidden>
+          <div class="offers-viewport" data-offers-viewport aria-live="off"></div>
+          <button type="button" class="offers-arrow offers-arrow-prev" data-offers-prev><span class="sr-only">Previous offer</span>{{> icon name="arrow-left"}}</button>
+          <button type="button" class="offers-arrow offers-arrow-next" data-offers-next><span class="sr-only">Next offer</span>{{> icon name="arrow-right"}}</button>
+          <div class="offers-controls">
+            <div class="offers-dots" role="group" aria-label="Choose an offer" data-offers-dots></div>
+            <button type="button" class="offers-pause" data-offers-pause>
+              {{> icon name="pause" class="offers-pause-icon"}}{{> icon name="play" class="offers-play-icon"}}<span class="sr-only" data-pause-label>Pause offers</span>
+            </button>
+          </div>
+          <template data-offer-template>
+            <article class="offer-slide" role="group" aria-roledescription="slide">
+              <img class="offer-slide-photo" alt="" sizes="(min-width: 1024px) 22rem, 62vw" decoding="async" data-photo>
+              <div class="offer-slide-body">
+                <p class="offer-badge" data-badge></p>
+                <h2 class="offer-title"><span class="offer-highlight" data-highlight></span> <span class="block" data-title></span></h2>
+                <p class="offer-text" dir="auto" data-description></p>
+                <a class="btn btn-primary btn-sm offer-cta" data-cta><span data-cta-label></span><span class="sr-only" data-cta-new-tab hidden> (opens in a new tab)</span>{{> icon name="arrow-right"}}</a>
+                <p class="offer-fine" data-fine>{{> icon name="calendar"}}<span data-fine-text></span></p>
+              </div>
+            </article>
+          </template>
+        </section>
       </div>
     </section>
 
@@ -229,6 +255,7 @@
   <script type="module" src="/src/js/main.js"></script>
   <script type="module" src="/src/js/featured.js"></script>
   <script type="module" src="/src/js/site-media.js"></script>
+  <script type="module" src="/src/js/offers.js"></script>
   {{#if site.hasGallery}}<script type="module" src="/src/js/strip.js"></script>{{/if}}
 </body>
 </html>

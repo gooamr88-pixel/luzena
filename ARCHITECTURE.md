@@ -263,6 +263,41 @@ Visitor:   page opens with the built photos -> GET /public-site -> chosen photos
   photos are still build-time only (`content/site.json`). Dish photos have always been
   changeable per item in the dashboard.
 
+### Special offers: the carousel in the home page's hero
+
+The owner announces offers ("15% OFF Family Platters") on a carousel beside the hero's
+headline, managed entirely from the dashboard (Offers, permission `site.manage`).
+
+```
+Owner:     dashboard "Offers" -> /dashboard-api/site/offers... -> site_offers + public bucket
+Visitor:   home page opens -> GET /public-site (one request, shared with the photos)
+           -> `offers`: those switched on and within their dates, in order -> carousel
+```
+
+- **Each offer** has a badge, a highlight, a title, a description, a button (words and an
+  address: a page of the site, an `https` address or `tel:`; none means no button), fine
+  print, an optional photo (two sizes, as the site photos), a place in the order, a switch,
+  and an optional first and last day. At most 12. Nothing goes to Clover and no price
+  changes: the offer is announced here and honoured at the till.
+- **Dates are days at the restaurant.** The dashboard turns a first day into midnight in
+  the restaurant's time zone (`restaurants.timezone`) and a last day into the midnight that
+  ends it, and stores both as `timestamptz`. `site_offers_for` compares them with `now()`, so
+  an offer appears and disappears within the minute `public-site` is cached for. Empty fine
+  print shows "Valid through <day>" from the last day (`src/js/lib/offers.js`, shared by
+  the page and the dashboard's preview).
+- **No offers, no carousel.** The section is `hidden` in the built HTML and only shown by
+  `src/js/offers.js` once there is an offer to show; the hero is otherwise unchanged. The
+  last answer is remembered in the browser (`luzena:site-offers:v1`), and a remembered
+  offer past its last day is dropped on that side too.
+- **Motion:** one slide at a time, cross-fading, every 7 seconds. It waits while hovered,
+  focused, off screen or in a hidden tab; it stops for good once the visitor pauses it or
+  moves it (arrows, dots, swipe, arrow keys) and from the start under reduced motion. A
+  pause button is always there (WCAG 2.2.2).
+- Routes: `GET|POST /site/offers`, `POST /site/offers/reorder`,
+  `PATCH|DELETE /site/offers/<id>`, `POST|DELETE /site/offers/<id>/image`. Files:
+  `<restaurant>/offers/<hash>[-small].<ext>`, removed when no offer uses them. Migration
+  `20261102001700_site_offers.sql`, with its way back in `supabase/rollback/`.
+
 ### Menu labels and the allergy notice
 
 What a restaurant says about its dishes, and its allergy notice, are its own: kept per
@@ -312,7 +347,7 @@ table (`src/dashboard/roles.js`); a test fails if the two differ.
 |---|---|---|---|---|
 | See the menu | `menu.read` | yes | yes | yes |
 | Change items, categories, modifiers, labels | `menu.write` | yes | yes | no |
-| Change the website's photos and the allergy notice | `site.manage` | yes | yes | no |
+| Change the website's photos, special offers and the allergy notice | `site.manage` | yes | yes | no |
 | Sync the menu from Clover | `clover.sync` | yes | yes | no |
 | Connect or disconnect Clover | `clover.manage` | yes | no | no |
 | Read job applications | `applications.read` | yes | yes | no |

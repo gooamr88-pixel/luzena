@@ -25,6 +25,9 @@ import { retryApplicantMessage, sendApplicantMessage } from "./messages.ts";
 import {
   authenticate, authenticateAccount, cloverApiError, hasPermission, type Permission, permissionsOf, rateLimit, requirePermission,
 } from "./session.ts";
+import {
+  createOffer, listOffers, removeOffer, removeOfferImage, reorderOffers, updateOffer, uploadOfferImage,
+} from "./site-offers.ts";
 import { describeSitePhoto, listSitePhotos, removeSitePhoto, reorderGallery, uploadSitePhoto } from "./site-photos.ts";
 import {
   acceptInvitation, cancelInvitation, changeMemberRole, inviteMember, listTeam, myInvitations, removeMember, resendInvitation,
@@ -198,6 +201,22 @@ const ROUTES: Route[] = [
     handle: async (c) => describeSitePhoto(c.deps, c.session, c.params[0], await body(c)) },
   { method: "DELETE", pattern: new RegExp(`^/site/photos/${UUID}$`), permission: "site.manage", limit: WRITE,
     handle: ({ deps, session, params }) => removeSitePhoto(deps, session, params[0]) },
+
+  // Special offers: the carousel on the home page.
+  { method: "GET", pattern: /^\/site\/offers$/, permission: "site.manage", limit: READ,
+    handle: ({ deps, session }) => listOffers(deps, session) },
+  { method: "POST", pattern: /^\/site\/offers$/, permission: "site.manage", limit: WRITE,
+    handle: async (c) => createOffer(c.deps, c.session, await body(c)) },
+  { method: "POST", pattern: /^\/site\/offers\/reorder$/, permission: "site.manage", limit: WRITE,
+    handle: async (c) => reorderOffers(c.deps, c.session, await body(c)) },
+  { method: "PATCH", pattern: new RegExp(`^/site/offers/${UUID}$`), permission: "site.manage", limit: WRITE,
+    handle: async (c) => updateOffer(c.deps, c.session, c.params[0], await body(c)) },
+  { method: "DELETE", pattern: new RegExp(`^/site/offers/${UUID}$`), permission: "site.manage", limit: WRITE,
+    handle: ({ deps, session, params }) => removeOffer(deps, session, params[0]) },
+  { method: "POST", pattern: new RegExp(`^/site/offers/${UUID}/image$`), permission: "site.manage", limit: ["upload", 60, 600],
+    handle: ({ deps, session, params, request }) => uploadOfferImage(deps, session, params[0], request) },
+  { method: "DELETE", pattern: new RegExp(`^/site/offers/${UUID}/image$`), permission: "site.manage", limit: WRITE,
+    handle: ({ deps, session, params }) => removeOfferImage(deps, session, params[0]) },
 
   { method: "GET", pattern: /^\/applications$/, permission: "applications.read", limit: READ,
     handle: ({ deps, session, url }) => listApplications(deps, session, url) },

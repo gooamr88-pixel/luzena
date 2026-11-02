@@ -311,6 +311,165 @@
     @apply relative isolate -mt-(--header-h) flex min-h-[min(46rem,100svh)] items-center overflow-hidden bg-night pt-(--header-h);
   }
 
+  /* With special offers, the hero is two columns on a wide screen: the words, and the offers
+     card beside them. On a phone the card comes after the buttons. */
+  .hero-grid {
+    @apply grid items-center gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,33rem)] lg:gap-12 xl:grid-cols-[minmax(0,1fr)_minmax(0,35rem)];
+  }
+
+  /* SPECIAL OFFERS. A dark green card in the hero, one offer at a time: the words on the
+     left, the photo fading in from the right, arrows on its edges, dots below. The slides
+     lie on top of each other in one grid cell, so the card is as tall as its tallest slide
+     and never jumps as they change. */
+  .offers {
+    @apply relative;
+  }
+
+  .offers-viewport {
+    @apply grid;
+    touch-action: pan-y;
+  }
+
+  .offer-slide {
+    @apply relative isolate flex min-h-[19rem] overflow-hidden rounded-2xl border border-gold/30 bg-forest text-white shadow-[0_30px_60px_-24px_rgb(0_0_0/0.7)] sm:min-h-[21rem] lg:min-h-[23rem];
+    grid-area: 1 / 1;
+    background-image:
+      radial-gradient(28rem 18rem at 0% 100%, rgb(201 160 99 / 0.12), transparent 70%),
+      linear-gradient(135deg, var(--color-forest-light), var(--color-forest) 55%);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.7s ease, visibility 0s linear 0.7s;
+  }
+
+  /* The slide coming in is visible at once and fades up; the one going out fades and only
+     then is hidden. */
+  .offer-slide[data-active] {
+    opacity: 1;
+    visibility: visible;
+    transition: opacity 0.7s ease;
+  }
+
+  /* A slide without a photo: the restaurant's leaf as a watermark where the photo would be. */
+  .offer-slide-plain::after {
+    @apply absolute -right-14 -bottom-16 -z-10 size-72 opacity-[0.09];
+    content: "";
+    background-color: var(--color-gold);
+    mask: url("/leaf.svg") center / contain no-repeat;
+  }
+
+  .offer-slide-photo {
+    @apply absolute inset-y-0 right-0 -z-10 h-full w-[60%] object-cover sm:w-[58%];
+    mask-image: linear-gradient(to right, transparent, #000 42%);
+  }
+
+  .offer-slide-body {
+    @apply flex max-w-[68%] flex-col items-start justify-center py-7 pr-2 pl-7 sm:max-w-[62%] sm:py-8 sm:pl-9 lg:pl-10;
+  }
+
+  .offer-badge {
+    @apply mb-3 rounded-full bg-[#a8322a] px-3 py-1 text-[0.62rem] leading-tight font-semibold tracking-[0.16em] text-white uppercase shadow-sm sm:text-[0.66rem];
+  }
+
+  .offer-title {
+    @apply text-[clamp(1.6rem,6.4vw,2.25rem)] leading-[1.08] text-white lg:text-[2.3rem] xl:text-[2.55rem];
+  }
+
+  .offer-highlight {
+    @apply block text-gold-light;
+  }
+
+  .offer-text {
+    @apply mt-3 line-clamp-4 text-[0.86rem] leading-snug text-white/85 sm:text-[0.92rem];
+  }
+
+  .offer-cta {
+    @apply mt-5 min-h-10;
+  }
+
+  .offer-fine {
+    @apply mt-4 flex items-center gap-2 text-[0.74rem] text-white/75;
+  }
+
+  .offer-fine svg {
+    @apply size-4 shrink-0 text-gold;
+  }
+
+  /* The arrows sit on the card's edges, half outside it, in the page's gutter. */
+  .offers-arrow {
+    @apply absolute top-[calc(50%-1.5rem)] z-10 inline-flex size-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/35 bg-night/70 text-white shadow-lg backdrop-blur-sm transition-colors hover:border-gold hover:bg-gold hover:text-night;
+  }
+
+  .offers-arrow svg {
+    @apply size-[1.1rem];
+  }
+
+  .offers-arrow-prev {
+    @apply -left-4 sm:-left-5;
+  }
+
+  .offers-arrow-next {
+    @apply -right-4 sm:-right-5;
+  }
+
+  .offers-controls {
+    @apply mt-4 flex items-center justify-center gap-3;
+  }
+
+  .offers-dots {
+    @apply flex items-center;
+  }
+
+  /* Each dot is a 24px target around a small mark. The current one is a bar that fills up
+     while the carousel moves by itself, and stops filling while it waits. */
+  .offers-dot {
+    @apply relative inline-flex h-6 w-6 items-center justify-center transition-[width] duration-300;
+  }
+
+  .offers-dot::before {
+    @apply block h-1.5 w-1.5 rounded-full bg-white/40 transition-[width,background-color] duration-300;
+    content: "";
+  }
+
+  .offers-dot:hover::before {
+    @apply bg-white/80;
+  }
+
+  .offers-dot[aria-current] {
+    @apply w-10;
+  }
+
+  .offers-dot[aria-current]::before {
+    @apply w-7 bg-white/30;
+  }
+
+  .offers-dot[aria-current]::after {
+    @apply absolute top-1/2 left-1.5 h-1.5 w-7 origin-left rounded-full bg-gold;
+    content: "";
+    transform: translateY(-50%);
+  }
+
+  .offers-pause {
+    @apply inline-flex size-8 items-center justify-center rounded-full border border-white/25 text-white/85 transition-colors hover:border-white hover:text-white;
+  }
+
+  .offers-pause svg {
+    @apply size-3.5;
+  }
+
+  .offers .offers-play-icon,
+  .offers[data-stopped] .offers-pause-icon {
+    @apply hidden;
+  }
+
+  .offers[data-stopped] .offers-play-icon {
+    @apply block;
+  }
+
+  /* One offer: nothing to move between. */
+  .offers[data-single] :is(.offers-arrow, .offers-controls) {
+    @apply hidden;
+  }
+
   /* Photos the owner can change in the dashboard (the hero, "our story", the gallery and the
      home page's row of photos). The page learns which photo belongs there a moment after it
      opens, so each is held back, its space kept, until site-media.js has put the right one
@@ -834,6 +993,42 @@
     :is(.hero, .page-hero) :is(.btn, .arrow-link) { animation-delay: 230ms; }
     :is(.hero, .page-hero, .form-head) ul { animation-delay: 300ms; }
 
+    /* SPECIAL OFFERS. The card settles in when it first appears. On each slide the photo
+       eases back and the words arrive one after another, from the side the visitor moved
+       towards. The current dot fills over the carousel's interval (offers.js, 7 seconds). */
+    .offers:not([hidden]) {
+      animation: settle-in 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
+    }
+
+    .offer-slide[data-active] .offer-slide-photo {
+      animation: offer-photo 7.5s cubic-bezier(0.2, 0.6, 0.2, 1) backwards;
+    }
+
+    .offer-slide[data-active] .offer-slide-body > * {
+      animation: offer-in 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
+    }
+
+    [data-direction="previous"] > .offer-slide[data-active] .offer-slide-body > * {
+      animation-name: offer-in-back;
+    }
+
+    .offer-slide[data-active] .offer-slide-body > :nth-child(2) { animation-delay: 80ms; }
+    .offer-slide[data-active] .offer-slide-body > :nth-child(3) { animation-delay: 160ms; }
+    .offer-slide[data-active] .offer-slide-body > :nth-child(4) { animation-delay: 240ms; }
+    .offer-slide[data-active] .offer-slide-body > :nth-child(5) { animation-delay: 320ms; }
+
+    .offers-dot[aria-current]::after {
+      animation: offer-progress 7s linear forwards paused;
+    }
+
+    .offers[data-playing] .offers-dot[aria-current]::after {
+      animation-play-state: running;
+    }
+
+    .offers[data-stopped] .offers-dot[aria-current]::after {
+      animation: none;
+    }
+
     /* The photo beside the words of a page header (Order Online). */
     .page-hero .media {
       animation: settle-in 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) 120ms backwards;
@@ -976,6 +1171,23 @@
       opacity: 0;
       transform: scale(0.97);
     }
+  }
+
+  @keyframes offer-photo {
+    from { transform: scale(1.08); }
+  }
+
+  @keyframes offer-in {
+    from { opacity: 0; transform: translateX(1.25rem); }
+  }
+
+  @keyframes offer-in-back {
+    from { opacity: 0; transform: translateX(-1.25rem); }
+  }
+
+  @keyframes offer-progress {
+    from { transform: translateY(-50%) scaleX(0); }
+    to { transform: translateY(-50%) scaleX(1); }
   }
 
   @keyframes hero-zoom {

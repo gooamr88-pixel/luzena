@@ -1,9 +1,44 @@
 {
-  "_readme": "SAMPLE fixture in the exact shape the public-site function returns: the photos an owner has chosen in the dashboard. Nothing is chosen here, so the sample pages keep the photos they were built with. Used only by the sample profile. Never part of a production build.",
+  "_readme": "SAMPLE fixture in the exact shape the public-site function returns: the photos an owner has chosen in the dashboard, and the special offers the home page's carousel shows. No photo is chosen here, so the sample pages keep the photos they were built with. The offers are invented, to review the carousel; their photos are sample photos. Used only by the sample profile. Never part of a production build.",
   "version": 1,
   "photos": {
     "hero": null,
     "story": null,
     "gallery": []
-  }
+  },
+  "offers": [
+    {
+      "badge": "This week at Luzena",
+      "highlight": "15% OFF",
+      "title": "Family Platters",
+      "description": "Gather around great food. Enjoy 15% off our family platters, perfect for sharing.",
+      "cta": { "label": "View Offer", "href": "/menu/" },
+      "fine_print": "Valid through Sunday",
+      "starts_at": null,
+      "ends_at": null,
+      "image": { "src": "/media/gallery-2-800.jpg", "srcset": null, "width": 800, "height": 533, "alt": "Sample photo: a shared platter" }
+    },
+    {
+      "badge": "Every morning",
+      "highlight": "Breakfast Combo",
+      "title": "Eggs, Bread & Coffee",
+      "description": "Start the day right: any breakfast plate with a specialty coffee, 8 AM to noon.",
+      "cta": { "label": "See Breakfast", "href": "/menu/" },
+      "fine_print": "Daily, 8 AM to 12 PM",
+      "starts_at": null,
+      "ends_at": null,
+      "image": { "src": "/media/gallery-1-800.jpg", "srcset": null, "width": 800, "height": 533, "alt": "Sample photo: a breakfast plate" }
+    },
+    {
+      "badge": "New on the menu",
+      "highlight": "",
+      "title": "Luzena Kibbeh",
+      "description": "Our new house kibbeh, made fresh to order. Ask for it at the counter.",
+      "cta": { "label": "Order Online", "href": "/order/" },
+      "fine_print": "",
+      "starts_at": null,
+      "ends_at": null,
+      "image": null
+    }
+  ]
 }

@@ -12,6 +12,7 @@ const BEFORE = "20261008001300_menu_labels_and_notice.sql";
 const TEAM = "20261013001400_team_access_and_application_export";
 const MESSAGES = "20261014001500_applicant_messages_and_monthly_reports";
 const OWNERS = "20261014001600_owners_can_appoint_owners";
+const OFFERS = "20261102001700_site_offers";
 const ROLES = "(values ('anon'), ('authenticated'), ('service_role')) r(rolname)";
 
 // Everything about the schema that a migration can change, in a form two databases can be
@@ -37,7 +38,7 @@ async function snapshot(pg) {
   };
 }
 
-let before, afterTeam, afterMessages, full, pg, alpha, owner, handMade, invited, coOwner, application;
+let before, afterTeam, afterMessages, afterOwners, full, pg, alpha, owner, handMade, invited, coOwner, application;
 const count = async (sql, values = []) => Number((await pg.query(`select count(*) as n from ${sql}`, values)).rows[0].n);
 
 // The schema of a database migrated up to `upTo`. The database is closed straight after:
@@ -55,6 +56,7 @@ beforeAll(async () => {
   before = await schemaUpTo(BEFORE);
   afterTeam = await schemaUpTo(`${TEAM}.sql`);
   afterMessages = await schemaUpTo(`${MESSAGES}.sql`);
+  afterOwners = await schemaUpTo(`${OWNERS}.sql`);
   ({ pg } = await createTestDb());
   full = await snapshot(pg);
 
@@ -93,10 +95,12 @@ describe("the migrations themselves", () => {
     const tables = (shot) => shot.rowSecurity.map((row) => row.relname);
     expect(tables(afterTeam).filter((name) => !tables(before).includes(name))).toEqual(["team_invitations"]);
     expect(tables(afterMessages).filter((name) => !tables(afterTeam).includes(name))).toEqual(["job_application_messages", "monthly_reports"]);
-    expect(tables(full)).toEqual(tables(afterMessages));
+    expect(tables(afterOwners)).toEqual(tables(afterMessages));
+    expect(tables(full).filter((name) => !tables(afterOwners).includes(name))).toEqual(["site_offers"]);
     expect(afterMessages.functions.length - afterTeam.functions.length).toBe(12);
     expect(afterTeam.functions.length - before.functions.length).toBe(17);
-    expect(full.functions.length - afterMessages.functions.length).toBe(1);
+    expect(afterOwners.functions.length - afterMessages.functions.length).toBe(1);
+    expect(full.functions.length - afterOwners.functions.length).toBe(9);
     // Closed, as every table and function before them.
     expect(full.policies).toEqual([]);
     expect(full.rowSecurity.every((row) => row.relrowsecurity)).toBe(true);
@@ -104,6 +108,14 @@ describe("the migrations themselves", () => {
     expect(full.functionRights.filter((row) => row.rolname !== "service_role" && row.runs)).toEqual([]);
     expect(full.functionRights.filter((row) => row.rolname === "service_role" && !row.runs)).toEqual([]);
     expect(full.functions.filter((row) => row.prosecdef)).toEqual([]);
+  });
+});
+
+describe("taking back special offers", () => {
+  it("leaves the database exactly as the migration before it left it, offers and all gone", async () => {
+    await pg.query("insert into public.site_offers (restaurant_id, title) values ($1, 'Family platters')", [alpha]);
+    await pg.exec(read(`rollback/${OFFERS}.down.sql`));
+    expect(await snapshot(pg)).toEqual(afterOwners);
   });
 });
 
@@ -179,6 +191,8 @@ describe("going forward again", () => {
     await pg.exec(read(`migrations/${MESSAGES}.sql`));
     expect(await snapshot(pg)).toEqual(afterMessages);
     await pg.exec(read(`migrations/${OWNERS}.sql`));
+    expect(await snapshot(pg)).toEqual(afterOwners);
+    await pg.exec(read(`migrations/${OFFERS}.sql`));
     expect(await snapshot(pg)).toEqual(full);
     // The owner is still the owner, and has an address again from the accounts table.
     const { rows } = await pg.query("select role, email from public.restaurant_users where user_id = $1", [owner.id]);

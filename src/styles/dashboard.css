@@ -460,4 +460,26 @@
      focus ring is drawn on the tile. */
   .d-icon-choices { @apply flex flex-wrap gap-2; }
   .d-icon-choice { @apply flex size-11 cursor-pointer items-center justify-center rounded-lg border border-line-strong bg-surface text-muted transition-colors hover:border-brand hover:text-brand has-[:checked]:border-brand has-[:checked]:bg-[#fbf5ea] has-[:checked]:text-brand has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-focus; }
+
+  /* Special offers. A row per offer: its photo, what it says, and its controls; the controls
+     drop below on a phone. An offer not on the website right now is drawn quieter. */
+  .d-offer-row { @apply flex flex-wrap items-start gap-4 p-3 sm:flex-nowrap sm:items-center sm:p-4; }
+  .d-offer-row-quiet .d-offer-thumb { @apply opacity-60 grayscale; }
+  .d-offer-thumb { @apply relative flex aspect-[4/3] w-28 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-forest sm:w-36; }
+  .d-offer-thumb > img { @apply size-full object-cover; }
+  .d-offer-number { @apply absolute top-1.5 left-1.5 rounded-full bg-night/80 px-2 py-0.5 text-[0.72rem] font-semibold text-white; }
+  .d-offer-actions { @apply flex w-full flex-wrap items-center justify-between gap-3 border-t border-line pt-3 sm:w-auto sm:flex-col sm:items-end sm:border-0 sm:pt-0; }
+  .d-dialog-wide { @apply max-w-5xl; }
+
+  /* The preview of a slide in the offer's form: the home page's slide (main.css, .offer-slide)
+     drawn at the size of the form's column. Dark green, the photo fading in from the right. */
+  .d-offer-preview { @apply relative isolate flex min-h-[19rem] overflow-hidden rounded-2xl border border-gold/30 bg-forest text-white shadow-lg; }
+  .d-offer-preview-photo { @apply absolute inset-y-0 right-0 -z-10 h-full w-[62%] object-cover; mask-image: linear-gradient(to right, transparent, #000 45%); }
+  .d-offer-preview-body { @apply flex max-w-[64%] flex-col items-start justify-center gap-2 p-5; }
+  .d-offer-preview-badge { @apply rounded-full bg-[#b3362b] px-2.5 py-1 text-[0.6rem] font-semibold tracking-[0.16em] text-white uppercase; }
+  .d-offer-preview-title { @apply font-display text-[1.6rem] leading-[1.08] text-white; }
+  .d-offer-preview-title > span:first-child:not(:last-child) { @apply text-gold-light; }
+  .d-offer-preview-text { @apply line-clamp-4 text-[0.78rem] leading-snug text-white/80; }
+  .d-offer-preview-cta { @apply mt-1 inline-flex items-center gap-1.5 rounded-md bg-gold px-3 py-1.5 text-xs font-semibold text-night; }
+  .d-offer-preview-fine { @apply mt-1 inline-flex items-center gap-1.5 text-[0.68rem] text-white/70; }
 }

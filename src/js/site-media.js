@@ -12,7 +12,8 @@
 // never runs, the stylesheet shows the built photos by itself after two seconds; if it runs
 // but the answer is late, never comes or a photo will not load, each photo is shown anyway
 // after WAIT_LIMIT_MS, so nothing is left blank.
-const { siteUrl = "" } = document.documentElement.dataset;
+import { siteData } from "./lib/site-data.js";
+
 const WAIT_LIMIT_MS = 5000;
 // What the server said last time, kept in this browser. Only public photo addresses.
 const REMEMBERED = "luzena:site-photos:v1";
@@ -52,10 +53,7 @@ function remember(photos) {
 }
 
 async function chosenPhotos() {
-  if (!siteUrl) return null;
-  const response = await fetch(siteUrl, { headers: { accept: "application/json" }, signal: AbortSignal.timeout(4000) });
-  if (!response.ok) return null;
-  const body = await response.json();
+  const body = await siteData();
   return body && typeof body.photos === "object" ? body.photos : null;
 }
 

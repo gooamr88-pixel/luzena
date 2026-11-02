@@ -14,6 +14,8 @@ const LABELS = {
   APPLICATION_DELETED: "Job application deleted", APPLICATION_MESSAGE_SENT: "Message written to an applicant",
   MONTHLY_REPORT_SENT: "Monthly report emailed", MONTHLY_REPORT_FAILED: "Monthly report could not be emailed",
   SITE_PHOTO_SET: "Website photo changed", SITE_PHOTO_REMOVED: "Website photo removed",
+  SITE_OFFER_CREATED: "Special offer added", SITE_OFFER_UPDATED: "Special offer changed", SITE_OFFER_REMOVED: "Special offer removed",
+  SITE_OFFER_PHOTO_SET: "Special offer photo changed", SITE_OFFER_PHOTO_REMOVED: "Special offer photo removed",
   CATEGORY_IMAGE_UPDATED: "Category photo changed", CATEGORY_IMAGE_REMOVED: "Category photo removed",
   LABEL_CREATED: "Menu label added", LABEL_UPDATED: "Menu label changed", LABEL_DELETED: "Menu label deleted",
   ALLERGY_NOTICE_UPDATED: "Allergy notice changed",

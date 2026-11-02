@@ -159,6 +159,132 @@ describe("home page with a menu and photos", () => {
   });
 });
 
+describe("special offers carousel", () => {
+  const offer = (title, fields = {}) => ({
+    badge: "This week at Luzena", highlight: "", title, description: `${title}, described.`, cta: { label: "View Offer", href: "/menu/" },
+    fine_print: "", starts_at: null, ends_at: null, image: null, ...fields,
+  });
+  const answerWith = (offers) => (context) => context.route("**/sample-api/site.json", (route) =>
+    route.fulfill({ contentType: "application/json", body: JSON.stringify({ version: 1, photos: { hero: null, story: null, gallery: [] }, offers }) }));
+  // The title of the slide on show, once it is (a slide comes in over a frame or so).
+  const active = async (page) => {
+    const title = page.locator(".offer-slide[data-active] [data-title]");
+    await title.waitFor({ state: "visible" });
+    return title.innerText();
+  };
+
+  it("shows the sample offers in the hero, one at a time, and passes the accessibility scan at every width", async () => {
+    const { page, context, problems } = await openPage(browser, `${site.url}/`);
+    await page.waitForSelector("[data-offers]:not([hidden])");
+    expect(await page.locator(".offer-slide").count()).toBe(3);
+    expect(await active(page)).toBe("Family Platters");
+    const first = page.locator(".offer-slide").first();
+    expect(await first.locator(".offer-highlight").innerText()).toBe("15% OFF");
+    expect(await first.locator("[data-cta]").getAttribute("href")).toBe("/menu/");
+    expect(await first.locator("img").getAttribute("alt")).toBe("Sample photo: a shared platter");
+    expect(await first.locator("img").evaluate((image) => image.complete && image.naturalWidth > 0)).toBe(true);
+    // The slides not shown are out of reach of the keyboard and of a screen reader.
+    expect(await page.locator(".offer-slide[inert][aria-hidden='true']").count()).toBe(2);
+    // An offer with no highlight and no photo leaves both out.
+    const third = page.locator(".offer-slide").nth(2);
+    expect(await third.locator(".offer-highlight").count()).toBe(0);
+    expect(await third.locator("img").count()).toBe(0);
+    expect(await third.getAttribute("class")).toContain("offer-slide-plain");
+    // Reduced motion: it starts still, with the play button offered.
+    expect(await page.locator("[data-offers][data-stopped]").count()).toBe(1);
+    expect(await page.locator("[data-pause-label]").innerText()).toBe("Play offers");
+
+    const violations = await accessibilityViolations(page);
+    expect(violations, describeViolations(violations)).toEqual([]);
+    for (const width of VIEWPORT_WIDTHS) {
+      await page.setViewportSize({ width, height: 900 });
+      expect(await hasHorizontalOverflow(page), `overflow at ${width}px`).toBe(false);
+      // The words never run under the photo's arrows: the card holds them.
+      const fits = await page.locator(".offer-slide[data-active] .offer-slide-body").evaluate((body) => body.scrollWidth <= body.clientWidth + 1);
+      expect(fits, `words fit at ${width}px`).toBe(true);
+    }
+    expect(problems).toEqual([]);
+    await context.close();
+  });
+
+  it("moves with the arrows, the dots and the arrow keys, and reads the new slide out once still", async () => {
+    const { page, context } = await openPage(browser, `${site.url}/`);
+    await page.waitForSelector("[data-offers]:not([hidden])");
+    await page.getByRole("button", { name: "Next offer" }).click();
+    expect(await active(page)).toBe("Eggs, Bread & Coffee");
+    expect(await page.locator("[data-offers-viewport]").getAttribute("aria-live")).toBe("polite");
+    await page.keyboard.press("ArrowRight");
+    expect(await active(page)).toBe("Luzena Kibbeh");
+    await page.keyboard.press("ArrowRight");
+    expect(await active(page)).toBe("Family Platters");
+    await page.getByRole("button", { name: "Previous offer" }).click();
+    expect(await active(page)).toBe("Luzena Kibbeh");
+    await page.getByRole("button", { name: "Show offer 2 of 3" }).click();
+    expect(await active(page)).toBe("Eggs, Bread & Coffee");
+    expect(await page.getByRole("button", { name: "Show offer 2 of 3" }).getAttribute("aria-current")).toBe("true");
+    await context.close();
+  });
+
+  it("moves on by itself, waits while pointed at, and stops when paused", async () => {
+    const { page, context } = await openPage(browser, `${site.url}/`, { motion: true, prepare: (ctx) => ctx.clock.install() });
+    await page.clock.runFor(2000);
+    await page.waitForSelector("[data-offers][data-playing]");
+    expect(await page.locator("[data-pause-label]").innerText()).toBe("Pause offers");
+    expect(await active(page)).toBe("Family Platters");
+    await page.clock.runFor(7200);
+    expect(await active(page)).toBe("Eggs, Bread & Coffee");
+    // Pointed at: it waits, and goes on once the pointer leaves.
+    await page.locator(".offer-slide[data-active]").hover();
+    await page.clock.runFor(15_000);
+    expect(await active(page)).toBe("Eggs, Bread & Coffee");
+    await page.mouse.move(5, 5);
+    await page.clock.runFor(7200);
+    expect(await active(page)).toBe("Luzena Kibbeh");
+    // Paused: it stays, whatever the time.
+    await page.getByRole("button", { name: "Pause offers" }).click();
+    await page.mouse.move(5, 5);
+    await page.clock.runFor(30_000);
+    expect(await active(page)).toBe("Luzena Kibbeh");
+    expect(await page.locator("[data-pause-label]").innerText()).toBe("Play offers");
+    await context.close();
+  });
+
+  it("is not on the page without an offer to show, and shows only those still within their dates", async () => {
+    const empty = await openPage(browser, `${site.url}/`, { prepare: answerWith([]) });
+    await empty.page.waitForTimeout(500);
+    expect(await empty.page.locator("[data-offers]").isHidden()).toBe(true);
+    await empty.context.close();
+
+    const ended = new Date(Date.now() - 3_600_000).toISOString();
+    const soon = new Date(Date.now() + 3_600_000).toISOString();
+    const { page, context } = await openPage(browser, `${site.url}/`, {
+      prepare: answerWith([offer("Yesterday's deal", { ends_at: ended }), offer("Tonight only", { ends_at: soon })]),
+    });
+    await page.waitForSelector("[data-offers]:not([hidden])");
+    expect(await page.locator(".offer-slide").count()).toBe(1);
+    expect(await active(page)).toBe("Tonight only");
+    // One offer: nothing to move between.
+    expect(await page.locator(".offers-arrow").first().isHidden()).toBe(true);
+    expect(await page.locator(".offer-slide [data-fine-text]").innerText()).toMatch(/^Valid through [A-Z][a-z]+day$/);
+    await context.close();
+  });
+
+  it("shows the owner's words as words, never as markup, and marks a button that leaves the site", async () => {
+    const { page, context, problems } = await openPage(browser, `${site.url}/`, {
+      prepare: answerWith([offer('<img src=x onerror="window.hacked=1">', { cta: { label: "Order", href: "https://order.example.com/" } })]),
+    });
+    await page.waitForSelector("[data-offers]:not([hidden])");
+    expect(await active(page)).toBe('<img src=x onerror="window.hacked=1">');
+    expect(await page.evaluate(() => window.hacked)).toBeUndefined();
+    const cta = page.locator(".offer-slide [data-cta]");
+    expect(await cta.getAttribute("target")).toBe("_blank");
+    expect(await cta.innerText()).toContain("Order");
+    expect(await cta.locator("[data-cta-new-tab]").isHidden()).toBe(false);
+    expect(problems).toEqual([]);
+    await context.close();
+  });
+});
+
 describe("gallery viewer", () => {
   it("opens, moves with the arrow keys, closes with Escape and returns focus to the photo", async () => {
     const { page, context, problems } = await openPage(browser, `${site.url}/gallery/`);

@@ -21,7 +21,7 @@ export const ROLE_SUMMARIES = {
 export const CAPABILITIES = [
   { permission: "menu.read", label: "See the menu in the dashboard" },
   { permission: "menu.write", label: "Change items, categories, modifiers and labels" },
-  { permission: "site.manage", label: "Change the website's photos and the allergy notice" },
+  { permission: "site.manage", label: "Change the website's photos, special offers and the allergy notice" },
   { permission: "clover.sync", label: "Sync the menu from Clover" },
   { permission: "clover.manage", label: "Connect or disconnect Clover" },
   { permission: "applications.read", label: "Read job applications" },

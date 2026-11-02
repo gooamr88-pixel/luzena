@@ -4,11 +4,15 @@
 // the home page's hero photo, the "our story" photo, the gallery. A slot nobody has set is
 // null (the gallery: an empty list), and the page keeps the photo it was built with.
 //
+// And the special offers the home page's carousel shows right now: those switched on and
+// within their dates, in the owner's order. None: an empty list, and no carousel.
+//
 // Unlike the menu, this answers whether or not Clover has ever been connected: the photos
 // are the website's own.
 import { sha256Hex } from "../crypto.ts";
 import { clientIp, corsHeaders, json, preflight } from "../http.ts";
 import { errorFields } from "../log.ts";
+import type { StoredOffer } from "../dashboard/site-offers.ts";
 import type { Deps } from "../types.ts";
 import { upkeep } from "./retention.ts";
 
@@ -56,6 +60,22 @@ export function photosForBrowser(photos: StoredPhotos, storagePublicBase: string
   return { hero: one(photos.hero), story: one(photos.story), gallery: photos.gallery.map((photo) => one(photo)) };
 }
 
+// An offer as the home page needs it. Its dates go with it, so that a page showing what it
+// remembered from an earlier visit can still leave out an offer that has ended since.
+export function offersForBrowser(offers: StoredOffer[], storagePublicBase: string) {
+  return offers.map((offer) => ({
+    badge: offer.badge,
+    highlight: offer.highlight,
+    title: offer.title,
+    description: offer.description,
+    cta: offer.cta_url ? { label: offer.cta_label || "View Offer", href: offer.cta_url } : null,
+    fine_print: offer.fine_print,
+    starts_at: offer.starts_at,
+    ends_at: offer.ends_at,
+    image: offer.image ? photoForBrowser(offer.image, storagePublicBase, offer.title) : null,
+  }));
+}
+
 export async function handlePublicSite(request: Request, deps: Deps, storagePublicBase: string): Promise<Response> {
   const cors = corsHeaders(request, deps.env, "GET, OPTIONS");
   if (request.method === "OPTIONS") return preflight(request, deps.env, "GET, OPTIONS");
@@ -78,14 +98,21 @@ export async function handlePublicSite(request: Request, deps: Deps, storagePubl
     const restaurant = await deps.db.rpc<{ id: string; name: string } | null>("restaurant_public", { p_slug: slug });
     if (!restaurant) return fail(404, "not_found");
 
-    const photos = await deps.db.rpc<StoredPhotos>("site_photos_for", { p_restaurant: restaurant.id, p_with_id: false });
+    const [photos, offers] = await Promise.all([
+      deps.db.rpc<StoredPhotos>("site_photos_for", { p_restaurant: restaurant.id, p_with_id: false }),
+      deps.db.rpc<StoredOffer[]>("site_offers_for", { p_restaurant: restaurant.id, p_all: false }),
+    ]);
     // The home page asks this of every visitor, which makes it the steadiest place to hang
     // the hourly chores. After the answer; it cannot fail the request.
     deps.waitUntil(upkeep(deps));
-    return json(200, { version: 1, photos: photosForBrowser(photos, storagePublicBase, restaurant.name) }, {
+    return json(200, {
+      version: 1,
+      photos: photosForBrowser(photos, storagePublicBase, restaurant.name),
+      offers: offersForBrowser(offers, storagePublicBase),
+    }, {
       ...cors,
-      // Reused for a minute, so a photo changed in the dashboard is on the website within
-      // about a minute.
+      // Reused for a minute, so a photo or an offer changed in the dashboard is on the
+      // website within about a minute, and an offer comes and goes within a minute of its dates.
       "cache-control": "public, max-age=60, s-maxage=60, stale-while-revalidate=300",
     });
   } catch (error) {
